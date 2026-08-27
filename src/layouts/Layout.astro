@@ -4,12 +4,31 @@ import '../styles/global.css';
 interface Props {
   title: string;
   description?: string;
+  /** OGPの type。記事系ページ（店舗詳細・ニュース詳細・歴史コラム）は "article"、それ以外は "website"。 */
+  ogType?: 'website' | 'article';
+  /** サイトルート相対パス、または絶対URL。省略時はブランドのOGPデフォルト画像。 */
+  ogImage?: string;
+  /** ogType="article" のときのみ使用（記事の公開日時）。 */
+  publishedTime?: Date;
 }
+
+const SITE_NAME = '本寺小路ガイド | 三条の、夜のはじまり。';
+const DEFAULT_DESCRIPTION =
+  '新潟県三条市の歓楽街「本寺小路」の飲食店・店舗ガイド。居酒屋、焼肉、ラーメン、BAR、スナックなど、夜の一軒を見つけよう。';
 
 const {
   title,
-  description = '新潟県三条市の歓楽街「本寺小路」の飲食店・店舗ガイド。居酒屋、焼肉、ラーメン、BAR、スナックなど、夜の一軒を見つけよう。',
+  description = DEFAULT_DESCRIPTION,
+  ogType = 'website',
+  ogImage = '/images/ogp-default.png',
+  publishedTime,
 } = Astro.props;
+
+// Astro.site（astro.config.mjs の site）を基準に絶対URLを組み立てる。
+// site が未設定の場合はビルド/プレビュー時点の Astro.url をフォールバックにする。
+const siteOrigin = Astro.site ?? Astro.url;
+const canonicalUrl = new URL(Astro.url.pathname, siteOrigin).toString();
+const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
 ---
 
 <!doctype html>
@@ -17,10 +36,34 @@ const {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
     <title>{title}</title>
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={absoluteOgImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:locale" content="ja_JP" />
+    {
+      ogType === 'article' && publishedTime && (
+        <meta property="article:published_time" content={publishedTime.toISOString()} />
+      )
+    }
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={absoluteOgImage} />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

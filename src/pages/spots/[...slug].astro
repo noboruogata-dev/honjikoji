@@ -16,12 +16,17 @@ export async function getStaticPaths() {
 }
 
 const { spot } = Astro.props;
-const { title, genre, address, budget, openHours, regularHoliday, vibes, isNew, description, mapQuery } =
+const { title, genre, address, budget, openHours, regularHoliday, vibes, isNew, description, mapQuery, pubDate } =
   spot.data;
 const { Content } = await render(spot);
 ---
 
-<Layout title={`${title}｜本寺小路ガイド`} description={description}>
+<Layout
+  title={`${title}｜本寺小路ガイド`}
+  description={description}
+  ogType="article"
+  publishedTime={pubDate}
+>
   <Header showBackLink />
 
   <main class="mx-auto max-w-3xl px-4 py-8">

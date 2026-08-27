@@ -1,0 +1,83 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import { getCollection, getEntry, render } from 'astro:content';
+import { ArrowRight, Megaphone } from '@lucide/astro';
+
+export async function getStaticPaths() {
+  const news = await getCollection('news');
+  return news.map((item) => ({
+    params: { slug: item.id },
+    props: { item },
+  }));
+}
+
+const { item } = Astro.props;
+const { title, pubDate, category, summary, relatedSpotSlug } = item.data;
+const { Content } = await render(item);
+
+const relatedSpot = relatedSpotSlug ? await getEntry('spots', relatedSpotSlug) : undefined;
+
+const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
+  'NEW SPOT': 'vermilion',
+  EVENT: 'amber',
+  NOTICE: 'amber',
+};
+const accent = CATEGORY_ACCENT[category] ?? 'amber';
+---
+
+<Layout title={`${title}｜本寺小路ガイド`} description={summary} ogType="article" publishedTime={pubDate}>
+  <Header showBackLink />
+
+  <main class="mx-auto max-w-3xl px-4 py-8">
+    <article>
+      <div class="flex items-center gap-3 text-xs">
+        <span
+          class:list={[
+            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold',
+            accent === 'vermilion' ? 'bg-vermilion/15 text-vermilion' : 'bg-amber-glow/15 text-amber-glow',
+          ]}
+        >
+          <Megaphone size={12} stroke-width={2.25} aria-hidden="true" />
+          {category}
+        </span>
+        <time class="text-gold-100/40" datetime={pubDate.toISOString().slice(0, 10)}>
+          {pubDate.toISOString().slice(0, 10)}
+        </time>
+      </div>
+
+      <h1 class="mt-3 font-serif text-2xl font-bold leading-snug text-gold-100 text-glow sm:text-3xl">
+        {title}
+      </h1>
+
+      <p class="mt-4 leading-relaxed text-gold-100/70">{summary}</p>
+
+      <div
+        class="prose prose-invert prose-headings:font-serif prose-headings:text-gold-100 prose-p:text-gold-100/70 prose-li:text-gold-100/70 prose-strong:text-amber-glow mt-8 max-w-none prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-xl prose-h2:border-b prose-h2:border-night-700 prose-h2:pb-2"
+      >
+        <Content />
+      </div>
+
+      {
+        relatedSpot && (
+          <a
+            href={`/spots/${relatedSpot.id}/`}
+            class="mt-8 inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-4 py-2 text-sm font-semibold text-night-950 transition hover:brightness-110"
+          >
+            「{relatedSpot.data.title}」の記事を見る
+            <ArrowRight size={14} stroke-width={2.25} aria-hidden="true" />
+          </a>
+        )
+      }
+
+      <div class="mt-12 border-t border-night-700 pt-6">
+        <a href="/" class="inline-flex items-center gap-1 text-sm text-gold-100/60 transition hover:text-amber-glow">
+          ← 本寺小路の店舗一覧に戻る
+        </a>
+      </div>
+    </article>
+  </main>
+
+  <Footer />
+</Layout>
