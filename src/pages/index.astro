@@ -6,7 +6,7 @@ import SpotCard from '../components/SpotCard.astro';
 import { getCollection } from 'astro:content';
 
 const spots = (await getCollection('spots')).sort(
-  (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf()
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
 );
 
 const genres = [...new Set(spots.map((spot) => spot.data.genre))].sort();
@@ -121,10 +121,10 @@ const scenes = [
     let visible = 0;
     cards.forEach((card) => {
       const genre = card.dataset.genre ?? '';
-      const features = (card.dataset.features ?? '').split('|');
+      const vibes = (card.dataset.vibes ?? '').split('|');
 
       const genreMatch = state.genre === 'all' || genre === state.genre;
-      const sceneMatch = state.scene === 'all' || features.includes(state.scene);
+      const sceneMatch = state.scene === 'all' || vibes.includes(state.scene);
       const show = genreMatch && sceneMatch;
 
       card.classList.toggle('hidden', !show);

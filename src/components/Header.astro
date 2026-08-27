@@ -3,6 +3,13 @@ interface Props {
   showBackLink?: boolean;
 }
 const { showBackLink = false } = Astro.props;
+
+const pathname = Astro.url.pathname;
+
+const navLinks = [
+  { href: '/', label: '店舗一覧', active: pathname === '/' },
+  { href: '/about/', label: '本寺小路について', active: pathname.startsWith('/about') },
+];
 ---
 
 <header class="relative overflow-hidden border-b border-night-700 bg-night-900">
@@ -21,16 +28,37 @@ const { showBackLink = false } = Astro.props;
         </a>
       )
     }
-    <a href="/" class="group inline-block">
-      <p class="text-xs tracking-[0.3em] text-amber-glow/80">SANJO NIGHT GUIDE</p>
-      <h1
-        class="mt-2 font-serif text-3xl font-bold tracking-wide text-gold-100 text-glow sm:text-4xl"
-      >
-        本寺小路ガイド
-      </h1>
-      <p class="mt-2 max-w-xl text-sm leading-relaxed text-gold-100/60">
-        新潟県三条市の歓楽街「本寺小路」――灯りの点る路地に集う、飲食店・店舗のご案内。
-      </p>
-    </a>
+    <div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+      <a href="/" class="group inline-block">
+        <p class="text-xs tracking-[0.3em] text-amber-glow/80">SANJO NIGHT GUIDE</p>
+        <h1
+          class="mt-2 font-serif text-3xl font-bold tracking-wide text-gold-100 text-glow sm:text-4xl"
+        >
+          本寺小路ガイド
+        </h1>
+        <p class="mt-2 max-w-xl text-sm leading-relaxed text-gold-100/60">
+          新潟県三条市の歓楽街「本寺小路」――灯りの点る路地に集う、飲食店・店舗のご案内。
+        </p>
+      </a>
+
+      <nav aria-label="サイトナビゲーション" class="flex shrink-0 gap-2">
+        {
+          navLinks.map((link) => (
+            <a
+              href={link.href}
+              aria-current={link.active ? 'page' : undefined}
+              class:list={[
+                'rounded-full border px-3.5 py-1.5 text-xs font-medium transition',
+                link.active
+                  ? 'border-amber-deep bg-amber-glow text-night-950'
+                  : 'border-night-600 bg-night-800/60 text-gold-100/70 hover:border-amber-deep/60 hover:text-amber-glow',
+              ]}
+            >
+              {link.label}
+            </a>
+          ))
+        }
+      </nav>
+    </div>
   </div>
 </header>

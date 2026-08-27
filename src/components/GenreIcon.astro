@@ -1,0 +1,47 @@
+---
+import {
+  Beef,
+  ChefHat,
+  CookingPot,
+  Flame,
+  GlassWater,
+  Martini,
+  MicVocal,
+  Soup,
+  Store,
+  UtensilsCrossed,
+} from '@lucide/astro';
+
+interface Props {
+  genre: string;
+  size?: number;
+  class?: string;
+  strokeWidth?: number;
+}
+
+const { genre, size = 18, class: className = '', strokeWidth = 1.75 } = Astro.props;
+
+// ジャンル文字列からLucideアイコンを自動選択する。
+// 未知のジャンルは Store アイコンにフォールバック。
+const ICON_MAP: Record<string, typeof Store> = {
+  居酒屋: UtensilsCrossed,
+  焼肉: Beef,
+  ラーメン: Soup,
+  BAR: Martini,
+  Bar: Martini,
+  バー: Martini,
+  スナック: MicVocal,
+  割烹: ChefHat,
+  小料理: ChefHat,
+  小料理屋: ChefHat,
+  焼き鳥: Flame,
+  焼鳥: Flame,
+  おでん: CookingPot,
+  立ち飲み: GlassWater,
+  立ち呑み: GlassWater,
+};
+
+const Icon = ICON_MAP[genre] ?? Store;
+---
+
+<Icon size={size} stroke-width={strokeWidth} class={className} aria-hidden="true" />

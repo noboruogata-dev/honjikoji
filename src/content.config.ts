@@ -6,13 +6,15 @@ const spots = defineCollection({
   schema: z.object({
     title: z.string(),
     genre: z.string(),
-    area: z.string(),
     address: z.string(),
-    businessHours: z.string(),
+    // Google マップの検索クエリ（"店名 三条市" 形式）。
+    mapQuery: z.string(),
     budget: z.string(),
-    features: z.array(z.string()),
+    openHours: z.string(),
+    regularHoliday: z.string(),
+    vibes: z.array(z.string()),
     description: z.string(),
-    publishedAt: z.coerce.date(),
+    pubDate: z.coerce.date(),
   }),
 });
 

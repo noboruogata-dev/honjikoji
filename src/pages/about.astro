@@ -1,0 +1,226 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import SectionHeading from '../components/SectionHeading.astro';
+import Divider from '../components/Divider.astro';
+import {
+  Anvil,
+  Check,
+  Coins,
+  Flame,
+  Footprints,
+  HeartHandshake,
+  Lamp,
+  Landmark,
+  Sparkles,
+  Users,
+  Wine,
+  X,
+} from '@lucide/astro';
+
+const timeline = [
+  {
+    era: '江戸〜明治',
+    label: '鍛冶と金物の町',
+    body: '三条は信濃川・五十嵐川の舟運と良質な砂鉄・鉄材の流通に恵まれ、和釘や作業道具をつくる鍛冶職人の技が代々磨かれてきたと伝えられています。腕一本で身を立てる職人気質は、後の本寺小路の空気にも通じるものがあります。',
+  },
+  {
+    era: '大正〜昭和初期',
+    label: '商都としての発展、社交場の芽生え',
+    body: '金物・作業工具の産地として全国に商圏を広げるなかで、三条には商談に訪れる商人や、遠方から仕事を求めてやってくる職人たちが行き交うようになりました。彼らが夜に一杯かわし、商談の続きや骨休めをする場として、駅や本町通りに近い路地に飲食店や置屋が集まりはじめたのが、本寺小路の原型だといわれています。',
+  },
+  {
+    era: '昭和中期〜後期',
+    label: '花街から歓楽街への成熟',
+    body: '高度経済成長期、三条の金物産業がさらに活況を呈すると、本寺小路もまた最盛期を迎えます。料亭・小料理屋・スナックが軒を連ね、仕事終わりの職人や商人、地元の旦那衆が「一日の労をねぎらう場所」として通いました。ネオンと三味線、カラオケの灯りが入り混じる独特の情緒は、この時代に色濃く形づくられたものです。',
+  },
+  {
+    era: '平成〜令和',
+    label: '受け継がれる「大人の社交街」',
+    body: '時代とともに店の数や顔ぶれは移り変わりましたが、本寺小路には今も「一見さんとも常連ともなく、みんなが顔なじみになっていく」独特の距離感が残っています。老舗の暖簾と新しい店が並び、昭和レトロな看板建築の下で、令和の夜もまた静かに灯りをともし続けています。',
+  },
+];
+
+const manners = [
+  {
+    title: '看板・貼り紙をまず確認',
+    body: 'チャージ料やセット料金、時間制の有無は店ごとに異なります。入店前に外の看板や貼り紙、暖簾の情報にひと目通しておくと安心です。',
+  },
+  {
+    title: '「一見さんお断り」は無理をしない',
+    body: '紹介制・会員制に近い雰囲気の店もあります。ドアの外から少し様子を伺い、入りやすそうな店から順に。常連になるのはその先の楽しみです。',
+  },
+  {
+    title: '店主・ママとの会話も楽しみのひとつ',
+    body: 'カウンター越しの会話は本寺小路らしい魅力。スマートフォンばかりに気を取られず、目の前の一杯と会話を味わってみてください。',
+  },
+  {
+    title: '写真撮影は一声かけてから',
+    body: '店内や他のお客様が写り込む撮影は、必ず店主に一声かけましょう。SNS投稿の可否も店によって異なります。',
+  },
+  {
+    title: '路地は生活の場でもあります',
+    body: '本寺小路には今も住まいを構える方がいます。大声での会話や深夜の騒ぎ声は控え、静かな足取りで路地を楽しんでください。',
+  },
+];
+---
+
+<Layout
+  title="本寺小路について｜本寺小路ガイド"
+  description="新潟県三条市の歓楽街「本寺小路」の歴史・成り立ちと、初めて訪れる人のための歩き方・マナーをご紹介します。"
+>
+  <Header showBackLink />
+
+  <main class="mx-auto max-w-3xl px-4 py-10">
+    <!-- Hero -->
+    <section class="mb-14">
+      <p class="text-xs tracking-[0.3em] text-amber-glow/80">OUR STORY</p>
+      <h1 class="mt-3 font-serif text-3xl font-bold leading-snug text-gold-100 text-glow sm:text-4xl">
+        本寺小路について
+      </h1>
+      <p class="mt-5 leading-loose text-gold-100/70">
+        新潟県三条市。金物の町として知られるこの街の中心部に、今も灯りを絶やさぬ小さな路地があります。本寺小路——地元の人々が「ほんじ」と親しみを込めて呼ぶこの一角は、職人と商人の街が育んだ「大人の社交場」です。ここでは、その成り立ちと今に受け継がれる魅力、そして初めて訪れる方への歩き方をご紹介します。
+      </p>
+    </section>
+
+    <Divider />
+
+    <!-- Section 1: ルーツ -->
+    <section class="mb-14">
+      <SectionHeading icon={Anvil} label="ROOTS">
+        鍛冶職人の街としてのルーツ
+      </SectionHeading>
+      <div class="mt-5 space-y-4 leading-loose text-gold-100/70">
+        <p>
+          三条市は古くから、和釘や大工道具、作業工具づくりで知られる「ものづくりの町」です。信濃川水系の舟運によって鉄や砂鉄が運び込まれ、腕のよい鍛冶職人たちが工房を構えたことが、今日まで続く金物産業の礎になったと伝えられています。
+        </p>
+        <p>
+          <strong class="font-semibold text-amber-glow">「腕一本で食っていく」</strong>という職人気質は、三条という街の性格そのもの。丁寧な仕事とまっすぐな気風は、後に本寺小路で花開く「一杯の酒を大切にする文化」にも、静かに受け継がれていくことになります。
+        </p>
+      </div>
+    </section>
+
+    <Divider />
+
+    <!-- Section 2: 花街としての発展 -->
+    <section class="mb-14">
+      <SectionHeading icon={HeartHandshake} label="A GATHERING PLACE">
+        商人・職人の社交場として
+      </SectionHeading>
+      <div class="mt-5 space-y-4 leading-loose text-gold-100/70">
+        <p>
+          金物産業が全国に商圏を広げるにつれ、三条には商談に訪れる商人や、仕事を求めて集まる職人たちの往来が絶えなくなりました。一日の商談を終えた者同士が杯をかわし、明日への英気を養う場所——それが、駅や本町通りに近い路地に飲食店や置屋が集まりはじめた、本寺小路の始まりだといわれています。
+        </p>
+        <p>
+          「はじめまして」の商談相手と「いつもの」常連客が、同じカウンターで肩を並べる。そんな懐の深さこそが、本寺小路という街の一番の財産なのかもしれません。
+        </p>
+      </div>
+    </section>
+
+    <!-- Timeline -->
+    <section class="mb-14">
+      <SectionHeading icon={Landmark} label="TIMELINE">
+        本寺小路のあゆみ
+      </SectionHeading>
+
+      <ol class="relative mt-8 space-y-10 border-l border-night-600 pl-6 sm:pl-8">
+        {
+          timeline.map((item) => (
+            <li class="relative">
+              <span class="absolute -left-[calc(1.5rem_+_5px)] top-1.5 h-2.5 w-2.5 rounded-full bg-amber-glow shadow-[0_0_0_4px_rgba(242,181,68,0.15)] sm:-left-[calc(2rem_+_5px)]" />
+              <p class="text-xs font-medium tracking-[0.2em] text-amber-glow/80">{item.era}</p>
+              <h3 class="mt-1 font-serif text-lg font-bold text-gold-100">{item.label}</h3>
+              <p class="mt-2 leading-loose text-gold-100/65">{item.body}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <Divider />
+
+    <!-- Section: 大人の社交街としての魅力 -->
+    <section class="mb-14">
+      <SectionHeading icon={Sparkles} label="TODAY">
+        大人の社交街としての魅力
+      </SectionHeading>
+      <div class="mt-5 space-y-4 leading-loose text-gold-100/70">
+        <p>
+          令和の今も、本寺小路には昭和レトロな看板建築や、年季の入った暖簾が残ります。ネオンの色は少しずつ移り変わっても、「一軒目は軽く、二軒目でじっくり、締めはラーメンで」という夜の過ごし方は、今も昔も変わりません。
+        </p>
+        <p>
+          チェーン店にはない、店主やママとの何気ない会話。カウンター越しに教えてもらう街の噂話。隣に座った見知らぬ客と、いつのまにか意気投合してしまう夜——本寺小路が「大人の社交街」と呼ばれる所以は、そんな一期一会の積み重ねにあります。
+        </p>
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {
+          [
+            { icon: Wine, text: '一軒目から締めまで、路地一本で完結する密度' },
+            { icon: Users, text: '常連と一見が自然に混ざり合う懐の深さ' },
+            { icon: Lamp, text: '昭和レトロな看板建築が今も灯す夜の情緒' },
+          ].map(({ icon: Icon, text }) => (
+            <div class="flex items-start gap-2.5 rounded-lg border border-night-700 bg-night-900/60 px-3.5 py-3">
+              <Icon size={18} stroke-width={1.75} class="mt-0.5 shrink-0 text-amber-glow" />
+              <p class="text-xs leading-relaxed text-gold-100/70">{text}</p>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <Divider />
+
+    <!-- Section: 歩き方・マナー -->
+    <section class="mb-6">
+      <SectionHeading icon={Footprints} label="FOR FIRST-TIMERS">
+        初めて訪れる方へ — 歩き方とマナー
+      </SectionHeading>
+      <p class="mt-5 leading-loose text-gold-100/70">
+        本寺小路は、決して敷居の高い場所ではありません。少しの心構えがあれば、誰でもその夜の空気を楽しむことができます。
+      </p>
+
+      <ul class="mt-6 space-y-4">
+        {
+          manners.map((item) => (
+            <li class="flex gap-3 rounded-xl border border-night-700 bg-night-900/50 p-4">
+              <Check size={18} stroke-width={2.25} class="mt-0.5 shrink-0 text-amber-glow" />
+              <div>
+                <p class="font-medium text-gold-100">{item.title}</p>
+                <p class="mt-1 text-sm leading-relaxed text-gold-100/60">{item.body}</p>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+
+      <div class="mt-6 flex gap-3 rounded-xl border border-night-700/70 bg-night-900/30 p-4">
+        <X size={18} stroke-width={2.25} class="mt-0.5 shrink-0 text-gold-100/40" />
+        <p class="text-sm leading-relaxed text-gold-100/50">
+          なお、料金や現金・キャッシュレス対応の可否は店舗により異なります。特に会計に不安がある場合は、入店時に「予算内で楽しみたい」と一言伝えておくと、店側も案内しやすくなります。
+        </p>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="mt-14 rounded-2xl border border-night-700 bg-night-900/60 p-6 text-center sm:p-8">
+      <Coins size={24} stroke-width={1.5} class="mx-auto text-amber-glow" />
+      <p class="mt-3 font-serif text-lg font-bold text-gold-100">
+        さあ、今夜の一軒を探しに
+      </p>
+      <p class="mt-2 text-sm leading-relaxed text-gold-100/60">
+        歴史を知った街の灯りは、いつもより少しだけ味わい深く見えるはずです。
+      </p>
+      <a
+        href="/"
+        class="mt-5 inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-5 py-2.5 text-sm font-semibold text-night-950 transition hover:brightness-110"
+      >
+        <Flame size={16} stroke-width={2.25} aria-hidden="true" />
+        店舗一覧を見る
+      </a>
+    </section>
+  </main>
+
+  <Footer />
+</Layout>
