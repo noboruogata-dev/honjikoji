@@ -6,6 +6,10 @@ mapQuery: "炭火焼 く遠 三条市"
 budget: "￥3,000〜￥5,000"
 openHours: "18:00～24:00"
 regularHoliday: "月曜日"
+hours:
+  - days: [0, 2, 3, 4, 5, 6]
+    open: "18:00"
+    close: "24:00"
 vibes:
   - "隠れ家"
   - "カウンター席あり"

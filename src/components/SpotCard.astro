@@ -1,6 +1,7 @@
 ---
 import Badge from './Badge.astro';
 import GenreIcon from './GenreIcon.astro';
+import OpenStatus from './OpenStatus.astro';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
 }
 
 const { spot } = Astro.props;
-const { title, genre, budget, openHours, regularHoliday, vibes, isNew, description } = spot.data;
+const { title, genre, budget, openHours, regularHoliday, vibes, isNew, hours, description } = spot.data;
 ---
 
 <a
@@ -42,9 +43,10 @@ const { title, genre, budget, openHours, regularHoliday, vibes, isNew, descripti
       {description}
     </p>
     <dl class="mt-1 space-y-1 text-xs text-gold-100/50">
-      <div class="flex gap-2">
+      <div class="flex items-center gap-2">
         <dt class="shrink-0 text-gold-100/35">営業時間</dt>
-        <dd class="truncate">{openHours}</dd>
+        <dd class="min-w-0 flex-1 truncate">{openHours}</dd>
+        <OpenStatus hours={hours} size="sm" />
       </div>
       <div class="flex gap-2">
         <dt class="shrink-0 text-gold-100/35">定休日</dt>
