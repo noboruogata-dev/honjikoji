@@ -22,12 +22,16 @@ const scenes = [
   { label: '深夜営業', value: '深夜営業' },
 ];
 
-// お知らせ・更新情報（現状は固定サンプル。将来的にはコレクション化も可能）。
-const news = [
-  { date: '2026-08-27', tag: 'NEW SPOT', accent: 'amber', text: '新しい店舗記事を公開しました。夜のハシゴにぜひどうぞ。' },
-  { date: '2026-08-20', tag: 'UPDATE', accent: 'vermilion', text: '店舗詳細ページにGoogleマップの公式埋め込みを追加しました。' },
-  { date: '2026-08-10', tag: 'NOTICE', accent: 'amber', text: '本寺小路の歴史・成り立ちを紹介する「本寺小路について」ページを公開しました。' },
-];
+// お知らせ・更新情報。src/content/news/ から新しい順に取得（`npm run generate:news` で自動生成も可能）。
+const news = (await getCollection('news'))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+  .slice(0, 5);
+
+const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
+  'NEW SPOT': 'vermilion',
+  EVENT: 'amber',
+  NOTICE: 'amber',
+};
 ---
 
 <Layout title="本寺小路ガイド｜三条市の歓楽街 飲食店・店舗ガイド">
@@ -68,28 +72,47 @@ const news = [
         <SectionHeading icon={Megaphone} label="NEWS" accent="vermilion">お知らせ</SectionHeading>
       </div>
 
-      <ul class="mt-5 divide-y divide-night-700 overflow-hidden rounded-xl border border-night-700 bg-night-900/50">
-        {
-          news.map((item) => (
-            <li class="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4">
-              <div class="flex shrink-0 items-center gap-2.5">
-                <span
-                  class:list={[
-                    'inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold',
-                    item.accent === 'vermilion'
-                      ? 'bg-vermilion/15 text-vermilion'
-                      : 'bg-amber-glow/15 text-amber-glow',
-                  ]}
-                >
-                  {item.tag}
-                </span>
-                <time class="text-xs text-gold-100/35">{item.date}</time>
-              </div>
-              <p class="text-sm leading-relaxed text-gold-100/75">{item.text}</p>
-            </li>
-          ))
-        }
-      </ul>
+      {
+        news.length > 0 ? (
+          <ul class="mt-5 divide-y divide-night-700 overflow-hidden rounded-xl border border-night-700 bg-night-900/50">
+            {news.map((item) => {
+              const accent = CATEGORY_ACCENT[item.data.category] ?? 'amber';
+              const relatedSpotSlug = item.data.relatedSpotSlug;
+              return (
+                <li class="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4">
+                  <div class="flex shrink-0 items-center gap-2.5">
+                    <span
+                      class:list={[
+                        'inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold',
+                        accent === 'vermilion' ? 'bg-vermilion/15 text-vermilion' : 'bg-amber-glow/15 text-amber-glow',
+                      ]}
+                    >
+                      {item.data.category}
+                    </span>
+                    <time class="text-xs text-gold-100/35" datetime={item.data.pubDate.toISOString().slice(0, 10)}>
+                      {item.data.pubDate.toISOString().slice(0, 10)}
+                    </time>
+                  </div>
+                  <p class="flex-1 text-sm leading-relaxed text-gold-100/75">{item.data.summary}</p>
+                  {relatedSpotSlug && (
+                    <a
+                      href={`/spots/${relatedSpotSlug}/`}
+                      class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-amber-glow transition hover:text-amber-deep"
+                    >
+                      店舗を見る
+                      <ArrowRight size={12} stroke-width={2.25} aria-hidden="true" />
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p class="mt-5 rounded-xl border border-night-700 bg-night-900/50 px-4 py-6 text-center text-sm text-gold-100/40">
+            現在お知らせはありません。
+          </p>
+        )
+      }
     </section>
 
     <!-- 特集バナー: 本寺小路とは -->

@@ -16,7 +16,7 @@ export async function getStaticPaths() {
 }
 
 const { spot } = Astro.props;
-const { title, genre, address, budget, openHours, regularHoliday, vibes, description, mapQuery } =
+const { title, genre, address, budget, openHours, regularHoliday, vibes, isNew, description, mapQuery } =
   spot.data;
 const { Content } = await render(spot);
 ---
@@ -34,6 +34,14 @@ const { Content } = await render(spot);
         </span>
         <div class="flex flex-wrap items-center gap-2 text-xs">
           <span class="font-medium tracking-wide text-amber-glow">{genre}</span>
+          {
+            isNew && (
+              <span class="inline-flex items-center gap-1 rounded-full bg-vermilion px-2.5 py-1 text-[0.65rem] font-bold tracking-wide text-white">
+                <span class="lantern-flicker h-1.5 w-1.5 rounded-full bg-white" />
+                NEW
+              </span>
+            )
+          }
         </div>
       </div>
 

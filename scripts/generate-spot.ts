@@ -6,7 +6,8 @@
  * src/content/spots/ に保存するスクリプト。
  *
  *   Agent 1: Research Agent  — Google Search Grounding付きGeminiで実在店舗を
- *            1軒選定し、事実情報を厳密なJSONで抽出する。
+ *            1軒選定し、事実情報を厳密なJSONで抽出する。新規開店・リニューアル
+ *            情報を優先的に探索し、開店から約1年以内なら isNew フラグを立てる。
  *   Agent 2: Writer Agent    — Agent 1のJSONだけを事実源として、地元メディア
  *            らしい紹介記事（800〜1200字）を執筆する（Grounding無し）。
  *   Agent 3: QA & Schema Validator Agent — Zodでフロントマターを厳密に検証し、
@@ -24,16 +25,27 @@
  */
 
 import 'dotenv/config';
-import { GoogleGenAI, Type, type GenerateContentResponse } from '@google/genai';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { GoogleGenAI, Type } from '@google/genai';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { load as parseYaml } from 'js-yaml';
 import { z } from 'zod';
+import {
+  callGroundedJsonAgent,
+  callPlainJsonAgent,
+  FatalPipelineError,
+  getExistingEntries,
+  logZodIssues,
+  normalizeText,
+  parseJsonOrThrow,
+  pickRandom,
+  slugify,
+  toYamlString,
+  uniqueSlug,
+} from './lib/gemini-agents.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SPOTS_DIR = path.resolve(__dirname, '../src/content/spots');
-const MODEL = 'gemini-3.6-flash';
 const MAX_ATTEMPTS = 3;
 
 const GENRES = [
@@ -52,9 +64,6 @@ const GENRES = [
 // 一覧ページのシーン別フィルターと対応させる、任意で付与を検討させるタグ。
 const SCENE_TAGS = ['1軒目におすすめ', '2次会・締めに最適', '深夜営業'];
 
-/** リトライしても解消しない致命的エラー（APIクォータ超過など）。 */
-class FatalPipelineError extends Error {}
-
 // ============================================================
 // Zod スキーマ
 // ============================================================
@@ -69,6 +78,7 @@ const researchSchema = z.object({
   regularHoliday: z.string(),
   budget: z.string(),
   vibes: z.array(z.string()),
+  isNew: z.boolean(),
   facts: z.string(),
   slug: z.string(),
   sources: z.array(z.string()).optional(),
@@ -93,6 +103,7 @@ const spotFrontmatterSchema = z.object({
   openHours: z.string().min(1, 'openHours が空です'),
   regularHoliday: z.string().min(1, 'regularHoliday が空です'),
   vibes: z.array(z.string().min(1)).min(1, 'vibes が空です'),
+  isNew: z.boolean().default(false),
   description: z.string().min(1, 'description が空です'),
   pubDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'pubDate は YYYY-MM-DD 形式である必要があります'),
 });
@@ -120,10 +131,15 @@ const researchResponseSchema = {
       items: { type: Type.STRING },
       description: '特徴タグ3〜6個。例: "隠れ家", "カウンター席あり", "深夜営業"',
     },
+    isNew: {
+      type: Type.BOOLEAN,
+      description:
+        '開店・リニューアルオープンから約1年以内の新しい店舗だと分かった場合は true。不明・古くからの店舗なら false。',
+    },
     facts: {
       type: Type.STRING,
       description:
-        '名物料理・お酒のこだわり・店内の雰囲気・お店の歴史など、紹介記事の執筆に使える事実のメモ。不明な項目は「不明」と明記し創作しない。',
+        '名物料理・お酒のこだわり・店内の雰囲気・お店の歴史（開店/リニューアル時期が分かれば含める）など、紹介記事の執筆に使える事実のメモ。不明な項目は「不明」と明記し創作しない。',
     },
     slug: {
       type: Type.STRING,
@@ -144,6 +160,7 @@ const researchResponseSchema = {
     'regularHoliday',
     'budget',
     'vibes',
+    'isNew',
     'facts',
     'slug',
   ],
@@ -163,110 +180,6 @@ const writerResponseSchema = {
 };
 
 // ============================================================
-// ユーティリティ
-// ============================================================
-
-function pickRandom<T>(list: T[]): T {
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-function toYamlString(value: string): string {
-  // JSON.stringify のダブルクオート＋エスケープは YAML のダブルクオート文字列としても
-  // そのまま有効なので、同じ書式で安全にエスケープできる。
-  return JSON.stringify(value);
-}
-
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function normalizeTitle(title: string): string {
-  return title.replace(/\s+/g, '').toLowerCase();
-}
-
-function uniqueSlug(baseSlug: string, existingSlugs: string[]): string {
-  const existing = new Set(existingSlugs);
-  const safeBase = baseSlug || `spot-${Date.now()}`;
-  if (!existing.has(safeBase)) return safeBase;
-
-  let n = 2;
-  while (existing.has(`${safeBase}-${n}`)) n += 1;
-  return `${safeBase}-${n}`;
-}
-
-function isQuotaError(err: unknown): boolean {
-  const msg = String(err instanceof Error ? err.message : err);
-  return /RESOURCE_EXHAUSTED/i.test(msg) || /"code"\s*:\s*429/.test(msg);
-}
-
-/** tools（Grounding）と responseSchema の併用が拒否された（400系）ように見えるかを判定する。 */
-function looksLikeToolSchemaConflict(err: unknown): boolean {
-  const msg = String(err instanceof Error ? err.message : err);
-  return /"code"\s*:\s*400/.test(msg) && /(tool|function)/i.test(msg) && /(schema|response_mime_type|json)/i.test(msg);
-}
-
-function requireText(response: GenerateContentResponse, context: string): string {
-  const text = response.text;
-  if (!text) throw new Error(`${context}: レスポンスが空でした。`);
-  return text;
-}
-
-function extractJsonObject(text: string): string {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced ? fenced[1] : text;
-  const start = candidate.indexOf('{');
-  const end = candidate.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error('レスポンスからJSONオブジェクトを抽出できませんでした。');
-  }
-  return candidate.slice(start, end + 1);
-}
-
-function logGroundingSources(response: GenerateContentResponse, label: string) {
-  const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
-  const withUri = chunks.filter((chunk) => chunk.web?.uri);
-  if (withUri.length === 0) return;
-
-  console.log(`${label} 参照した情報源 (${withUri.length}件):`);
-  for (const chunk of withUri) {
-    console.log(`  - ${chunk.web?.title ?? chunk.web?.uri} (${chunk.web?.uri})`);
-  }
-}
-
-interface ExistingSpots {
-  titles: string[];
-  slugs: string[];
-}
-
-async function getExistingSpots(): Promise<ExistingSpots> {
-  await mkdir(SPOTS_DIR, { recursive: true });
-  const files = (await readdir(SPOTS_DIR)).filter((file) => file.endsWith('.md'));
-
-  const titles: string[] = [];
-  const slugs = files.map((file) => file.replace(/\.md$/, ''));
-
-  for (const file of files) {
-    const raw = await readFile(path.join(SPOTS_DIR, file), 'utf-8');
-    const match = raw.match(/^---\n([\s\S]*?)\n---/);
-    if (!match) continue;
-    try {
-      const data = parseYaml(match[1]) as { title?: unknown };
-      if (typeof data?.title === 'string' && data.title.trim()) {
-        titles.push(data.title.trim());
-      }
-    } catch {
-      // フロントマターのパースに失敗しても、スラッグの重複チェックだけは有効にする。
-    }
-  }
-
-  return { titles, slugs };
-}
-
-// ============================================================
 // プロンプト構築
 // ============================================================
 
@@ -283,7 +196,11 @@ function buildResearchPrompt(excludeTitles: string[], hintTitle?: string, hintGe
 この店舗が新潟県三条市の本寺小路・本町エリアに実在し、除外リストに含まれていないかを確認したうえで調べてください。`
     : `新潟県三条市の「本寺小路」「本町」エリアに実在し、現在も営業している飲食店を1軒、あなた自身の判断で選んでください。
 ${hintGenre ? `できればジャンルは「${hintGenre}」系を優先的に検討してください（見つからなければ他ジャンルでも構いません）。` : ''}
-定番の有名店だけでなく、まだあまり知られていない店も積極的に候補に入れてください。`;
+【最優先】まずは次の観点で「新店舗」を積極的に探してください:
+- ここ1年以内に新規オープンした店
+- リニューアルオープン・移転オープンした店
+- SNSやグルメサイトで最近「オープンしました」「移転しました」と話題になっている店
+新店舗が見つからない場合に限り、定番の有名店やまだあまり知られていない老舗も候補に入れてください。`;
 
   return `あなたは新潟県三条市の歓楽街「本寺小路」「本町」エリアの飲食店リサーチを専門とするエージェントです。
 Google検索を使って実在する飲食店（居酒屋・BAR・スナック・割烹・焼肉・焼き鳥・ラーメン・おでん・立ち飲み・小料理屋 等）についてファクトチェックしながら調査してください。
@@ -300,14 +217,15 @@ ${exclusionText}
 - regularHoliday: 定休日（不明な場合は "不明" または "不定休"）
 - budget: 予算目安（例: ￥3,000〜￥5,000）
 - vibes: 特徴タグ3〜6個（例: "隠れ家", "カウンター席あり", "深夜営業"）。可能であれば次の中から当てはまるものを含めてよい（無理に含めなくてもよい）: ${SCENE_TAGS.join(' / ')}
-- facts: 名物料理・お酒のこだわり・店内の雰囲気・お店の歴史など、紹介記事の執筆に使える事実をまとめたテキスト。分からない項目は「不明」と明記し、絶対に創作しないこと。
+- isNew: 開店・リニューアルオープンから約1年以内と判断できる場合は true、それ以外・不明な場合は false
+- facts: 名物料理・お酒のこだわり・店内の雰囲気・お店の歴史（開店/リニューアル時期の情報があれば必ず含める）など、紹介記事の執筆に使える事実をまとめたテキスト。分からない項目は「不明」と明記し、絶対に創作しないこと。
 - slug: ファイル名用の英小文字ケバブケースslug（ローマ字/英訳）
 - sources: 参照したサイト名やURL（分かる範囲で）
 
 重要な注意点:
 - 実在しない店舗を創作しないでください。
 - 除外リストの店舗、または本寺小路・本町エリア以外の店舗しか見つからない場合は、
-  notFound を true にし、他のフィールドは空文字列（配列は空配列）にしてください。`;
+  notFound を true にし、他のフィールドは空文字列（配列は空配列、isNewはfalse）にしてください。`;
 }
 
 function buildWriterPrompt(research: ResearchResult): string {
@@ -324,6 +242,7 @@ function buildWriterPrompt(research: ResearchResult): string {
 定休日: ${research.regularHoliday}
 予算目安: ${research.budget}
 特徴タグ: ${research.vibes.join(', ')}
+新店舗か: ${research.isNew ? 'はい（開店・リニューアルから概ね1年以内）' : 'いいえ、または不明'}
 事実メモ:
 ${research.facts}
 --- ここまで ---
@@ -333,6 +252,7 @@ ${research.facts}
 - あなた自身の言葉で、地元メディアらしい温かみと情緒のあるオリジナルコラムとして書き下ろすこと。
 - おすすめメニュー、店内の雰囲気、利用シーン（1軒目/2軒目/締めなど）に触れること。
   ただし、事実メモに具体的な記載がない場合は、断定的な固有の料理名などを創作せず、一般的・控えめな表現に留めること。
+- 新店舗である場合は、その新しさ・オープンの経緯にも自然に触れること（無理に強調しすぎないこと）。
 - 文体は敬体（です・ます調）で、本寺小路の夜の情緒が伝わるように。
 - 見出し（## など）を使ってもよいが、必須ではない。
 
@@ -350,65 +270,27 @@ async function runResearchAgent(
   hintGenre?: string
 ): Promise<ResearchResult> {
   const label = '[Agent1:Research]';
-  console.log(`${label} 起動。Google Search Groundingで実在店舗をリサーチ中...`);
+  console.log(`${label} 起動。Google Search Groundingで実在店舗をリサーチ中（新店舗を優先探索）...`);
 
-  const prompt = buildResearchPrompt(excludeTitles, hintTitle, hintGenre);
+  const rawText = await callGroundedJsonAgent(ai, {
+    label,
+    prompt: buildResearchPrompt(excludeTitles, hintTitle, hintGenre),
+    responseSchema: researchResponseSchema,
+  });
 
-  let rawText: string;
-  try {
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: 'application/json',
-        responseSchema: researchResponseSchema,
-      },
-    });
-    rawText = requireText(response, label);
-    logGroundingSources(response, label);
-  } catch (err) {
-    if (isQuotaError(err)) {
-      throw new FatalPipelineError(
-        'Google Search Grounding呼び出しがクォータ超過（429）で失敗しました。Google Cloud側の課金設定・APIの有効化状況をご確認ください。'
-      );
-    }
-    if (!looksLikeToolSchemaConflict(err)) throw err;
-
-    console.warn(`${label} 構造化出力とGrounding併用が拒否されたため、プレーンJSONモードにフォールバックします。`);
-    const fallbackResponse = await ai.models.generateContent({
-      model: MODEL,
-      contents: `${prompt}\n\n出力は説明文やMarkdownのコードフェンスを付けず、有効なJSONオブジェクトのみを1つ出力してください。`,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
-    });
-    const fallbackText = requireText(fallbackResponse, `${label}（フォールバック）`);
-    logGroundingSources(fallbackResponse, label);
-    rawText = extractJsonObject(fallbackText);
-  }
-
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(rawText);
-  } catch {
-    console.error(`${label} JSONパースに失敗しました。生レスポンス:`, rawText);
-    throw new Error('Agent1(Research)のレスポンスをJSONとして解析できませんでした。');
-  }
-
+  const parsedJson = parseJsonOrThrow(rawText, label);
   const result = researchSchema.safeParse(parsedJson);
   if (!result.success) {
-    console.error(`${label} レスポンスがスキーマに準拠していません:`);
-    for (const issue of result.error.issues) {
-      console.error(`  - ${issue.path.join('.') || '(root)'}: ${issue.message}`);
-    }
+    logZodIssues(result, label);
     throw new Error('Agent1(Research)のレスポンスがスキーマ違反です。');
   }
 
   if (result.data.notFound) {
     console.warn(`${label} 除外リスト以外の実在店舗が見つかりませんでした。`);
   } else {
-    console.log(`${label} 完了。選定店舗: 「${result.data.title}」（${result.data.genre}）`);
+    console.log(
+      `${label} 完了。選定店舗: 「${result.data.title}」（${result.data.genre}）${result.data.isNew ? ' [NEW]' : ''}`
+    );
     console.log(`${label} 住所: ${result.data.address} / 営業時間: ${result.data.openHours} / 定休日: ${result.data.regularHoliday}`);
     console.log(`${label} vibes: ${result.data.vibes.join(', ') || '(なし)'}`);
   }
@@ -424,31 +306,16 @@ async function runWriterAgent(ai: GoogleGenAI, research: ResearchResult): Promis
   const label = '[Agent2:Writer]';
   console.log(`${label} 起動。Agent1の調査結果をもとに紹介記事を執筆中...`);
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: buildWriterPrompt(research),
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: writerResponseSchema,
-    },
+  const rawText = await callPlainJsonAgent(ai, {
+    label,
+    prompt: buildWriterPrompt(research),
+    responseSchema: writerResponseSchema,
   });
 
-  const rawText = requireText(response, label);
-
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(rawText);
-  } catch {
-    console.error(`${label} JSONパースに失敗しました。生レスポンス:`, rawText);
-    throw new Error('Agent2(Writer)のレスポンスをJSONとして解析できませんでした。');
-  }
-
+  const parsedJson = parseJsonOrThrow(rawText, label);
   const result = writerSchema.safeParse(parsedJson);
   if (!result.success) {
-    console.error(`${label} レスポンスがスキーマに準拠していません:`);
-    for (const issue of result.error.issues) {
-      console.error(`  - ${issue.path.join('.') || '(root)'}: ${issue.message}`);
-    }
+    logZodIssues(result, label);
     throw new Error('Agent2(Writer)のレスポンスがスキーマ違反です。');
   }
 
@@ -482,16 +349,14 @@ async function runQaAgent(
     openHours: research.openHours,
     regularHoliday: research.regularHoliday,
     vibes: research.vibes,
+    isNew: research.isNew,
     description: writer.description,
     pubDate: new Date().toISOString().slice(0, 10),
   };
 
   const result = spotFrontmatterSchema.safeParse(candidate);
   if (!result.success) {
-    console.error(`${label} スキーマ検証に失敗しました:`);
-    for (const issue of result.error.issues) {
-      console.error(`  - ${issue.path.join('.') || '(root)'}: ${issue.message}`);
-    }
+    logZodIssues(result, label);
     throw new Error('Agent3(QA)がFrontmatterのスキーマ違反を検出しました。');
   }
 
@@ -501,8 +366,8 @@ async function runQaAgent(
     console.warn(`${label} genre "${fm.genre}" は既定リスト外ですが、そのまま採用します。`);
   }
 
-  const slug = uniqueSlug(slugify(research.slug), existingSlugs);
-  console.log(`${label} 検証OK。保存先slug: ${slug}`);
+  const slug = uniqueSlug(slugify(research.slug), existingSlugs, 'spot');
+  console.log(`${label} 検証OK。保存先slug: ${slug}${fm.isNew ? '（新店舗フラグ: ON）' : ''}`);
 
   const frontmatter = [
     '---',
@@ -515,6 +380,7 @@ async function runQaAgent(
     `regularHoliday: ${toYamlString(fm.regularHoliday)}`,
     'vibes:',
     ...fm.vibes.map((vibe) => `  - ${toYamlString(vibe)}`),
+    `isNew: ${fm.isNew}`,
     `description: ${toYamlString(fm.description)}`,
     `pubDate: ${fm.pubDate}`,
     '---',
@@ -546,7 +412,7 @@ async function main() {
   const ai = new GoogleGenAI({ apiKey });
 
   console.log('============================================================');
-  console.log(' 本寺小路ガイド 自動記事生成パイプライン');
+  console.log(' 本寺小路ガイド 自動記事生成パイプライン（新店舗優先）');
   console.log(' Agent1(Research) -> Agent2(Writer) -> Agent3(QA & Save)');
   console.log('============================================================');
 
@@ -554,7 +420,7 @@ async function main() {
     console.log(`\n----- 試行 ${attempt}/${MAX_ATTEMPTS} -----`);
 
     try {
-      const { titles: excludeTitles, slugs: existingSlugs } = await getExistingSpots();
+      const { titles: excludeTitles, slugs: existingSlugs } = await getExistingEntries(SPOTS_DIR);
       console.log(
         `[generate-spot] 既存記事: ${existingSlugs.length}件（除外対象タイトル: ${excludeTitles.length}件）`
       );
@@ -568,7 +434,7 @@ async function main() {
       }
 
       const isDuplicate = excludeTitles.some(
-        (title) => normalizeTitle(title) === normalizeTitle(research.title)
+        (title) => normalizeText(title) === normalizeText(research.title)
       );
       if (isDuplicate) {
         console.warn(`[generate-spot] 「${research.title}」はすでに掲載済みでした。リトライします。`);
@@ -579,7 +445,9 @@ async function main() {
       const filePath = await runQaAgent(research, writer, existingSlugs);
 
       console.log('\n============================================================');
-      console.log(` 完了: 「${research.title}」（${research.genre}）を保存しました。`);
+      console.log(
+        ` 完了: 「${research.title}」（${research.genre}）${research.isNew ? '[NEW] ' : ''}を保存しました。`
+      );
       console.log(` -> ${path.relative(process.cwd(), filePath)}`);
       console.log('============================================================');
       return;

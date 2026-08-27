@@ -10,7 +10,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "generate:spot": "tsx scripts/generate-spot.ts"
+    "generate:spot": "tsx scripts/generate-spot.ts",
+    "generate:news": "tsx scripts/generate-news.ts"
   },
   "dependencies": {
     "@lucide/astro": "^1.34.0",

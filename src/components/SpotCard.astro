@@ -8,7 +8,7 @@ interface Props {
 }
 
 const { spot } = Astro.props;
-const { title, genre, budget, openHours, regularHoliday, vibes, description } = spot.data;
+const { title, genre, budget, openHours, regularHoliday, vibes, isNew, description } = spot.data;
 ---
 
 <a
@@ -16,8 +16,16 @@ const { title, genre, budget, openHours, regularHoliday, vibes, description } = 
   data-spot-card
   data-genre={genre}
   data-vibes={vibes.join('|')}
-  class="group flex flex-col overflow-hidden rounded-xl border border-night-700 bg-night-900/80 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70 hover:shadow-amber-deep/10"
+  class="group relative flex flex-col overflow-hidden rounded-xl border border-night-700 bg-night-900/80 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70 hover:shadow-amber-deep/10"
 >
+  {
+    isNew && (
+      <span class="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-vermilion px-2.5 py-1 text-[0.65rem] font-bold tracking-wide text-white shadow-lg shadow-vermilion/40">
+        <span class="lantern-flicker h-1.5 w-1.5 rounded-full bg-white" />
+        NEW
+      </span>
+    )
+  }
   <div class="border-b border-night-700 bg-night-800/50 px-4 py-3">
     <span class="inline-flex items-center gap-1.5 text-xs font-medium tracking-wide text-amber-glow">
       <GenreIcon genre={genre} size={14} />
