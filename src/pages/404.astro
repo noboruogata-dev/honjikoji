@@ -1,0 +1,45 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import Illust from '../components/Illust.astro';
+---
+
+<Layout
+  title="ページが見つかりません｜本寺小路ガイド"
+  description="お探しのページは見つかりませんでした。"
+>
+  <Header />
+
+  <main class="mx-auto flex max-w-lg flex-col items-center px-4 py-20 text-center">
+    <Illust
+      src="/images/states/404.png"
+      mode="tint"
+      size={240}
+      glow
+      alt="灯りの点いた提灯が両側に下がる、行き止まりの路地の情景"
+    />
+    <h1 class="mt-6 font-serif text-2xl font-bold text-gold-100">
+      路地を曲がりすぎたようです
+    </h1>
+    <p class="mt-3 text-sm leading-relaxed text-gold-100/60">
+      お探しのページは見つかりませんでした。灯りを頼りに、もう一度歩き直してみませんか。
+    </p>
+    <div class="mt-7 flex flex-wrap justify-center gap-3">
+      <a
+        href="/"
+        class="rounded-full bg-amber-glow px-5 py-2.5 text-sm font-semibold text-night-950 transition hover:brightness-110"
+      >
+        トップへ戻る
+      </a>
+      <a
+        href="/spots/"
+        class="rounded-full border border-night-600 bg-night-800/60 px-5 py-2.5 text-sm font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+      >
+        店舗一覧を見る
+      </a>
+    </div>
+  </main>
+
+  <Footer />
+</Layout>

@@ -5,6 +5,7 @@ import Footer from '../../components/Footer.astro';
 import SpotCard from '../../components/SpotCard.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
 import EmptyState from '../../components/EmptyState.astro';
+import GenreIcon from '../../components/GenreIcon.astro';
 import { getCollection } from 'astro:content';
 import { MapPin } from '@lucide/astro';
 
@@ -62,8 +63,9 @@ const seatTypes = [
                 type="button"
                 data-value={genre}
                 aria-pressed="false"
-                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+                class="filter-btn inline-flex items-center gap-1.5 rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
               >
+                <GenreIcon genre={genre} size={14} />
                 {genre}
               </button>
             ))

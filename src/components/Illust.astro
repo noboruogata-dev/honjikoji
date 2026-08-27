@@ -1,0 +1,56 @@
+---
+// 差し込み済みイラスト素材(public/images/)を、時間帯テーマ([data-time])に
+// 追従させて表示する共通コンポーネント。差し込みは必ずこれ経由で行う。
+//
+// mode="mask": アルファをCSS maskとして使い、background-color: currentColor
+//   で塗る。色は呼び出し側の text-* クラスで制御。アイコン・罫線のような
+//   単色化してよい素材向け。<img>を使わないため装飾専用（alt=""固定）。
+// mode="tint": 原色を保ちつつ、filterのbrightness/saturate/hue-rotateを
+//   --ill-* 変数（global.cssで[data-time]ごとに定義）で微調整する。
+//   年表挿絵・空状態/404のような、内容を伝える素材向け。
+import { ILLUST_DIMENSIONS } from '../lib/illustDimensions';
+
+interface Props {
+  src: string;
+  mode: 'mask' | 'tint';
+  glow?: boolean;
+  size: number;
+  alt: string;
+  class?: string;
+  loading?: 'lazy' | 'eager';
+}
+
+const {
+  src,
+  mode,
+  glow = false,
+  size,
+  alt,
+  class: className = '',
+  loading = 'lazy',
+} = Astro.props;
+
+const ratio = ILLUST_DIMENSIONS[src] ?? { w: 1, h: 1 };
+const height = Math.round((size * ratio.h) / ratio.w);
+---
+
+{
+  mode === 'mask' ? (
+    <span
+      role="presentation"
+      aria-hidden="true"
+      class:list={['ill-mask inline-block', glow && 'ill-glow', className]}
+      style={`--ill-w:${size}px;--ill-h:${height}px;--ill-src:url(${src})`}
+    />
+  ) : (
+    <img
+      src={src}
+      alt={alt}
+      width={size}
+      height={height}
+      loading={loading}
+      decoding="async"
+      class:list={['ill-tint', glow && 'ill-glow', className]}
+    />
+  )
+}

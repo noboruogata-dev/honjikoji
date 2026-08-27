@@ -11,6 +11,8 @@ import {
   Store,
   UtensilsCrossed,
 } from '@lucide/astro';
+import Illust from './Illust.astro';
+import { GENRE_ICON_MAP } from '../lib/genreIcons';
 
 interface Props {
   genre: string;
@@ -21,8 +23,10 @@ interface Props {
 
 const { genre, size = 18, class: className = '', strokeWidth = 1.75 } = Astro.props;
 
-// ジャンル文字列からLucideアイコンを自動選択する。
-// 未知のジャンルは Store アイコンにフォールバック。
+// PNG化されているジャンルはIllust(mode="mask")で表示。それ以外は従来通り
+// Lucideアイコンにフォールバック（未知のジャンルは Store）。
+const pngSrc = GENRE_ICON_MAP[genre];
+
 const ICON_MAP: Record<string, typeof Store> = {
   居酒屋: UtensilsCrossed,
   焼肉: Beef,
@@ -44,4 +48,10 @@ const ICON_MAP: Record<string, typeof Store> = {
 const Icon = ICON_MAP[genre] ?? Store;
 ---
 
-<Icon size={size} stroke-width={strokeWidth} class={className} aria-hidden="true" />
+{
+  pngSrc ? (
+    <Illust src={pngSrc} mode="mask" size={size} alt="" class={className} />
+  ) : (
+    <Icon size={size} stroke-width={strokeWidth} class={className} aria-hidden="true" />
+  )
+}

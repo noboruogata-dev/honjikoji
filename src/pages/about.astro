@@ -3,7 +3,8 @@ import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import SectionHeading from '../components/SectionHeading.astro';
-import Divider from '../components/Divider.astro';
+import RuleDivider from '../components/RuleDivider.astro';
+import Illust from '../components/Illust.astro';
 import {
   Anvil,
   Check,
@@ -33,6 +34,8 @@ const timeline = [
     icon: Anvil,
     accent: 'amber',
     keywords: ['鍛冶職人', 'ものづくりの町'],
+    image: '/images/timeline/era-edo.png',
+    imageAlt: '江戸時代、鍛冶職人が金物を打つ工房の情景',
   },
   {
     era: '大正〜高度経済成長期',
@@ -41,6 +44,8 @@ const timeline = [
     icon: Landmark,
     accent: 'vermilion',
     keywords: ['商談の場', '花街の最盛期'],
+    image: '/images/timeline/era-meiji-taisho.png',
+    imageAlt: '明治・大正期、赤い暖簾を掛けた商家の店構えの情景',
   },
   {
     era: '平成',
@@ -49,6 +54,8 @@ const timeline = [
     icon: Users,
     accent: 'amber',
     keywords: ['代替わり', '受け継がれる暖簾'],
+    image: '/images/timeline/era-heisei.png',
+    imageAlt: '平成期、シャッターの目立つ路地に、ぽつぽつと灯りがともる情景',
   },
   {
     era: '令和',
@@ -57,6 +64,8 @@ const timeline = [
     icon: Lamp,
     accent: 'vermilion',
     keywords: ['大人の社交街', '今も灯る路地'],
+    image: '/images/timeline/era-reiwa.png',
+    imageAlt: '令和の今、提灯の灯りが並ぶ本寺小路の夜の情景',
   },
 ];
 
@@ -162,7 +171,7 @@ const manners = [
       </div>
     </section>
 
-    <Divider />
+    <RuleDivider variant="chochin" />
 
     <!-- Timeline -->
     <section id="timeline" class="mb-16 scroll-mt-8">
@@ -199,6 +208,13 @@ const manners = [
                     ]}
                   >
                     <div class="rounded-xl border border-night-700 bg-night-900/60 p-5">
+                      <Illust
+                        src={item.image}
+                        mode="tint"
+                        size={88}
+                        alt={item.imageAlt}
+                        class="mb-3 rounded-lg"
+                      />
                       <p
                         class:list={[
                           'text-xs font-medium tracking-[0.2em]',
@@ -233,7 +249,7 @@ const manners = [
       </div>
     </section>
 
-    <Divider />
+    <RuleDivider variant="noren" />
 
     <!-- Section: 大人の社交街としての魅力 -->
     <section class="mb-16">
@@ -265,7 +281,7 @@ const manners = [
       </div>
     </section>
 
-    <Divider />
+    <RuleDivider variant="ochoko" />
 
     <!-- Section: 本寺小路の歩き方（ハシゴ酒の心得） -->
     <section id="hashigo" class="mb-6 scroll-mt-8">

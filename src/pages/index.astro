@@ -5,6 +5,7 @@ import Footer from '../components/Footer.astro';
 import SpotCard from '../components/SpotCard.astro';
 import SectionHeading from '../components/SectionHeading.astro';
 import AlleyNight from '../components/illustrations/AlleyNight.astro';
+import RuleDivider from '../components/RuleDivider.astro';
 import { getCollection } from 'astro:content';
 import { ArrowRight, Landmark, MapPin, Megaphone } from '@lucide/astro';
 
@@ -149,6 +150,8 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
       </div>
     </section>
 
+    <RuleDivider variant="noren" />
+
     <!-- 特集バナー: 本寺小路とは -->
     <section class="mb-14 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60">
       <div class="grid grid-cols-1 sm:grid-cols-5">
@@ -196,6 +199,8 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
       </div>
     </section>
 
+    <RuleDivider variant="noren" />
+
     <!-- 新着店舗 -->
     <section id="spots" class="scroll-mt-8" aria-labelledby="spots-heading">
       <div class="flex items-baseline justify-between" id="spots-heading">
@@ -216,6 +221,8 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
         </a>
       </div>
     </section>
+
+    <RuleDivider variant="ochoko" />
 
     <!-- Culture Column: 小路の歩き方 -->
     <section class="mt-16 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60">

@@ -1,0 +1,36 @@
+---
+// 画像イラスト(public/images/rules/)によるセクション区切り。
+// 純粋なSVGの区切り線が欲しい場合はDivider.astroを使う（本コンポーネントは
+// それを置き換えるものではなく、イラスト差し込み用の別コンポーネント）。
+import Illust from './Illust.astro';
+
+interface Props {
+  variant?: 'chochin' | 'noren' | 'ochoko';
+}
+
+const { variant = 'noren' } = Astro.props;
+
+const SRC: Record<'chochin' | 'noren' | 'ochoko', string> = {
+  chochin: '/images/rules/rule-chochin.png',
+  noren: '/images/rules/rule-noren.png',
+  ochoko: '/images/rules/rule-ochoko.png',
+};
+---
+
+{
+  /*
+    朱・黄の差し色が見せどころなので mode="tint"（原色保持）。
+    アイコンはシルエットで機能すればよいので mode="mask" のまま、
+    こちらとは差し込み方を分ける。
+  */
+}
+<div class="my-8 flex justify-center" role="presentation" aria-hidden="true">
+  <Illust
+    src={SRC[variant]}
+    mode="tint"
+    size={220}
+    alt=""
+    glow={variant === 'chochin'}
+    class="ill-tint-rule"
+  />
+</div>

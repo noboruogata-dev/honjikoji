@@ -32,24 +32,55 @@
   --sky-top: #10121c;
   --sky-bottom: #1c1f33;
   --glow: rgba(242, 181, 68, 0.14);
+
+  /* イラスト素材(mode="tint")の色温度・明るさ微調整。hue-rotateは±8degを
+     超えない（朱が紫に転ぶため）。マスク素材(mode="mask")はcurrentColorで
+     塗るためこれらの影響を受けない。
+     以前はopacityを大きく下げて背景に馴染ませていたが、抜き済み素材は
+     もう矩形の縁を持たない（実アルファがあるため境界を誤魔化す必要がない）。
+     opacityは黒い縁だけでなく絵柄の濃い輪郭線ごと背景へ溶かしてしまい、
+     「暗くて内容が判別できない」原因になっていたため、暗さの調整は
+     brightness主導にし、opacityは1に近い値（軽い馴染ませ程度）に留める。
+     rule-chochin等の罫線はセクション区切りとしての存在感を出すため、
+     一般のtint素材より明るい --ill-bright-rule を別途用意する。 */
+  --ill-bright: 0.82;
+  --ill-bright-rule: 0.95;
+  --ill-sat: 1;
+  --ill-hue: 0deg;
+  --ill-opacity: 0.95;
 }
 [data-time="dusk"] {
   /* 夕暮れ: 藍と橙、グローは弱め */
   --sky-top: #2b3a63;
   --sky-bottom: #c97a42;
   --glow: rgba(217, 122, 66, 0.09);
+  --ill-bright: 0.9;
+  --ill-bright-rule: 1;
+  --ill-sat: 0.95;
+  --ill-hue: -4deg;
+  --ill-opacity: 1;
 }
 [data-time="night"] {
   /* 標準 */
   --sky-top: #10121c;
   --sky-bottom: #1c1f33;
   --glow: rgba(242, 181, 68, 0.14);
+  --ill-bright: 0.82;
+  --ill-bright-rule: 0.95;
+  --ill-sat: 1;
+  --ill-hue: 0deg;
+  --ill-opacity: 0.95;
 }
 [data-time="latenight"] {
-  /* 深夜: 墨と紅、グローは最大 */
+  /* 深夜: 墨と紅、グローは最大。イラストも最も暗がりに沈める */
   --sky-top: #050509;
   --sky-bottom: #2a1013;
   --glow: rgba(226, 71, 47, 0.22);
+  --ill-bright: 0.7;
+  --ill-bright-rule: 0.85;
+  --ill-sat: 1.08;
+  --ill-hue: 6deg;
+  --ill-opacity: 0.9;
 }
 
 html {
@@ -81,6 +112,69 @@ body {
 
 .noren-border {
   border-image: linear-gradient(90deg, transparent, var(--color-amber-deep), transparent) 1;
+}
+
+/*
+ * Illust.astro の実装クラス。
+ * .ill-mask: アルファをmaskとして使い、background-color: currentColorで塗る
+ * （mask非対応ブラウザでは@supportsで原色PNG表示にフォールバック）。
+ * .ill-tint: 原色を保ったまま、[data-time]の--ill-*で色温度だけ微調整する。
+ * .ill-glow: rule-chochin / states/404 / states/empty の3箇所限定。
+ * 既存の--glow（時間帯でalpha/色相が変わる）をdrop-shadowの色に使う。
+ */
+.ill-mask {
+  width: var(--ill-w);
+  height: var(--ill-h);
+  background-color: currentColor;
+  -webkit-mask-image: var(--ill-src);
+  mask-image: var(--ill-src);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+@supports not ((mask-image: none) or (-webkit-mask-image: none)) {
+  .ill-mask {
+    background-color: transparent;
+    background-image: var(--ill-src);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+  }
+}
+
+.ill-tint {
+  filter: brightness(var(--ill-bright)) saturate(var(--ill-sat)) hue-rotate(var(--ill-hue));
+  /* brightnessだけだと暗い背景の上で「暗い灰色の四角」が浮いて見えるため、
+     opacityを併用して地の背景色に馴染ませる（値は[data-time]で変わる）。 */
+  opacity: var(--ill-opacity);
+  transition:
+    filter 0.6s ease,
+    opacity 0.6s ease;
+}
+
+.ill-glow {
+  filter: drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 16px var(--glow));
+  transition: filter 0.6s ease;
+}
+.ill-tint.ill-glow {
+  /* tintのfilterとglowのfilterは両立させる（brightness/saturate/hue-rotateに
+     drop-shadowを重ねる。両方ともfilter関数なので1つのfilterプロパティに連結） */
+  filter: brightness(var(--ill-bright)) saturate(var(--ill-sat)) hue-rotate(var(--ill-hue))
+    drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 16px var(--glow));
+}
+
+/* 罫線(RuleDivider)専用の明るさ上書き。セクション区切りとしての存在感を
+   出すため、年表/空状態/404などの一般tint素材より明るい--ill-bright-ruleを
+   使う。.ill-tint.ill-glowより詳細度を上げて確実に上書きする。 */
+.ill-tint.ill-tint-rule {
+  filter: brightness(var(--ill-bright-rule)) saturate(var(--ill-sat)) hue-rotate(var(--ill-hue));
+}
+.ill-tint.ill-glow.ill-tint-rule {
+  filter: brightness(var(--ill-bright-rule)) saturate(var(--ill-sat)) hue-rotate(var(--ill-hue))
+    drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 16px var(--glow));
 }
 
 @keyframes lantern-flicker {
@@ -153,5 +247,12 @@ body {
      点灯済みの状態に戻す。 */
   .street-glow {
     opacity: 1 !important;
+  }
+
+  /* Illust.astro の時間帯フィルタ切り替え(.6s)も動きを止める。
+     animationではなくtransitionなので、上のanimation:noneとは別に指定する。 */
+  .ill-tint,
+  .ill-glow {
+    transition: none !important;
   }
 }
