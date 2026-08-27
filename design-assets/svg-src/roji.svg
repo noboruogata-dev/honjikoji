@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" fill="none" role="img" aria-hidden="true">
+  <!-- Main alley -->
+  <path d="M40 329
+       L156 327
+       L271 331
+       L392 328
+       L510 330
+       L632 327
+       L748 331
+       L868 328
+       L986 330
+       L1160 327
+       L1160 369
+       L1041 371
+       L925 368
+       L807 371
+       L688 369
+       L568 372
+       L449 368
+       L330 371
+       L211 368
+       L98 371
+       L40 369
+       Z" fill="currentColor" fill-opacity="0.06"></path>
+
+  <!-- North side -->
+
+  <g id="building-group-01">
+    <rect id="bldg-01" x="68" y="186" width="94" height="137" transform="rotate(-0.8 115 254.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-02">
+    <rect id="bldg-02" x="168" y="212" width="78" height="113" transform="rotate(0.7 207 268.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-03">
+    <rect id="bldg-03" x="252" y="168" width="121" height="157" transform="rotate(-0.4 312.5 246.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-04">
+    <rect id="bldg-04" x="380" y="204" width="82" height="121" transform="rotate(0.9 421 264.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-05">
+    <rect id="bldg-05" x="469" y="150" width="111" height="176" transform="rotate(-0.6 524.5 238)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-06">
+    <rect id="bldg-06" x="587" y="194" width="72" height="132" transform="rotate(0.5 623 260)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-07">
+    <rect id="bldg-07" x="666" y="176" width="126" height="151" transform="rotate(-0.7 729 251.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-08">
+    <rect id="bldg-08" x="799" y="217" width="76" height="110" transform="rotate(0.8 837 272)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-09">
+    <rect id="bldg-09" x="882" y="158" width="113" height="169" transform="rotate(-0.5 938.5 242.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-10">
+    <rect id="bldg-10" x="1002" y="196" width="125" height="131" transform="rotate(0.6 1064.5 261.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <!-- South side -->
+
+  <g id="building-group-11">
+    <rect id="bldg-11" x="70" y="376" width="108" height="146" transform="rotate(0.6 124 449)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-12">
+    <rect id="bldg-12" x="185" y="375" width="73" height="111" transform="rotate(-0.8 221.5 430.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-13">
+    <rect id="bldg-13" x="265" y="376" width="119" height="169" transform="rotate(0.5 324.5 460.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-14">
+    <rect id="bldg-14" x="391" y="374" width="89" height="126" transform="rotate(-0.7 435.5 437)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-15">
+    <rect id="bldg-15" x="487" y="377" width="102" height="181" transform="rotate(0.4 538 467.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-16">
+    <rect id="bldg-16" x="596" y="375" width="81" height="133" transform="rotate(-0.5 636.5 441.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-17">
+    <rect id="bldg-17" x="684" y="377" width="127" height="159" transform="rotate(0.7 747.5 456.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-18">
+    <rect id="bldg-18" x="818" y="374" width="75" height="117" transform="rotate(-0.6 855.5 432.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-19">
+    <rect id="bldg-19" x="900" y="376" width="105" height="174" transform="rotate(0.5 952.5 463)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <g id="building-group-20">
+    <rect id="bldg-20" x="1012" y="374" width="114" height="139" transform="rotate(-0.7 1069 443.5)" stroke="currentColor" stroke-width="1.5"></rect>
+  </g>
+
+  <!-- West gate -->
+  <g id="gate-west" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M43 309 L43 389"></path>
+    <path d="M58 315 L58 383"></path>
+    <path d="M34 309 L67 309"></path>
+    <path d="M38 301 L63 301"></path>
+    <path d="M34 389 L67 389"></path>
+    <path d="M43 319 L58 319"></path>
+  </g>
+
+  <!-- East gate -->
+  <g id="gate-east" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M1142 309 L1142 389"></path>
+    <path d="M1157 315 L1157 383"></path>
+    <path d="M1133 309 L1166 309"></path>
+    <path d="M1138 301 L1162 301"></path>
+    <path d="M1133 389 L1166 389"></path>
+    <path d="M1142 319 L1157 319"></path>
+  </g>
+
+  <!-- Minimal alley details -->
+  <g stroke="currentColor" stroke-width="1.5" stroke-opacity="0.28">
+    <path d="M101 337 L176 336"></path>
+    <path d="M214 360 L298 361"></path>
+    <path d="M346 338 L426 337"></path>
+    <path d="M469 359 L548 360"></path>
+    <path d="M596 338 L674 337"></path>
+    <path d="M719 359 L801 360"></path>
+    <path d="M846 338 L927 337"></path>
+    <path d="M971 359 L1051 360"></path>
+    <path d="M1083 338 L1137 337"></path>
+  </g>
+</svg>

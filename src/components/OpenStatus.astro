@@ -1,0 +1,90 @@
+---
+// 店舗の営業状況をリアルタイムに表示するバッジ。
+// 静的ビルドを維持するため、判定は必ずクライアント側scriptで行う
+// （ビルド時点で判定して埋め込むと、閲覧時には情報が古くなってしまう）。
+// JS無効時は空のまま（誤情報を出すより、何も出さないほうが安全）。
+import type { HourRule } from '../lib/hours';
+
+interface Props {
+  hours?: HourRule[];
+  size?: 'sm' | 'md';
+}
+
+const { hours, size = 'md' } = Astro.props;
+
+const TEXT_SIZE: Record<string, string> = {
+  sm: 'text-[0.65rem]',
+  md: 'text-xs',
+};
+
+// JS側で毎回この基底クラスに状態別クラスを追加する形で描画する。
+const baseClass = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold empty:hidden ${TEXT_SIZE[size]}`;
+---
+
+<span
+  class={baseClass}
+  data-open-status
+  data-base-class={baseClass}
+  data-hours={JSON.stringify(hours ?? null)}
+  aria-live="polite"
+></span>
+
+<script>
+  import { getOpenStatus, type HourRule, type OpenState } from '../lib/hours';
+
+  const STATE_CLASSES: Record<OpenState, string> = {
+    open: 'bg-amber-glow/15 text-amber-glow',
+    'closing-soon': 'bg-vermilion/15 text-vermilion',
+    closed: 'bg-gold-100/10 text-gold-100/40',
+    unknown: 'bg-gold-100/10 text-gold-100/40',
+  };
+
+  const DOT_CLASSES: Record<OpenState, string> = {
+    open: 'bg-amber-glow',
+    'closing-soon': 'bg-vermilion lantern-flicker',
+    closed: 'bg-gold-100/30',
+    unknown: 'bg-gold-100/30',
+  };
+
+  function parseHours(raw: string | undefined): HourRule[] | undefined {
+    if (!raw) return undefined;
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  function render(el: HTMLElement) {
+    const hours = parseHours(el.dataset.hours);
+    const result = getOpenStatus(hours);
+
+    el.className = `${el.dataset.baseClass ?? ''} ${STATE_CLASSES[result.state]}`.trim();
+
+    let dot = el.querySelector<HTMLSpanElement>('[data-dot]');
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.dataset.dot = '';
+      dot.classList.add('h-1.5', 'w-1.5', 'rounded-full');
+      el.appendChild(dot);
+    }
+    dot.className = `h-1.5 w-1.5 shrink-0 rounded-full ${DOT_CLASSES[result.state]}`;
+
+    let label = el.querySelector<HTMLSpanElement>('[data-label]');
+    if (!label) {
+      label = document.createElement('span');
+      label.dataset.label = '';
+      el.appendChild(label);
+    }
+    const showNextChange = result.nextChange && (result.state === 'open' || result.state === 'closing-soon');
+    label.textContent = showNextChange ? `${result.label}（${result.nextChange}）` : result.label;
+  }
+
+  function renderAll() {
+    document.querySelectorAll<HTMLElement>('[data-open-status]').forEach(render);
+  }
+
+  renderAll();
+  setInterval(renderAll, 60_000);
+</script>

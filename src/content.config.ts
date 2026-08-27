@@ -15,6 +15,20 @@ const spots = defineCollection({
     vibes: z.array(z.string()),
     // 開店・リニューアルオープンから概ね1年以内の新店舗フラグ。
     isNew: z.boolean().default(false),
+    // 機械可読な営業時間（任意）。openHours/regularHoliday（表示用の自由文字列）とは
+    // 独立して並走させる。1要素が「daysに含まれる曜日すべてに共通する1つの営業区間」。
+    // close は「その曜日の0:00からの経過時刻」として24を超える値を許容する
+    // （例: 19:00開店・翌2:00閉店 → open: "19:00", close: "26:00"）。
+    // 日またぎ・定休日の判定ロジックは src/lib/hours.ts の getOpenStatus を参照。
+    hours: z
+      .array(
+        z.object({
+          days: z.array(z.number().int().min(0).max(6)), // 0=日曜, 1=月曜, ... 6=土曜
+          open: z.string().regex(/^\d{1,2}:\d{2}$/),
+          close: z.string().regex(/^\d{1,2}:\d{2}$/),
+        })
+      )
+      .optional(),
     description: z.string(),
     pubDate: z.coerce.date(),
   }),
