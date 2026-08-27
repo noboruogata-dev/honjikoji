@@ -2,6 +2,9 @@
 // 夜の小路・石畳・暖簾・街灯をモチーフにしたワイドイラスト。
 // Hero や特集バナーの背景/アクセントとして、外部画像の代わりに使う軽量インラインSVG。
 // 呼び出し側で class（配置・不透明度・サイズ）を制御できるよう、装飾色のみここで完結させる。
+//
+// [data-time] に応じて --sky-top/--sky-bottom/--glow（global.css定義）が変わり、
+// 空のグラデーションと街灯のグローだけがそれに追随する（建物・暖簾など他の色は不変）。
 
 interface Props {
   class?: string;
@@ -23,14 +26,25 @@ const buildings = [
   { x: 1110, w: 90, h: 180 },
 ];
 
-const lanternX = [110, 405, 700, 995];
+// 街灯（提灯）。奥（左・xが小さい）から手前（右）へ並ぶ想定で、
+// 揺れの周期・遅延・スクロール点灯のタイミングをすべて1灯ごとにずらす。
+const lanterns = [
+  { x: 110, swayDuration: 3.8, swayDelay: -0.6 },
+  { x: 405, swayDuration: 4.2, swayDelay: -1.7 },
+  { x: 700, swayDuration: 5.1, swayDelay: -0.3 },
+  { x: 995, swayDuration: 4.6, swayDelay: -2.4 },
+];
 ---
 
 <svg viewBox="0 0 1200 360" fill="none" class={className} aria-hidden="true" preserveAspectRatio="xMidYMax slice">
   <defs>
+    <linearGradient id={`sky-${uid}`} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" style="stop-color: var(--sky-top)" />
+      <stop offset="100%" style="stop-color: var(--sky-bottom)" />
+    </linearGradient>
     <radialGradient id={`glow-${uid}`} cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="var(--color-amber-glow)" stop-opacity="0.55" />
-      <stop offset="100%" stop-color="var(--color-amber-glow)" stop-opacity="0" />
+      <stop offset="0%" style="stop-color: var(--glow)" />
+      <stop offset="100%" style="stop-color: var(--glow); stop-opacity: 0" />
     </radialGradient>
     <radialGradient id={`lantern-${uid}`} cx="50%" cy="35%" r="65%">
       <stop offset="0%" stop-color="var(--color-amber-glow)" />
@@ -41,6 +55,9 @@ const lanternX = [110, 405, 700, 995];
       <stop offset="100%" stop-color="var(--color-amber-glow)" stop-opacity="0" />
     </linearGradient>
   </defs>
+
+  <!-- 空（時間帯で色が変わる背景レイヤー） -->
+  <rect x="0" y="0" width="1200" height="360" fill={`url(#sky-${uid})`} />
 
   <!-- 建物のシルエット -->
   {
@@ -74,22 +91,94 @@ const lanternX = [110, 405, 700, 995];
     ))}
   </g>
 
-  <!-- 街灯（提灯） -->
+  <!-- 街灯（提灯）: グロー・ポールは固定、提灯本体+骨だけが揺れる -->
   {
-    lanternX.map((x) => (
-      <g>
-        <circle cx={x} cy={258} r={46} fill={`url(#glow-${uid})`} />
-        <line x1={x} y1="360" x2={x} y2="270" stroke="var(--color-night-600)" stroke-width="3" />
-        <path
-          d={`M${x - 12} 258 C${x - 16} 268 ${x - 16} 282 ${x - 12} 292 L${x + 12} 292 C${x + 16} 282 ${x + 16} 268 ${x + 12} 258 Z`}
-          fill={`url(#lantern-${uid})`}
-          stroke="var(--color-night-950)"
-          stroke-opacity="0.3"
-          stroke-width="1"
-        />
-        <line x1={x - 12} y1="269" x2={x + 12} y2="269" stroke="var(--color-night-950)" stroke-opacity="0.25" />
-        <line x1={x - 14} y1="280" x2={x + 14} y2="280" stroke="var(--color-night-950)" stroke-opacity="0.25" />
-      </g>
-    ))
+    lanterns.map((lantern, i) => {
+      const x = lantern.x;
+      return (
+        <g>
+          <circle
+            cx={x}
+            cy={258}
+            r={46}
+            fill={`url(#glow-${uid})`}
+            class="street-glow"
+            data-index={i}
+          />
+          <line x1={x} y1="360" x2={x} y2="270" stroke="var(--color-night-600)" stroke-width="3" />
+          <g
+            class="lantern-sway"
+            style={`animation-duration:${lantern.swayDuration}s;animation-delay:${lantern.swayDelay}s;`}
+          >
+            <path
+              d={`M${x - 12} 258 C${x - 16} 268 ${x - 16} 282 ${x - 12} 292 L${x + 12} 292 C${x + 16} 282 ${x + 16} 268 ${x + 12} 258 Z`}
+              fill={`url(#lantern-${uid})`}
+              stroke="var(--color-night-950)"
+              stroke-opacity="0.3"
+              stroke-width="1"
+            />
+            <line x1={x - 12} y1="269" x2={x + 12} y2="269" stroke="var(--color-night-950)" stroke-opacity="0.25" />
+            <line x1={x - 14} y1="280" x2={x + 14} y2="280" stroke="var(--color-night-950)" stroke-opacity="0.25" />
+          </g>
+        </g>
+      );
+    })
   }
 </svg>
+
+<style>
+  /* 提灯の揺れ: transform-boxを指定しないとSVGでは"top center"のような
+     キーワード指定が要素のfill-boxではなくviewport基準になってしまう。 */
+  .lantern-sway {
+    transform-box: fill-box;
+    transform-origin: top center;
+    animation-name: lantern-sway;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+  }
+  @keyframes lantern-sway {
+    0%,
+    100% {
+      transform: rotate(-1.5deg);
+    }
+    50% {
+      transform: rotate(1.5deg);
+    }
+  }
+
+  /* スクロール連動点灯。非対応ブラウザ/実装向けの既定値は @supports の外側に
+     書き、「最初から点灯済み」を保証する（JS不使用）。 */
+  .street-glow {
+    opacity: 1;
+  }
+
+  @supports (animation-timeline: view()) {
+    .street-glow {
+      opacity: 0;
+      animation-name: lantern-light-up;
+      animation-timeline: view();
+      animation-fill-mode: both;
+    }
+    @keyframes lantern-light-up {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    /* 奥（xが小さい=index 0）から手前へ、点灯するタイミングを少しずつ遅らせる。 */
+    .street-glow[data-index="0"] {
+      animation-range: entry 0% entry 40%;
+    }
+    .street-glow[data-index="1"] {
+      animation-range: entry 15% entry 55%;
+    }
+    .street-glow[data-index="2"] {
+      animation-range: entry 30% entry 70%;
+    }
+    .street-glow[data-index="3"] {
+      animation-range: entry 45% entry 85%;
+    }
+  }
+</style>

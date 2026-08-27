@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { ClientRouter } from 'astro:transitions';
 
 interface Props {
   title: string;
@@ -36,6 +37,50 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      時間帯テーマの同期（FOUC防止のため is:inline で同期実行し、CSSより前に
+      documentElement へ data-time をセットする）。Asia/Tokyo固定で判定する。
+      ClientRouterでのページ遷移後も data-time が引き継がれるよう、
+      astro:page-load でも同じ関数を呼ぶ（is:inline自体もswap時に再実行されるが、
+      二重登録を避けるため window フラグで1回だけ addEventListener する）。
+    -->
+    <script is:inline>
+      (function () {
+        function computeTimeBucket() {
+          try {
+            var parts = new Intl.DateTimeFormat('en-US', {
+              timeZone: 'Asia/Tokyo',
+              hour: '2-digit',
+              hour12: false,
+            }).formatToParts(new Date());
+            var hourPart = parts.find(function (p) {
+              return p.type === 'hour';
+            });
+            var hour = hourPart ? parseInt(hourPart.value, 10) : NaN;
+            if (hour === 24) hour = 0;
+            if (!isFinite(hour)) return 'night';
+            if (hour >= 23 || hour < 5) return 'latenight';
+            if (hour >= 16 && hour < 19) return 'dusk';
+            return 'night';
+          } catch (e) {
+            return 'night';
+          }
+        }
+
+        function syncTime() {
+          document.documentElement.dataset.time = computeTimeBucket();
+        }
+
+        syncTime();
+
+        if (!window.__timeSyncBound) {
+          window.__timeSyncBound = true;
+          document.addEventListener('astro:page-load', syncTime);
+        }
+      })();
+    </script>
+
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
@@ -70,6 +115,8 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
       href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
+
+    <ClientRouter />
   </head>
   <body class="min-h-screen antialiased">
     <slot />

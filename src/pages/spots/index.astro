@@ -52,7 +52,7 @@ const seatTypes = [
             type="button"
             data-value="all"
             aria-pressed="true"
-            class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
           >
             すべて
           </button>
@@ -78,7 +78,7 @@ const seatTypes = [
             type="button"
             data-value="all"
             aria-pressed="true"
-            class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
           >
             すべて
           </button>
@@ -105,7 +105,7 @@ const seatTypes = [
             type="button"
             data-value="all"
             aria-pressed="true"
-            class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
           >
             すべて
           </button>
@@ -131,7 +131,7 @@ const seatTypes = [
             type="button"
             data-value="all"
             aria-pressed="true"
-            class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
           >
             すべて
           </button>
@@ -208,12 +208,6 @@ const seatTypes = [
     return max !== undefined && cardBudgetMax <= max;
   }
 
-  const groups = document.querySelectorAll<HTMLElement>('[data-filter-group]');
-  const openToggle = document.querySelector<HTMLButtonElement>('[data-open-toggle]');
-  const cards = document.querySelectorAll<HTMLElement>('[data-spot-card]');
-  const resultCount = document.querySelector<HTMLElement>('[data-result-count]');
-  const emptyMessage = document.querySelector<HTMLElement>('[data-empty-message]');
-
   function parseHours(raw: string | undefined): HourRule[] | undefined {
     if (!raw || raw === 'null') return undefined;
     try {
@@ -240,118 +234,165 @@ const seatTypes = [
     return pressed?.dataset.match ?? pressed?.dataset.value ?? 'all';
   }
 
-  function isOpenToggleActive(): boolean {
-    return openToggle?.getAttribute('aria-pressed') === 'true';
-  }
-
-  function applyFilters() {
-    const genreKey = activeKey(group('genre'));
-    const sceneMatch = activeMatch(group('scene'));
-    const budgetKey = activeKey(group('budget'));
-    const seatMatch = activeMatch(group('seat'));
-    const openActive = isOpenToggleActive();
-
-    let visible = 0;
-    cards.forEach((card) => {
-      const genre = card.dataset.genre ?? '';
-      const vibes = (card.dataset.vibes ?? '').split('|');
-      const budgetMaxAttr = card.dataset.budgetMax;
-      const cardBudgetMax = budgetMaxAttr ? Number(budgetMaxAttr) : undefined;
-
-      const genreOk = genreKey === 'all' || genre === genreKey;
-      const sceneOk = sceneMatch === 'all' || vibes.includes(sceneMatch);
-      const seatOk = seatMatch === 'all' || vibes.includes(seatMatch);
-      const budgetOk = matchesBudget(cardBudgetMax, budgetKey);
-
-      let openOk = true;
-      if (openActive) {
-        const result = getOpenStatus(parseHours(card.dataset.hours));
-        openOk = result.state === 'open' || result.state === 'closing-soon';
-      }
-
-      const show = genreOk && sceneOk && seatOk && budgetOk && openOk;
-      card.classList.toggle('hidden', !show);
-      if (show) visible += 1;
-    });
-
-    if (resultCount) resultCount.textContent = `${visible}件`;
-    if (emptyMessage) emptyMessage.classList.toggle('hidden', visible !== 0);
-  }
-
-  function syncUrl() {
-    const params: [string, string][] = [];
-    const genreKey = activeKey(group('genre'));
-    const sceneKey = activeKey(group('scene'));
-    const budgetKey = activeKey(group('budget'));
-    const seatKey = activeKey(group('seat'));
-
-    if (genreKey !== 'all') params.push(['genre', genreKey]);
-    if (sceneKey !== 'all') params.push(['scene', sceneKey]);
-    if (budgetKey !== 'all') params.push(['budget', budgetKey]);
-    if (seatKey !== 'all') params.push(['seat', seatKey]);
-    if (isOpenToggleActive()) params.push(['open', 'now']);
-
-    const url = new URL(location.href);
-    url.search = '';
-    for (const [key, value] of params) url.searchParams.set(key, value);
-    history.replaceState(null, '', url.pathname + url.search + url.hash);
-  }
-
+  /**
+   * URLクエリ由来の value でボタンを選択する。genreは"BAR"のようにコンテンツの
+   * 生の値をそのまま data-value として使っており、英字の大文字小文字まで
+   * URLに正確に一致させるのは利用者に酷なので、比較は大文字小文字を区別しない
+   * （scene/budget/seatは元々小文字固定keyなので実質影響なし）。
+   * 一致しなければ何もしない＝該当グループは「すべて」のまま
+   * （呼び出し側はこの後 syncUrl() を呼ばないので、他のパラメータには影響しない）。
+   */
   function selectButton(groupEl: HTMLElement | null, value: string) {
     if (!groupEl) return;
     const buttons = groupEl.querySelectorAll<HTMLButtonElement>('.filter-btn');
-    const target = Array.from(buttons).find((b) => b.dataset.value === value);
+    const needle = value.toLowerCase();
+    const target = Array.from(buttons).find((b) => b.dataset.value?.toLowerCase() === needle);
     if (!target) return;
     buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
     target.setAttribute('aria-pressed', 'true');
   }
 
-  function restoreFromUrl() {
-    const params = new URL(location.href).searchParams;
+  // 「今営業中」の定期再評価タイマー。ClientRouterでの遷移後もモジュールは
+  // 再評価されないため、astro:page-load のたびにここで古いタイマーをclearしてから
+  // 張り直す（多重登録防止）。
+  let intervalId: ReturnType<typeof setInterval> | undefined;
 
-    const genreParam = params.get('genre');
-    if (genreParam) selectButton(group('genre'), genreParam);
+  function init() {
+    // 遷移のたびにDOMが差し替わるため、要素は毎回このスコープで取り直す。
+    const groups = document.querySelectorAll<HTMLElement>('[data-filter-group]');
+    const openToggle = document.querySelector<HTMLButtonElement>('[data-open-toggle]');
+    const cards = document.querySelectorAll<HTMLElement>('[data-spot-card]');
+    const resultCount = document.querySelector<HTMLElement>('[data-result-count]');
+    const emptyMessage = document.querySelector<HTMLElement>('[data-empty-message]');
 
-    const sceneParam = params.get('scene');
-    if (sceneParam) selectButton(group('scene'), sceneParam);
+    // このページに一覧/フィルタが無い（＝/spots/ 以外に遷移した）場合は何もしない。
+    if (groups.length === 0) return;
 
-    const budgetParam = params.get('budget');
-    if (budgetParam) selectButton(group('budget'), budgetParam);
-
-    const seatParam = params.get('seat');
-    if (seatParam) selectButton(group('seat'), seatParam);
-
-    if (params.get('open') === 'now' && openToggle) {
-      openToggle.setAttribute('aria-pressed', 'true');
+    function isOpenToggleActive(): boolean {
+      return openToggle?.getAttribute('aria-pressed') === 'true';
     }
-  }
 
-  // 初期表示: URLクエリを読んでボタン状態を復元してからフィルタを適用する。
-  restoreFromUrl();
-  applyFilters();
-  syncUrl(); // 不正なクエリ値などをこの時点で正規化しておく。
+    function applyFilters() {
+      const genreKey = activeKey(group('genre'));
+      const sceneMatch = activeMatch(group('scene'));
+      const budgetKey = activeKey(group('budget'));
+      const seatMatch = activeMatch(group('seat'));
+      const openActive = isOpenToggleActive();
 
-  groups.forEach((groupEl) => {
-    const buttons = groupEl.querySelectorAll<HTMLButtonElement>('.filter-btn');
-    buttons.forEach((button) => {
-      button.addEventListener('click', () => {
-        buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
-        button.setAttribute('aria-pressed', 'true');
-        applyFilters();
-        syncUrl();
+      let visible = 0;
+      cards.forEach((card) => {
+        const genre = card.dataset.genre ?? '';
+        const vibes = (card.dataset.vibes ?? '').split('|');
+        const budgetMaxAttr = card.dataset.budgetMax;
+        const cardBudgetMax = budgetMaxAttr ? Number(budgetMaxAttr) : undefined;
+
+        const genreOk = genreKey === 'all' || genre === genreKey;
+        const sceneOk = sceneMatch === 'all' || vibes.includes(sceneMatch);
+        const seatOk = seatMatch === 'all' || vibes.includes(seatMatch);
+        const budgetOk = matchesBudget(cardBudgetMax, budgetKey);
+
+        let openOk = true;
+        if (openActive) {
+          const result = getOpenStatus(parseHours(card.dataset.hours));
+          openOk = result.state === 'open' || result.state === 'closing-soon';
+        }
+
+        const show = genreOk && sceneOk && seatOk && budgetOk && openOk;
+        card.classList.toggle('hidden', !show);
+        if (show) visible += 1;
       });
-    });
-  });
 
-  openToggle?.addEventListener('click', () => {
-    const active = isOpenToggleActive();
-    openToggle.setAttribute('aria-pressed', String(!active));
+      if (resultCount) resultCount.textContent = `${visible}件`;
+      if (emptyMessage) emptyMessage.classList.toggle('hidden', visible !== 0);
+    }
+
+    // URLクエリに書き戻すときの正規化。大文字小文字違いの同一条件URLが複数
+    // 出回らないよう、常に小文字に統一する（genreの"BAR"→"bar"等。
+    // scene/budget/seatはもともと小文字keyなので実質no-op）。
+    // フィルタ処理自体（applyFilters）はこの関数を経由しない
+    // data-value の生の値（例: "BAR"）で比較するので、ここで小文字化しても
+    // 絞り込みロジックには influence しない。
+    function normalizeForUrl(value: string): string {
+      return value.toLowerCase();
+    }
+
+    function syncUrl() {
+      const params: [string, string][] = [];
+      const genreKey = activeKey(group('genre'));
+      const sceneKey = activeKey(group('scene'));
+      const budgetKey = activeKey(group('budget'));
+      const seatKey = activeKey(group('seat'));
+
+      if (genreKey !== 'all') params.push(['genre', normalizeForUrl(genreKey)]);
+      if (sceneKey !== 'all') params.push(['scene', normalizeForUrl(sceneKey)]);
+      if (budgetKey !== 'all') params.push(['budget', normalizeForUrl(budgetKey)]);
+      if (seatKey !== 'all') params.push(['seat', normalizeForUrl(seatKey)]);
+      if (isOpenToggleActive()) params.push(['open', 'now']);
+
+      const url = new URL(location.href);
+      url.search = '';
+      for (const [key, value] of params) url.searchParams.set(key, value);
+      history.replaceState(null, '', url.pathname + url.search + url.hash);
+    }
+
+    function restoreFromUrl() {
+      const params = new URL(location.href).searchParams;
+
+      const genreParam = params.get('genre');
+      if (genreParam) selectButton(group('genre'), genreParam);
+
+      const sceneParam = params.get('scene');
+      if (sceneParam) selectButton(group('scene'), sceneParam);
+
+      const budgetParam = params.get('budget');
+      if (budgetParam) selectButton(group('budget'), budgetParam);
+
+      const seatParam = params.get('seat');
+      if (seatParam) selectButton(group('seat'), seatParam);
+
+      // openは選択肢が"now"の1つだけだが、他4項目と同様に大文字小文字を区別しない。
+      if (params.get('open')?.toLowerCase() === 'now' && openToggle) {
+        openToggle.setAttribute('aria-pressed', 'true');
+      }
+    }
+
+    // 初期表示: URLクエリを読んでボタン状態を復元し、フィルタを適用したうえで
+    // URLを正規化された表記に書き戻す。selectButton・openToggleの操作は
+    // setAttributeによる直接操作でクリックイベントを発火させないため、
+    // ここで一度だけ実行すれば十分（多重発火や無限ループの心配は無い）。
+    // 一致しなかったパラメータはそのグループが「すべて」のまま処理されるだけで、
+    // 他のパラメータの復元・書き戻しには影響しない
+    // （syncUrlは各グループを独立に読むため）。
+    restoreFromUrl();
     applyFilters();
     syncUrl();
-  });
 
-  // 「今営業中」有効時は、閲覧中に営業状態が変わりうるので定期的に再評価する。
-  setInterval(() => {
-    if (isOpenToggleActive()) applyFilters();
-  }, 60_000);
+    groups.forEach((groupEl) => {
+      const buttons = groupEl.querySelectorAll<HTMLButtonElement>('.filter-btn');
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+          buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
+          button.setAttribute('aria-pressed', 'true');
+          applyFilters();
+          syncUrl();
+        });
+      });
+    });
+
+    openToggle?.addEventListener('click', () => {
+      const active = isOpenToggleActive();
+      openToggle.setAttribute('aria-pressed', String(!active));
+      applyFilters();
+      syncUrl();
+    });
+
+    // 「今営業中」有効時は、閲覧中に営業状態が変わりうるので定期的に再評価する。
+    if (intervalId !== undefined) clearInterval(intervalId);
+    intervalId = setInterval(() => {
+      if (isOpenToggleActive()) applyFilters();
+    }, 60_000);
+  }
+
+  // astro:page-load は初回読み込み時にも発火するため、初期化はここだけに一本化する。
+  document.addEventListener('astro:page-load', init);
 </script>

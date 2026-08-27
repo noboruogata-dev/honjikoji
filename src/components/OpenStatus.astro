@@ -85,6 +85,15 @@ const baseClass = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 fon
     document.querySelectorAll<HTMLElement>('[data-open-status]').forEach(render);
   }
 
-  renderAll();
-  setInterval(renderAll, 60_000);
+  // ClientRouterでのページ遷移後は、このモジュール自体は（すでに評価済みなら）
+  // 再実行されない。astro:page-load は初回読み込み時にも発火するため、
+  // 初期化はここだけに一本化する。intervalIdをモジュールスコープで保持し、
+  // 遷移のたびに古いタイマーをclearしてから張り直すことで多重登録を防ぐ。
+  let intervalId: ReturnType<typeof setInterval> | undefined;
+
+  document.addEventListener('astro:page-load', () => {
+    renderAll();
+    if (intervalId !== undefined) clearInterval(intervalId);
+    intervalId = setInterval(renderAll, 60_000);
+  });
 </script>

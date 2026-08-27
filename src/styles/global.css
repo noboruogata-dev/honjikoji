@@ -21,6 +21,37 @@
   --color-gold-100: #f6e7c4;
 }
 
+/*
+ * 時間帯テーマ変数。Hero の背景オーバーレイと装飾SVG（AlleyNight）だけが参照する。
+ * 本文色・カード背景など可読性に関わる箇所はTailwindトークン（上の@theme）のまま
+ * 触らない。[data-time] は Layout.astro の同期scriptがAsia/Tokyo時刻から設定する。
+ * :root の既定値は "night"（標準）と同一にして、属性が付く前の一瞬もFOUCが
+ * 出ないようにしてある。
+ */
+:root {
+  --sky-top: #10121c;
+  --sky-bottom: #1c1f33;
+  --glow: rgba(242, 181, 68, 0.14);
+}
+[data-time="dusk"] {
+  /* 夕暮れ: 藍と橙、グローは弱め */
+  --sky-top: #2b3a63;
+  --sky-bottom: #c97a42;
+  --glow: rgba(217, 122, 66, 0.09);
+}
+[data-time="night"] {
+  /* 標準 */
+  --sky-top: #10121c;
+  --sky-bottom: #1c1f33;
+  --glow: rgba(242, 181, 68, 0.14);
+}
+[data-time="latenight"] {
+  /* 深夜: 墨と紅、グローは最大 */
+  --sky-top: #050509;
+  --sky-bottom: #2a1013;
+  --glow: rgba(226, 71, 47, 0.22);
+}
+
 html {
   color-scheme: dark;
 }
@@ -66,8 +97,61 @@ body {
   animation: lantern-flicker 3.2s ease-in-out infinite;
 }
 
+/* NEWバッジ用: opacityの点滅ではなく、灯りが息をするようにdrop-shadowの強度だけを
+   ゆっくり往復させる。opacity/widthなどレイアウトに影響する値は変えない。 */
+@keyframes lantern-breathe {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.35));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.85));
+  }
+}
+
+.lantern-breathe {
+  animation: lantern-breathe 4s ease-in-out infinite;
+}
+
+/*
+ * ページ遷移（astro:transitions の <ClientRouter />）: 暖簾が下りるように
+ * 新しいページを縦方向のマスクで上から下へ現す。300ms以内。
+ */
+::view-transition-old(root) {
+  animation: noren-fade-out 180ms ease-in both;
+}
+::view-transition-new(root) {
+  animation: noren-drop 280ms ease-out both;
+}
+@keyframes noren-drop {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0% 0);
+  }
+}
+@keyframes noren-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .lantern-flicker {
-    animation: none;
+  .lantern-flicker,
+  .lantern-breathe,
+  .lantern-sway,
+  .street-glow,
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+
+  /* .street-glow は @supports 対応環境だと animation 前提で opacity:0 から
+     始まるため、animationを止めるだけだと消えたままになる。最初から
+     点灯済みの状態に戻す。 */
+  .street-glow {
+    opacity: 1 !important;
   }
 }

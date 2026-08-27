@@ -3,7 +3,7 @@ import Logo from './Logo.astro';
 const year = new Date().getFullYear();
 ---
 
-<footer class="border-t border-night-700 bg-night-900">
+<footer class="border-t border-night-700 bg-night-900" transition:persist transition:name="site-footer">
   <div class="mx-auto max-w-5xl px-4 py-8 text-center">
     <div class="flex justify-center">
       <Logo size="sm" showTagline={false} />

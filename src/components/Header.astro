@@ -17,7 +17,11 @@ const navLinks = [
 ];
 ---
 
-<header class="relative overflow-hidden border-b border-night-700 bg-night-900">
+<header
+  class="relative overflow-hidden border-b border-night-700 bg-night-900"
+  transition:persist
+  transition:name="site-header"
+>
   <div
     class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_80%_at_50%_0%,rgba(242,181,68,0.12),transparent),radial-gradient(ellipse_40%_60%_at_100%_0%,rgba(226,71,47,0.08),transparent)]"
   >
