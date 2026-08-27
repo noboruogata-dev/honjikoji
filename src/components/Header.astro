@@ -1,0 +1,36 @@
+---
+interface Props {
+  showBackLink?: boolean;
+}
+const { showBackLink = false } = Astro.props;
+---
+
+<header class="relative overflow-hidden border-b border-night-700 bg-night-900">
+  <div
+    class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_80%_at_50%_0%,rgba(242,181,68,0.12),transparent)]"
+  >
+  </div>
+  <div class="relative mx-auto max-w-5xl px-4 py-8 sm:py-10">
+    {
+      showBackLink && (
+        <a
+          href="/"
+          class="mb-4 inline-flex items-center gap-1 text-sm text-gold-100/70 transition hover:text-amber-glow"
+        >
+          ← 一覧に戻る
+        </a>
+      )
+    }
+    <a href="/" class="group inline-block">
+      <p class="text-xs tracking-[0.3em] text-amber-glow/80">SANJO NIGHT GUIDE</p>
+      <h1
+        class="mt-2 font-serif text-3xl font-bold tracking-wide text-gold-100 text-glow sm:text-4xl"
+      >
+        本寺小路ガイド
+      </h1>
+      <p class="mt-2 max-w-xl text-sm leading-relaxed text-gold-100/60">
+        新潟県三条市の歓楽街「本寺小路」――灯りの点る路地に集う、飲食店・店舗のご案内。
+      </p>
+    </a>
+  </div>
+</header>

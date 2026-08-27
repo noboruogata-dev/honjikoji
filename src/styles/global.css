@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+
+  --color-night-950: #0b0a09;
+  --color-night-900: #131110;
+  --color-night-800: #1c1917;
+  --color-night-700: #292420;
+  --color-night-600: #3a332c;
+  --color-night-500: #524739;
+
+  --color-amber-glow: #f2b544;
+  --color-amber-deep: #c8862a;
+  --color-gold-100: #f6e7c4;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-night-950);
+  color: #ece5da;
+  font-family: var(--font-sans);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(242, 181, 68, 0.08), transparent),
+    repeating-linear-gradient(
+      transparent,
+      transparent 2px,
+      rgba(255, 255, 255, 0.012) 3px
+    );
+}
+
+::selection {
+  background-color: var(--color-amber-glow);
+  color: var(--color-night-950);
+}
+
+.text-glow {
+  text-shadow: 0 0 24px rgba(242, 181, 68, 0.35);
+}
+
+.noren-border {
+  border-image: linear-gradient(90deg, transparent, var(--color-amber-deep), transparent) 1;
+}

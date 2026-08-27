@@ -1,0 +1,151 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import SpotCard from '../components/SpotCard.astro';
+import { getCollection } from 'astro:content';
+
+const spots = (await getCollection('spots')).sort(
+  (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf()
+);
+
+const genres = [...new Set(spots.map((spot) => spot.data.genre))].sort();
+
+const scenes = [
+  { label: '1軒目', value: '1軒目におすすめ' },
+  { label: '2次会・締め', value: '2次会・締めに最適' },
+  { label: '深夜営業', value: '深夜営業' },
+];
+---
+
+<Layout title="本寺小路ガイド｜三条市の歓楽街 飲食店・店舗ガイド">
+  <Header />
+
+  <main class="mx-auto max-w-5xl px-4 py-8">
+    <section aria-labelledby="filter-heading" class="mb-8">
+      <h2 id="filter-heading" class="sr-only">絞り込み</h2>
+
+      <div class="space-y-3">
+        <div>
+          <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">ジャンルで絞り込み</p>
+          <div class="flex flex-wrap gap-2" data-filter-group="genre">
+            <button
+              type="button"
+              data-value="all"
+              aria-pressed="true"
+              class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+            >
+              すべて
+            </button>
+            {
+              genres.map((genre) => (
+                <button
+                  type="button"
+                  data-value={genre}
+                  aria-pressed="false"
+                  class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+                >
+                  {genre}
+                </button>
+              ))
+            }
+          </div>
+        </div>
+
+        <div>
+          <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">シーンで絞り込み</p>
+          <div class="flex flex-wrap gap-2" data-filter-group="scene">
+            <button
+              type="button"
+              data-value="all"
+              aria-pressed="true"
+              class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+            >
+              すべて
+            </button>
+            {
+              scenes.map((scene) => (
+                <button
+                  type="button"
+                  data-value={scene.value}
+                  aria-pressed="false"
+                  class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+                >
+                  {scene.label}
+                </button>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="spots-heading">
+      <div class="mb-4 flex items-baseline justify-between">
+        <h2 id="spots-heading" class="font-serif text-lg font-bold text-gold-100">
+          店舗一覧
+        </h2>
+        <p class="text-xs text-gold-100/40" data-result-count>{spots.length}件</p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-spot-grid>
+        {spots.map((spot) => <SpotCard spot={spot} />)}
+      </div>
+
+      <p class="hidden py-16 text-center text-sm text-gold-100/40" data-empty-message>
+        条件に合う店舗が見つかりませんでした。
+      </p>
+    </section>
+  </main>
+
+  <Footer />
+</Layout>
+
+<style>
+  .filter-btn[aria-pressed='true'] {
+    border-color: var(--color-amber-deep);
+    background-color: var(--color-amber-glow);
+    color: var(--color-night-950);
+  }
+</style>
+
+<script>
+  const state: { genre: string; scene: string } = { genre: 'all', scene: 'all' };
+
+  const groups = document.querySelectorAll<HTMLElement>('[data-filter-group]');
+  const cards = document.querySelectorAll<HTMLElement>('[data-spot-card]');
+  const resultCount = document.querySelector<HTMLElement>('[data-result-count]');
+  const emptyMessage = document.querySelector<HTMLElement>('[data-empty-message]');
+
+  function applyFilters() {
+    let visible = 0;
+    cards.forEach((card) => {
+      const genre = card.dataset.genre ?? '';
+      const features = (card.dataset.features ?? '').split('|');
+
+      const genreMatch = state.genre === 'all' || genre === state.genre;
+      const sceneMatch = state.scene === 'all' || features.includes(state.scene);
+      const show = genreMatch && sceneMatch;
+
+      card.classList.toggle('hidden', !show);
+      if (show) visible += 1;
+    });
+
+    if (resultCount) resultCount.textContent = `${visible}件`;
+    if (emptyMessage) emptyMessage.classList.toggle('hidden', visible !== 0);
+  }
+
+  groups.forEach((group) => {
+    const groupName = group.dataset.filterGroup as 'genre' | 'scene';
+    const buttons = group.querySelectorAll<HTMLButtonElement>('.filter-btn');
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
+        button.setAttribute('aria-pressed', 'true');
+        state[groupName] = button.dataset.value ?? 'all';
+        applyFilters();
+      });
+    });
+  });
+</script>

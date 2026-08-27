@@ -1,0 +1,49 @@
+---
+import Badge from './Badge.astro';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  spot: CollectionEntry<'spots'>;
+}
+
+const { spot } = Astro.props;
+const { title, genre, area, budget, businessHours, features, description } = spot.data;
+---
+
+<a
+  href={`/spots/${spot.id}/`}
+  data-spot-card
+  data-genre={genre}
+  data-features={features.join('|')}
+  class="group flex flex-col overflow-hidden rounded-xl border border-night-700 bg-night-900/80 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70 hover:shadow-amber-deep/10"
+>
+  <div class="border-b border-night-700 bg-night-800/50 px-4 py-3">
+    <div class="flex items-center justify-between gap-2">
+      <span class="text-xs font-medium tracking-wide text-amber-glow">{genre}</span>
+      <span class="text-xs text-gold-100/40">{area}</span>
+    </div>
+  </div>
+  <div class="flex flex-1 flex-col gap-3 px-4 py-4">
+    <h3
+      class="font-serif text-xl font-bold text-gold-100 transition group-hover:text-amber-glow"
+    >
+      {title}
+    </h3>
+    <p class="line-clamp-2 text-sm leading-relaxed text-gold-100/60">
+      {description}
+    </p>
+    <dl class="mt-1 space-y-1 text-xs text-gold-100/50">
+      <div class="flex gap-2">
+        <dt class="shrink-0 text-gold-100/35">営業時間</dt>
+        <dd class="truncate">{businessHours}</dd>
+      </div>
+      <div class="flex gap-2">
+        <dt class="shrink-0 text-gold-100/35">予算</dt>
+        <dd class="truncate">{budget}</dd>
+      </div>
+    </dl>
+    <div class="mt-auto flex flex-wrap gap-1.5 pt-2">
+      {features.slice(0, 3).map((feature) => <Badge label={feature} />)}
+    </div>
+  </div>
+</a>
