@@ -5,7 +5,6 @@ import Footer from '../components/Footer.astro';
 import SpotCard from '../components/SpotCard.astro';
 import SectionHeading from '../components/SectionHeading.astro';
 import AlleyNight from '../components/illustrations/AlleyNight.astro';
-import LanternGlow from '../components/illustrations/LanternGlow.astro';
 import { getCollection } from 'astro:content';
 import { ArrowRight, Landmark, MapPin, Megaphone } from '@lucide/astro';
 
@@ -39,19 +38,17 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
   <main class="mx-auto max-w-5xl px-4 py-10">
     <!-- Hero -->
     <section class="relative mb-14 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60">
-      <AlleyNight class="pointer-events-none absolute inset-x-0 bottom-0 h-32 w-full opacity-20 sm:h-44" />
       <div
         class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_15%_0%,rgba(242,181,68,0.14),transparent),radial-gradient(ellipse_55%_55%_at_100%_5%,rgba(226,71,47,0.12),transparent)]"
       >
       </div>
 
-      <div class="relative flex flex-col items-center gap-6 px-5 py-12 text-center sm:flex-row sm:gap-8 sm:px-10 sm:py-14 sm:text-left">
-        <LanternGlow class="h-32 w-32 shrink-0 sm:h-40 sm:w-40" />
-        <div>
+      <div class="relative grid grid-cols-1 items-center gap-8 px-5 py-10 sm:grid-cols-2 sm:gap-10 sm:px-10 sm:py-14">
+        <div class="order-2 text-center sm:order-1 sm:text-left">
           <h2 class="font-serif text-2xl font-bold leading-snug text-gold-100 text-glow sm:text-3xl">
             灯りともる路地で、今夜の一軒を。
           </h2>
-          <p class="mt-3 max-w-xl text-sm leading-relaxed text-gold-100/65 sm:text-base">
+          <p class="mt-3 text-sm leading-relaxed text-gold-100/65 sm:text-base">
             新潟県三条市の歓楽街「本寺小路」。鍛冶職人の町が育んだ、一見さんも常連も分け隔てない大人の社交街へようこそ。
           </p>
           <a
@@ -61,6 +58,25 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
             店舗を探す
             <ArrowRight size={16} stroke-width={2.25} aria-hidden="true" />
           </a>
+        </div>
+
+        <div class="order-1 sm:order-2">
+          <div
+            class="relative overflow-hidden rounded-2xl border border-night-700/60 bg-gradient-to-br from-night-800/50 to-transparent p-4 sm:p-6"
+          >
+            <div
+              class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_30%_20%,rgba(242,181,68,0.14),transparent)]"
+            >
+            </div>
+            <img
+              src="/images/keyvisual.png"
+              width="804"
+              height="702"
+              alt="赤提灯と「本寺小路」ののれんが灯る路地の様子。居酒屋やスナックの看板が並び、行き交う人影が見える夜の情景。"
+              class="relative mx-auto w-full max-w-sm object-contain drop-shadow-[0_0_32px_rgba(242,181,68,0.3)] sm:max-w-none"
+              loading="eager"
+            />
+          </div>
         </div>
       </div>
     </section>
