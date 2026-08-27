@@ -1,0 +1,84 @@
+---
+// lite-youtube方式の軽量埋め込み。外部ライブラリは使わず自前実装。
+// 初期表示はサムネイル画像＋再生ボタンのみで、iframe（＝YouTube側の重いJS）は
+// クリックされるまで生成しない。
+import { Play } from '@lucide/astro';
+
+interface Props {
+  videoId: string;
+  /** 店名。aria-labelの「〇〇の紹介動画を再生」に使う。 */
+  storeName: string;
+  /** 複数動画がある場合の補足（例: "旧店舗"）。あれば aria-label にも含める。 */
+  label?: string;
+  class?: string;
+}
+
+const { videoId, storeName, label, class: className = '' } = Astro.props;
+
+const thumbnailSrc = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+const playLabel = `${storeName}${label ? `（${label}）` : ''}の紹介動画を再生`;
+---
+
+<div
+  class:list={[
+    'yt-lite group relative aspect-video overflow-hidden rounded-xl bg-night-900',
+    className,
+  ]}
+  data-yt-lite
+  data-video-id={videoId}
+>
+  <img
+    src={thumbnailSrc}
+    alt=""
+    loading="lazy"
+    decoding="async"
+    width="480"
+    height="360"
+    class="h-full w-full object-cover"
+  />
+  <button
+    type="button"
+    class="yt-lite-play absolute inset-0 flex items-center justify-center bg-night-950/20 transition group-hover:bg-night-950/35"
+    aria-label={playLabel}
+  >
+    <span
+      class="flex h-14 w-14 items-center justify-center rounded-full bg-vermilion shadow-lg shadow-black/50 ring-2 ring-amber-glow/40 transition group-hover:scale-105 group-hover:bg-vermilion-deep"
+    >
+      <Play size={22} class="translate-x-0.5 fill-white text-white" aria-hidden="true" />
+    </span>
+  </button>
+</div>
+
+<script>
+  // ClientRouterでの遷移ごとにDOMは丸ごと差し替わる（YouTubeEmbedは
+  // transition:persistしていない）ため、通常は再初期化が不要だが、
+  // 同一ノードへの多重リスナー付与を防ぐため念のため data-yt-init で
+  // ガードしておく（他のクライアントscriptと同じ防御パターン）。
+  function initYtLite() {
+    document.querySelectorAll<HTMLElement>('[data-yt-lite]').forEach((container) => {
+      if (container.dataset.ytInit === '1') return;
+      container.dataset.ytInit = '1';
+
+      const button = container.querySelector<HTMLButtonElement>('.yt-lite-play');
+      button?.addEventListener('click', () => {
+        const videoId = container.dataset.videoId;
+        if (!videoId) return;
+
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+        iframe.title = button.getAttribute('aria-label') ?? '';
+        iframe.className = 'absolute inset-0 h-full w-full';
+        iframe.setAttribute('frameborder', '0');
+        iframe.setAttribute(
+          'allow',
+          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+        );
+        iframe.allowFullscreen = true;
+
+        container.replaceChildren(iframe);
+      });
+    });
+  }
+
+  document.addEventListener('astro:page-load', initYtLite);
+</script>

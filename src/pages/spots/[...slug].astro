@@ -6,7 +6,9 @@ import Badge from '../../components/Badge.astro';
 import GenreIcon from '../../components/GenreIcon.astro';
 import MapEmbed from '../../components/MapEmbed.astro';
 import OpenStatus from '../../components/OpenStatus.astro';
+import YouTubeEmbed from '../../components/YouTubeEmbed.astro';
 import { getCollection, render } from 'astro:content';
+import { ExternalLink } from '@lucide/astro';
 
 export async function getStaticPaths() {
   const spots = await getCollection('spots');
@@ -30,6 +32,7 @@ const {
   description,
   mapQuery,
   pubDate,
+  youtubeVideos,
 } = spot.data;
 const { Content } = await render(spot);
 ---
@@ -100,6 +103,35 @@ const { Content } = await render(spot);
       >
         <Content />
       </div>
+
+      {
+        youtubeVideos && youtubeVideos.length > 0 && (
+          <section class="mt-10">
+            <h2 class="font-serif text-xl font-bold text-gold-100">燕三条TVで紹介されました</h2>
+            <div class="mt-4 space-y-6">
+              {youtubeVideos.map((video) => (
+                <div>
+                  {video.label && (
+                    <p class="mb-2 text-xs font-medium tracking-wide text-amber-glow">{video.label}</p>
+                  )}
+                  <YouTubeEmbed videoId={video.id} storeName={title} label={video.label} />
+                </div>
+              ))}
+            </div>
+            <p class="mt-4 text-xs text-gold-100/50">
+              <a
+                href="https://www.youtube.com/@TsubameSanjoTV"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-1 text-amber-glow transition hover:text-amber-glow/80"
+              >
+                燕三条TVのチャンネルを見る
+                <ExternalLink size={12} aria-hidden="true" />
+              </a>
+            </p>
+          </section>
+        )
+      }
 
       <MapEmbed title={title} query={mapQuery} />
 

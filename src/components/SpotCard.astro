@@ -2,6 +2,7 @@
 import Badge from './Badge.astro';
 import GenreIcon from './GenreIcon.astro';
 import OpenStatus from './OpenStatus.astro';
+import { Play } from '@lucide/astro';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
@@ -9,8 +10,20 @@ interface Props {
 }
 
 const { spot } = Astro.props;
-const { title, genre, budget, budgetMax, openHours, regularHoliday, vibes, isNew, hours, description } =
-  spot.data;
+const {
+  title,
+  genre,
+  budget,
+  budgetMax,
+  openHours,
+  regularHoliday,
+  vibes,
+  isNew,
+  hours,
+  description,
+  youtubeVideos,
+} = spot.data;
+const hasVideo = (youtubeVideos?.length ?? 0) > 0;
 ---
 
 <a
@@ -20,6 +33,7 @@ const { title, genre, budget, budgetMax, openHours, regularHoliday, vibes, isNew
   data-vibes={vibes.join('|')}
   data-hours={JSON.stringify(hours ?? null)}
   data-budget-max={budgetMax ?? ''}
+  data-has-video={hasVideo ? '1' : ''}
   class="group relative flex flex-col overflow-hidden rounded-xl border border-night-700 bg-night-900/80 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70 hover:shadow-amber-deep/10"
 >
   {
@@ -30,11 +44,19 @@ const { title, genre, budget, budgetMax, openHours, regularHoliday, vibes, isNew
       </span>
     )
   }
-  <div class="border-b border-night-700 bg-night-800/50 px-4 py-3">
+  <div class="flex items-center justify-between gap-2 border-b border-night-700 bg-night-800/50 px-4 py-3">
     <span class="inline-flex items-center gap-1.5 text-xs font-medium tracking-wide text-amber-glow">
       <GenreIcon genre={genre} size={14} />
       {genre}
     </span>
+    {
+      hasVideo && (
+        <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-vermilion/15 px-2 py-0.5 text-[0.65rem] font-semibold text-vermilion">
+          <Play size={10} class="fill-vermilion" aria-hidden="true" />
+          動画あり
+        </span>
+      )
+    }
   </div>
   <div class="flex flex-1 flex-col gap-3 px-4 py-4">
     <h3

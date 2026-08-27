@@ -12,6 +12,7 @@
     "astro": "astro",
     "generate:spot": "tsx scripts/generate-spot.ts",
     "generate:news": "tsx scripts/generate-news.ts",
+    "match:youtube": "tsx scripts/match-youtube.ts",
     "test": "vitest run"
   },
   "dependencies": {

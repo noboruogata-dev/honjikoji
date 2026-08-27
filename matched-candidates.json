@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-08-27T23:56:05.704Z",
+  "channel": "@TsubameSanjoTV",
+  "candidates": [
+    {
+      "spotSlug": "bar-keywest",
+      "spotTitle": "Bar Keywest",
+      "videoId": "G-ENosGabeU",
+      "videoTitle": "新潟県で人気NO.1とんかつ屋！とんかつ三条【燕三条TV】｜The Best Tonkatsu(Japanese Pork Cutlet) in Niigata Pref!",
+      "publishedAt": "2022-07-15T09:05:23Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続3文字、店名の43%）がタイトルに含まれる可能性"
+    }
+  ]
+}

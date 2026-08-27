@@ -154,7 +154,7 @@ const seatTypes = [
       </div>
 
       <div>
-        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">営業状況で絞り込み</p>
+        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">その他の条件で絞り込み</p>
         <div class="flex flex-wrap gap-2">
           <button
             type="button"
@@ -163,6 +163,14 @@ const seatTypes = [
             class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
           >
             今営業中
+          </button>
+          <button
+            type="button"
+            data-video-toggle
+            aria-pressed="false"
+            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+          >
+            動画あり
           </button>
         </div>
       </div>
@@ -263,6 +271,7 @@ const seatTypes = [
     // 遷移のたびにDOMが差し替わるため、要素は毎回このスコープで取り直す。
     const groups = document.querySelectorAll<HTMLElement>('[data-filter-group]');
     const openToggle = document.querySelector<HTMLButtonElement>('[data-open-toggle]');
+    const videoToggle = document.querySelector<HTMLButtonElement>('[data-video-toggle]');
     const cards = document.querySelectorAll<HTMLElement>('[data-spot-card]');
     const resultCount = document.querySelector<HTMLElement>('[data-result-count]');
     const emptyMessage = document.querySelector<HTMLElement>('[data-empty-message]');
@@ -274,12 +283,17 @@ const seatTypes = [
       return openToggle?.getAttribute('aria-pressed') === 'true';
     }
 
+    function isVideoToggleActive(): boolean {
+      return videoToggle?.getAttribute('aria-pressed') === 'true';
+    }
+
     function applyFilters() {
       const genreKey = activeKey(group('genre'));
       const sceneMatch = activeMatch(group('scene'));
       const budgetKey = activeKey(group('budget'));
       const seatMatch = activeMatch(group('seat'));
       const openActive = isOpenToggleActive();
+      const videoActive = isVideoToggleActive();
 
       let visible = 0;
       cards.forEach((card) => {
@@ -292,6 +306,7 @@ const seatTypes = [
         const sceneOk = sceneMatch === 'all' || vibes.includes(sceneMatch);
         const seatOk = seatMatch === 'all' || vibes.includes(seatMatch);
         const budgetOk = matchesBudget(cardBudgetMax, budgetKey);
+        const videoOk = !videoActive || card.dataset.hasVideo === '1';
 
         let openOk = true;
         if (openActive) {
@@ -299,7 +314,7 @@ const seatTypes = [
           openOk = result.state === 'open' || result.state === 'closing-soon';
         }
 
-        const show = genreOk && sceneOk && seatOk && budgetOk && openOk;
+        const show = genreOk && sceneOk && seatOk && budgetOk && openOk && videoOk;
         card.classList.toggle('hidden', !show);
         if (show) visible += 1;
       });
@@ -330,6 +345,7 @@ const seatTypes = [
       if (budgetKey !== 'all') params.push(['budget', normalizeForUrl(budgetKey)]);
       if (seatKey !== 'all') params.push(['seat', normalizeForUrl(seatKey)]);
       if (isOpenToggleActive()) params.push(['open', 'now']);
+      if (isVideoToggleActive()) params.push(['video', 'yes']);
 
       const url = new URL(location.href);
       url.search = '';
@@ -355,6 +371,11 @@ const seatTypes = [
       // openは選択肢が"now"の1つだけだが、他4項目と同様に大文字小文字を区別しない。
       if (params.get('open')?.toLowerCase() === 'now' && openToggle) {
         openToggle.setAttribute('aria-pressed', 'true');
+      }
+
+      // videoも同様、選択肢は"yes"の1つだけ。
+      if (params.get('video')?.toLowerCase() === 'yes' && videoToggle) {
+        videoToggle.setAttribute('aria-pressed', 'true');
       }
     }
 
@@ -384,6 +405,13 @@ const seatTypes = [
     openToggle?.addEventListener('click', () => {
       const active = isOpenToggleActive();
       openToggle.setAttribute('aria-pressed', String(!active));
+      applyFilters();
+      syncUrl();
+    });
+
+    videoToggle?.addEventListener('click', () => {
+      const active = isVideoToggleActive();
+      videoToggle.setAttribute('aria-pressed', String(!active));
       applyFilters();
       syncUrl();
     });

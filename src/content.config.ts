@@ -31,6 +31,15 @@ const spots = defineCollection({
         })
       )
       .optional(),
+    // 店舗紹介動画（任意）。1店舗に複数（旧店舗/新店舗など）が紐づきうるため配列。
+    youtubeVideos: z
+      .array(
+        z.object({
+          id: z.string().regex(/^[A-Za-z0-9_-]{11}$/), // YouTube動画ID
+          label: z.string().optional(), // 「旧店舗」「新店舗」等の補足
+        })
+      )
+      .optional(),
     description: z.string(),
     pubDate: z.coerce.date(),
   }),

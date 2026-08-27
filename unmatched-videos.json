@@ -1,0 +1,763 @@
+{
+  "generatedAt": "2026-08-27T23:56:05.720Z",
+  "channel": "@TsubameSanjoTV",
+  "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
+  "videos": [
+    {
+      "videoId": "VgoaW6jxr0s",
+      "title": "もつ焼きたかはし【本寺小路】【燕三条TV】【新潟県三条市】",
+      "publishedAt": "2020-04-05T07:53:42Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "もつ焼きたかはし",
+      "storeDisplay": "もつ焼きたかはし"
+    },
+    {
+      "videoId": "yiTt_hKN_1k",
+      "title": "絶品たまごサンドの取材NG店に潜入！バード【本寺小路】【燕三条TV】【新潟県三条市】",
+      "publishedAt": "2020-04-11T11:02:45Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "バード",
+      "storeDisplay": "バード"
+    },
+    {
+      "videoId": "j6fKHOx3kkk",
+      "title": "すし処 平井屋（文久より150年以上続く老舗）【本寺小路】【燕三条TV】【新潟県三条市】",
+      "publishedAt": "2020-05-29T09:29:49Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "すし処 平井屋",
+      "storeDisplay": "すし処 平井屋"
+    },
+    {
+      "videoId": "ko5xDh77z6Y",
+      "title": "町中華 音羽屋（三条本寺小路の〆飯）【本寺小路】【燕三条TV】【新潟県三条市】",
+      "publishedAt": "2020-06-18T09:32:54Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "町中華 音羽屋",
+      "storeDisplay": "町中華 音羽屋"
+    },
+    {
+      "videoId": "7mwJbA46w-k",
+      "title": "カフェ&パブ リズ（深夜にパフェが食べられる店）【新潟県三条市】【本寺小路】【燕三条TV】",
+      "publishedAt": "2020-07-15T02:48:32Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "カフェ&パブ リズ",
+      "storeDisplay": "カフェ&パブ リズ"
+    },
+    {
+      "videoId": "KcflQw6sOgQ",
+      "title": "鳥正（焼鳥の名店！だけど魚も美味しい）【燕三条TV】【本寺小路】【新潟県三条市】",
+      "publishedAt": "2020-11-06T09:39:26Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "鳥正",
+      "storeDisplay": "鳥正"
+    },
+    {
+      "videoId": "bwEV7Lj81Eo",
+      "title": "粋酔亭｜本格的イタリアンが食べられるお店【本寺小路】【燕三条TV】【新潟県三条市】",
+      "publishedAt": "2020-11-20T03:34:55Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "粋酔亭",
+      "storeDisplay": "粋酔亭"
+    },
+    {
+      "videoId": "t7O9IvMvWPo",
+      "title": "酒場カンテツ（サバサラ発祥の店）【本寺小路】【新潟県三条市】【燕三条TV】",
+      "publishedAt": "2020-12-24T08:51:45Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "酒場カンテツ",
+      "storeDisplay": "酒場カンテツ"
+    },
+    {
+      "videoId": "3iPhH-38Ogk",
+      "title": "二代目店主による七輪捌きは圧巻！もつ焼おとん【本寺小路】【燕三条TV】【新潟県三条市】",
+      "publishedAt": "2021-01-03T09:35:49Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "もつ焼おとん",
+      "storeDisplay": "もつ焼おとん"
+    },
+    {
+      "videoId": "XN3kq_1podo",
+      "title": "スタミナ料理焼肉ホルモン ニュー大丸（秘伝の味噌ダレで食べるホルモン最強説！）【本寺小路】【燕三条TV】【新潟県三条市】",
+      "publishedAt": "2021-02-02T09:15:24Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "ニュー大丸",
+      "storeDisplay": "ニュー大丸"
+    },
+    {
+      "videoId": "C-gbb1UUzoM",
+      "title": "飲みの後に蕎麦で〆られる貴重な店『蕎麦割烹 麦』【本寺小路】【新潟県三条市】【燕三条TV】",
+      "publishedAt": "2021-03-01T09:48:49Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "蕎麦割烹 麦",
+      "storeDisplay": "蕎麦割烹 麦"
+    },
+    {
+      "videoId": "erPJd6Eo80A",
+      "title": "【燕三条TV】そば処今泉（昼から夜まで休まず営業している希少な蕎麦屋！蕎麦焼酎をそば湯割りで飲めるのは蕎麦屋だけ！）【本寺小路】【新潟県三条市】",
+      "publishedAt": "2021-11-22T09:27:58Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "そば処今泉",
+      "storeDisplay": "そば処今泉"
+    },
+    {
+      "videoId": "LZabXkPdAp0",
+      "title": "【燕三条TV】酒肴家  武（クジラから半殺し？のイカ料理まで圧倒的メニュー数を誇る本寺小路の居酒屋）【本寺小路】【新潟県三条市】",
+      "publishedAt": "2021-11-28T10:07:16Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "酒肴家  武",
+      "storeDisplay": "酒肴家  武"
+    },
+    {
+      "videoId": "l2zFDbhXZ8Q",
+      "title": "独歩（深夜に味わう燕三条背脂）〆に背脂ラーメンを食べられる唯一無二の店！【本寺小路】【燕三条TV】",
+      "publishedAt": "2022-10-28T09:14:12Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "独歩",
+      "storeDisplay": "独歩"
+    },
+    {
+      "videoId": "FkxMVC28auE",
+      "title": "究極の贅沢を味わえる天婦羅割烹 みや嶋！Japanese food tempura japan 三条市で唯一の天婦羅屋【本寺小路】【燕三条TV】",
+      "publishedAt": "2023-03-26T08:49:09Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "天婦羅割烹 みや嶋",
+      "storeDisplay": "天婦羅割烹 みや嶋"
+    },
+    {
+      "videoId": "qoQCI2G_j0k",
+      "title": "女性バーテンダーによる日本一のカクテルが飲めるBAR！ラスティーズセカンド【本寺小路】【燕三条TV】｜新潟県三条市",
+      "publishedAt": "2023-06-06T09:17:58Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "ラスティーズセカンド",
+      "storeDisplay": "ラスティーズセカンド"
+    },
+    {
+      "videoId": "b_eTJURz5Nc",
+      "title": "ワンオペで満卓もこなすコの字ファンタジスタの店、その名も”ニュー”【本寺小路】【新潟県三条市】【燕三条TV】",
+      "publishedAt": "2023-09-10T07:30:17Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "ニューカンテツ",
+      "storeDisplay": "ニューカンテツ"
+    },
+    {
+      "videoId": "k9Z4CP4KFfM",
+      "title": "三条 五色川さんでオトナ呑み！旬彩 五色川【本寺小路】【燕三条TV】",
+      "publishedAt": "2024-07-12T14:04:30Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "旬彩 五色川",
+      "storeDisplay": "旬彩 五色川"
+    },
+    {
+      "videoId": "BNrTYET8J0Y",
+      "title": "三条カレーラーメンの老舗  大黒亭で 飲む！【本寺小路】『燕三条TV】新潟県三条市",
+      "publishedAt": "2025-06-25T13:08:50Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "大黒亭",
+      "storeDisplay": "大黒亭"
+    },
+    {
+      "videoId": "NPKmxYhhsho",
+      "title": "老舗割烹きくや 会長吠えて出禁…!?【本寺小路】【燕三条TV】｜新潟県三条市",
+      "publishedAt": "2025-07-17T09:53:28Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": "老舗割烹きくや",
+      "storeDisplay": "老舗割烹きくや"
+    },
+    {
+      "videoId": "7Ls4b54nl1g",
+      "title": "【燕三条TV】ひな鳥金子（半羽から揚げの名店）｜新潟県三条市",
+      "publishedAt": "2020-04-29T00:39:35Z",
+      "area": "sanjo",
+      "store": "ひな鳥金子",
+      "storeManual": "ひな鳥金子",
+      "storeDisplay": "ひな鳥金子"
+    },
+    {
+      "videoId": "NDN1IUo8QVs",
+      "title": "【燕三条TV】中華亭（燕三条系背脂ラーメン 大油）｜新潟県三条市",
+      "publishedAt": "2020-05-09T01:27:30Z",
+      "area": "sanjo",
+      "store": "中華亭",
+      "storeManual": "中華亭",
+      "storeDisplay": "中華亭"
+    },
+    {
+      "videoId": "v3KCHIYP4V8",
+      "title": "【燕三条TV】麺処 清水 三条店（黄金の鶏スープ・美しい麺線）｜新潟県三条市",
+      "publishedAt": "2020-07-01T10:41:13Z",
+      "area": "sanjo",
+      "store": "麺処 清水 三条店",
+      "storeManual": "麺処 清水 三条店",
+      "storeDisplay": "麺処 清水 三条店"
+    },
+    {
+      "videoId": "nOYmtvMTCDk",
+      "title": "【燕三条TV】三条 かわ波（季節折々の絶品料理を楽しめる日本料理屋）｜新潟県三条市横町",
+      "publishedAt": "2020-09-17T09:19:54Z",
+      "area": "sanjo",
+      "store": "三条 かわ波",
+      "storeManual": "三条 かわ波",
+      "storeDisplay": "三条 かわ波"
+    },
+    {
+      "videoId": "6mn-aUyb0Hk",
+      "title": "【燕三条TV】gallery bar veronica（三条で唯一尖っている店？名物チキンジンジャーカレー？）｜新潟県三条市旭町",
+      "publishedAt": "2020-10-13T09:10:38Z",
+      "area": "sanjo",
+      "store": "gallery bar veronica",
+      "storeManual": "gallery bar veronica",
+      "storeDisplay": "gallery bar veronica"
+    },
+    {
+      "videoId": "lz-D_a90YK4",
+      "title": "【燕三条TV】味覚天国 たまや（圧倒的な料理数とお酒の種類！）｜新潟県三条市",
+      "publishedAt": "2021-07-15T09:02:43Z",
+      "area": "sanjo",
+      "store": "味覚天国 たまや",
+      "storeManual": "味覚天国 たまや",
+      "storeDisplay": "味覚天国 たまや"
+    },
+    {
+      "videoId": "byKmlIOhfN0",
+      "title": "【燕三条TV】Casual Italian Style OGAWA（カジュアルだけれど料理はノーカジュアル！美味しさにとことんこだわるシェフが繰り出す本格的なイタリアン料理は必見｜新潟県三条市",
+      "publishedAt": "2021-09-26T07:05:12Z",
+      "area": "sanjo",
+      "store": "Casual Italian Style OGAWA（カジュアルだけれど料理はノーカジュアル！美味しさにとことんこだわるシェフが繰り出す本格的なイタリアン料理は必見",
+      "storeManual": "Casual Italian Style OGAWA",
+      "storeDisplay": "Casual Italian Style OGAWA"
+    },
+    {
+      "videoId": "NwcGHLFir2I",
+      "title": "【燕三条TV】朝から晩まで通しでお酒が飲める「コーヒー村」｜新潟県三条市",
+      "publishedAt": "2022-05-13T03:38:53Z",
+      "area": "sanjo",
+      "store": "朝から晩まで通しでお酒が飲める「コーヒー村」",
+      "storeManual": "コーヒー村",
+      "storeDisplay": "コーヒー村"
+    },
+    {
+      "videoId": "Qr1JB-iAL2o",
+      "title": "【燕三条TV】極上のジンギスカンが食べれる店「もつ焼 多しろ」｜新潟県三条市",
+      "publishedAt": "2022-06-15T08:38:11Z",
+      "area": "sanjo",
+      "store": "極上のジンギスカンが食べれる店「もつ焼 多しろ」",
+      "storeManual": "もつ焼 多しろ",
+      "storeDisplay": "もつ焼 多しろ"
+    },
+    {
+      "videoId": "Q6siVmyRCmY",
+      "title": "【燕三条TV】「三平」元寿司職人のマスターによる絶品魚料理は必見！｜新潟県三条市",
+      "publishedAt": "2022-07-02T08:50:53Z",
+      "area": "sanjo",
+      "store": "「三平」元寿司職人のマスターによる絶品魚料理は必見！",
+      "storeManual": "三平",
+      "storeDisplay": "三平"
+    },
+    {
+      "videoId": "hXGbocxgz7I",
+      "title": "路地裏の名店『ビストロクレオ』羊をメインとした絶品料理でまさかの大宴会！？｜新潟県三条市【燕三条TV】",
+      "publishedAt": "2023-12-14T13:13:25Z",
+      "area": "sanjo",
+      "store": null,
+      "storeManual": "ビストロクレオ",
+      "storeDisplay": "ビストロクレオ"
+    },
+    {
+      "videoId": "uCcP_Xh6PNc",
+      "title": "串ぼうず　老舗まっしぐら店！【燕三条TV】｜新潟県三条市",
+      "publishedAt": "2025-12-14T09:03:58Z",
+      "area": "sanjo",
+      "store": null,
+      "storeManual": "串ぼうず",
+      "storeDisplay": "串ぼうず"
+    },
+    {
+      "videoId": "XF1P70LJUPI",
+      "title": "レストラン三宝でフルコースで飲る(やる)｜新潟県三条市【燕三条TV】",
+      "publishedAt": "2026-05-29T09:05:22Z",
+      "area": "sanjo",
+      "store": null,
+      "storeManual": "レストラン三宝",
+      "storeDisplay": "レストラン三宝"
+    },
+    {
+      "videoId": "MNqRwFc325U",
+      "title": "【燕三条TV】番外編｜テイクアウトしよう！",
+      "publishedAt": "2020-04-21T11:48:09Z",
+      "area": "unknown",
+      "store": "番外編",
+      "storeManual": null,
+      "storeDisplay": "番外編"
+    },
+    {
+      "videoId": "SubTuwkPInY",
+      "title": "【燕三条TV】もつ焼き道場 燕店（名物的な存在である肉みそは必見）｜新潟県燕市本東太田",
+      "publishedAt": "2020-07-28T15:23:25Z",
+      "area": "tsubame",
+      "store": "もつ焼き道場 燕店",
+      "storeManual": "もつ焼き道場",
+      "storeDisplay": "もつ焼き道場"
+    },
+    {
+      "videoId": "WyHblbvRmS8",
+      "title": "【燕三条TV】喫茶ロンドン（西洋レトロ感あふれる純喫茶。ボリュームも美味しさも半端なし！）｜新潟県燕市",
+      "publishedAt": "2020-08-12T10:18:40Z",
+      "area": "tsubame",
+      "store": "喫茶ロンドン",
+      "storeManual": "喫茶ロンドン",
+      "storeDisplay": "喫茶ロンドン"
+    },
+    {
+      "videoId": "psrcAaZIgN0",
+      "title": "燕三条TV のライブ ストリーム",
+      "publishedAt": "2020-09-13T09:31:33Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "vZ06LCqFaKw",
+      "title": "【燕三条TV】2021年明けましておめでとうございます。本動画は燕三条クルー3人がただただ飲んで話しているだけの動画です。",
+      "publishedAt": "2020-12-31T16:45:25Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "T4cfSnxlMus",
+      "title": "【燕三条TV】てる天（県央地区で本格的天ぷらを食べられる貴重な老舗）｜新潟県燕市",
+      "publishedAt": "2021-04-20T03:15:41Z",
+      "area": "tsubame",
+      "store": "てる天",
+      "storeManual": "てる天",
+      "storeDisplay": "てる天"
+    },
+    {
+      "videoId": "60lDLP2yGCI",
+      "title": "【燕三条TV】美しい時間（24時までワインが楽しめて〆飯に本格的なカレーも食べられるキャフ&ェバー）｜新潟県燕市",
+      "publishedAt": "2021-05-09T06:36:09Z",
+      "area": "tsubame",
+      "store": "美しい時間",
+      "storeManual": "美しい時間",
+      "storeDisplay": "美しい時間"
+    },
+    {
+      "videoId": "QnyNMobvU0c",
+      "title": "華園（町中華飲ろうぜ！絶品中華＆インドカリー）｜燕三条TV",
+      "publishedAt": "2022-11-11T09:36:42Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": "華園",
+      "storeDisplay": "華園"
+    },
+    {
+      "videoId": "Ol8PPZHpEK8",
+      "title": "反省会 2023.03.13",
+      "publishedAt": "2023-03-14T10:03:50Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "YUEsx7VU59k",
+      "title": "燕三条にサンクチュアリあり！？超絶美味のちゃんこが食べられる老舗･ちゃんこ越葉【燕三条TV】｜新潟県燕市",
+      "publishedAt": "2023-06-15T08:53:47Z",
+      "area": "tsubame",
+      "store": null,
+      "storeManual": "ちゃんこ越葉",
+      "storeDisplay": "ちゃんこ越葉"
+    },
+    {
+      "videoId": "Pw2uRvk-y68",
+      "title": "知る人ぞ知る燕モヒートが飲める路地裏の老舗BAR！【燕三条TV】｜新潟県燕市",
+      "publishedAt": "2023-06-21T09:23:18Z",
+      "area": "tsubame",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "QPk8sWIfNvk",
+      "title": "開店して即満席になる人気老舗店「ホルモンみっちゃん」｜燕三条TV",
+      "publishedAt": "2024-04-11T03:13:41Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": "ホルモンみっちゃん",
+      "storeDisplay": "ホルモンみっちゃん"
+    },
+    {
+      "videoId": "QHT7qALKXy4",
+      "title": "【燕三条TV】会長の日常",
+      "publishedAt": "2024-09-07T13:41:37Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "HXigcEDELQ0",
+      "title": "これぞ元祖鬼脂！らーめん潤で飲んでみた＜酒麺亭潤＞新潟県燕市【燕三条TV】",
+      "publishedAt": "2024-09-14T12:00:30Z",
+      "area": "tsubame",
+      "store": null,
+      "storeManual": "酒麺亭潤",
+      "storeDisplay": "酒麺亭潤"
+    },
+    {
+      "videoId": "6UxU1La-pbM",
+      "title": "【燕三条TV】会長のカラオケ",
+      "publishedAt": "2024-09-17T04:39:25Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "eUe3A12lCYM",
+      "title": "【燕三条TV】会長の休日",
+      "publishedAt": "2024-09-24T13:24:02Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "c4c1jclMY00",
+      "title": "【燕三条TV】会長の愛車",
+      "publishedAt": "2024-09-29T10:28:11Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "oFst3RuQxEo",
+      "title": "【燕三条TV】会長の焚き火",
+      "publishedAt": "2024-12-11T05:01:32Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "qjFLpQnraTg",
+      "title": "老舗割烹きくや 番外編【燕三条TV】",
+      "publishedAt": "2025-07-24T09:08:38Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "p9Zwjn62f7Y",
+      "title": "会長と花火【燕三条TV】",
+      "publishedAt": "2025-07-30T14:07:26Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "fCLFuf0mgYM",
+      "title": "花火祭も仕事する会長【燕三条TV】",
+      "publishedAt": "2025-07-31T11:04:43Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "SYturVNG7Jo",
+      "title": "立秋の会長【燕三条TV】",
+      "publishedAt": "2025-08-23T06:15:11Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "-tvQJqe9t1I",
+      "title": "会長と野菜摂取量｜燕三条TV",
+      "publishedAt": "2025-10-08T10:54:05Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "ZVW3_Jmi8vs",
+      "title": "神楽坂なら4000円#japanesefood #グルメ #居酒屋 #燕三条tv",
+      "publishedAt": "2026-02-08T23:01:10Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "ntA5KYeMKBY",
+      "title": "汁を、おパンに #燕三条tv #グルメ #居酒屋",
+      "publishedAt": "2026-02-08T23:06:32Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "kAOJPqMjNjE",
+      "title": "中華亭をすする #グルメ #居酒屋 #ランチ",
+      "publishedAt": "2026-02-08T23:13:56Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "vIosI50JvoI",
+      "title": "いまはなき名店「とり正」 #グルメ #燕三条tv #居酒屋 #japanesefood",
+      "publishedAt": "2026-02-08T23:19:32Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "rooJrEQ5rHI",
+      "title": "ビール泥棒 #グルメ #居酒屋 #ラーメン #酒麺亭潤",
+      "publishedAt": "2026-02-08T23:29:09Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "fJYw0qgtLeE",
+      "title": "グンバーハー #グルメ #居酒屋 #ランチ #和食 #三条かわ波",
+      "publishedAt": "2026-02-08T23:34:06Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "wZAWvJH_w68",
+      "title": "チクチクとは？ #居酒屋 #グルメ #燕三条 #もつ焼きたかはし",
+      "publishedAt": "2026-02-08T23:38:23Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "O1D09HPRotI",
+      "title": "真夜中ナポリタン #グルメ #居酒屋 #燕三条 #ナポリタン",
+      "publishedAt": "2026-02-08T23:41:54Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "YnX2xwxJPRY",
+      "title": "町中華でカバデイ #グルメ #居酒屋 #ランチ #町中華 #燕三条",
+      "publishedAt": "2026-02-08T23:46:08Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "a9klAemcbVI",
+      "title": "150余年の穴子 #グルメ #居酒屋 #燕三条 #japanesefood",
+      "publishedAt": "2026-02-09T09:27:41Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "N5zOabfkSaU",
+      "title": "肉天はお菓子ではない #居酒屋 #グルメ #燕三条tv #燕三条",
+      "publishedAt": "2026-02-11T13:55:43Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "MYFZ6BTnfhY",
+      "title": "燕の夜はココ #グルメ #居酒屋 #燕三条 #燕三条tv",
+      "publishedAt": "2026-02-11T14:01:58Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "XI3N7Jbd1gk",
+      "title": "グンバツちゃんこはここ #グルメ #燕三条 #居酒屋 #燕三条tv",
+      "publishedAt": "2026-02-11T14:06:36Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "nRQXVzp4R1k",
+      "title": "三条の夜の世界遺産 #グルメ #居酒屋 #燕三条 #ラーメン #世界遺産",
+      "publishedAt": "2026-02-11T14:09:59Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "ZVtvvKJv5Dk",
+      "title": "おここらて #グルメ #居酒屋 #燕三条 #燕三条tv #italian",
+      "publishedAt": "2026-02-11T14:13:07Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "C_vxopRPZws",
+      "title": "レモンサワーとルービー #グルメ好き #燕三条 #居酒屋 #飲み歩き",
+      "publishedAt": "2026-02-14T02:45:28Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "uDy4qydW0iM",
+      "title": "スーパードライ#燕三条 #居酒屋 #大衆居酒屋 #飲み歩き",
+      "publishedAt": "2026-02-14T02:50:11Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "H05XWDTuPYw",
+      "title": "煮込み豆腐とは#グルメ #燕三条 #居酒屋 #飲み歩き",
+      "publishedAt": "2026-02-14T02:53:06Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "_nJijT6qUVg",
+      "title": "豚足とろとろ #グルメ好き #燕三条 #居酒屋 #飲み歩き",
+      "publishedAt": "2026-02-14T02:57:40Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "MBK4RdUajtA",
+      "title": "瓶ビールLOVE #グルメ好き #居酒屋 #町中華 #燕三条",
+      "publishedAt": "2026-02-14T02:59:54Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "NHBgl5kn9wA",
+      "title": "BARではお静かに　 #グルメ #グルメ好き #燕三条 #bar",
+      "publishedAt": "2026-02-24T00:48:12Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "XA6gcz_Mg-k",
+      "title": "とんかつ三条 #グルメ #燕三条 #とんかつ #飲み歩き",
+      "publishedAt": "2026-02-24T00:51:24Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "HyHOlLnEE0Q",
+      "title": "もつ焼き道場 #グルメ #居酒屋 #燕三条 #飲み歩き",
+      "publishedAt": "2026-02-24T00:56:31Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "ddcGiuYdyVo",
+      "title": "チェイサー欲しい　 #グルメ #居酒屋 #飲み歩き #燕三条",
+      "publishedAt": "2026-02-24T00:59:44Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "-nf2gkKx1EA",
+      "title": "フランス直送ムール貝 #グルメ好き #燕三条 #飲み歩き #ムール貝",
+      "publishedAt": "2026-02-24T01:05:17Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "nnIb3OwLvq4",
+      "title": "#ラーメン #グルメ #燕三条 #飲み歩き",
+      "publishedAt": "2026-02-24T01:08:12Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "HJXHkDPjGk0",
+      "title": "撮影再開します2026年春｜燕三条TV",
+      "publishedAt": "2026-03-29T11:08:36Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "KJ1Y4Gr0rC8",
+      "title": "会長と三条花火2026【燕三条TV】",
+      "publishedAt": "2026-08-02T01:18:38Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    }
+  ]
+}
