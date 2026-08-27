@@ -1,0 +1,56 @@
+name: Auto-generate spot article
+
+on:
+  schedule:
+    # 毎週火曜日・金曜日 08:00 JST (= 前日 23:00 UTC)
+    - cron: '0 23 * * 1,4'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate spot article
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: npm run generate:spot
+
+      - name: Commit and push if there are changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add src/content/spots
+
+          if git diff --cached --quiet; then
+            echo "No new or changed spot articles. Skipping commit."
+            exit 0
+          fi
+
+          NEW_FILE=$(git diff --cached --name-only --diff-filter=A | head -n 1)
+          if [ -n "$NEW_FILE" ]; then
+            git commit -m "chore(spots): 自動生成記事を追加 ($(basename "$NEW_FILE"))"
+          else
+            git commit -m "chore(spots): 自動生成記事を更新"
+          fi
+
+          git push origin HEAD:${{ github.ref_name }}
