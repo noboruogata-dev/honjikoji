@@ -7,38 +7,74 @@ import Divider from '../components/Divider.astro';
 import {
   Anvil,
   Check,
+  ChevronDown,
+  ChevronRight,
   Coins,
   Flame,
   Footprints,
   HeartHandshake,
   Lamp,
   Landmark,
+  Martini,
+  Soup,
   Sparkles,
+  UtensilsCrossed,
   Users,
   Wine,
   X,
 } from '@lucide/astro';
 
+// 「濃紺の夜」と「提灯の朱赤」を交互に配色する、本寺小路のあゆみ4区分。
 const timeline = [
   {
     era: '江戸〜明治',
     label: '鍛冶と金物の町',
-    body: '三条は信濃川・五十嵐川の舟運と良質な砂鉄・鉄材の流通に恵まれ、和釘や作業道具をつくる鍛冶職人の技が代々磨かれてきたと伝えられています。腕一本で身を立てる職人気質は、後の本寺小路の空気にも通じるものがあります。',
+    body: '三条は信濃川・五十嵐川の舟運と良質な砂鉄・鉄材の流通に恵まれ、和釘や大工道具をつくる鍛冶職人の技が代々磨かれてきたと伝えられています。「腕一本で食っていく」という職人気質は、後の本寺小路の空気にも通じるものがあります。',
+    icon: Anvil,
+    accent: 'amber',
+    keywords: ['鍛冶職人', 'ものづくりの町'],
   },
   {
-    era: '大正〜昭和初期',
-    label: '商都としての発展、社交場の芽生え',
-    body: '金物・作業工具の産地として全国に商圏を広げるなかで、三条には商談に訪れる商人や、遠方から仕事を求めてやってくる職人たちが行き交うようになりました。彼らが夜に一杯かわし、商談の続きや骨休めをする場として、駅や本町通りに近い路地に飲食店や置屋が集まりはじめたのが、本寺小路の原型だといわれています。',
+    era: '大正〜高度経済成長期',
+    label: '商都の社交場から歓楽街へ',
+    body: '金物・作業工具の産地として全国に商圏を広げるなかで、三条には商談に訪れる商人や仕事を求める職人の往来が絶えなくなりました。駅や本町通りに近い路地に飲食店や置屋が集まりはじめたのが本寺小路の原型といわれ、高度経済成長期には料亭・小料理屋・スナックが軒を連ねる最盛期を迎えます。ネオンと三味線、カラオケの灯りが入り混じる独特の情緒は、この時代に色濃く形づくられました。',
+    icon: Landmark,
+    accent: 'vermilion',
+    keywords: ['商談の場', '花街の最盛期'],
   },
   {
-    era: '昭和中期〜後期',
-    label: '花街から歓楽街への成熟',
-    body: '高度経済成長期、三条の金物産業がさらに活況を呈すると、本寺小路もまた最盛期を迎えます。料亭・小料理屋・スナックが軒を連ね、仕事終わりの職人や商人、地元の旦那衆が「一日の労をねぎらう場所」として通いました。ネオンと三味線、カラオケの灯りが入り混じる独特の情緒は、この時代に色濃く形づくられたものです。',
+    era: '平成',
+    label: '移りゆく時代のなかで',
+    body: 'バブル崩壊や郊外型店舗の広がりとともに、全国の多くの歓楽街と同じく本寺小路にも静かな時代が訪れます。それでも「顔なじみの店に通う」という文化は絶えることなく、先代から店を継ぐ二代目・三代目や、新しく暖簾を掲げる店主たちによって、路地の灯りは絶やされることなく受け継がれていきました。',
+    icon: Users,
+    accent: 'amber',
+    keywords: ['代替わり', '受け継がれる暖簾'],
   },
   {
-    era: '平成〜令和',
+    era: '令和',
     label: '受け継がれる「大人の社交街」',
     body: '時代とともに店の数や顔ぶれは移り変わりましたが、本寺小路には今も「一見さんとも常連ともなく、みんなが顔なじみになっていく」独特の距離感が残っています。老舗の暖簾と新しい店が並び、昭和レトロな看板建築の下で、令和の夜もまた静かに灯りをともし続けています。',
+    icon: Lamp,
+    accent: 'vermilion',
+    keywords: ['大人の社交街', '今も灯る路地'],
+  },
+];
+
+const hashigoSteps = [
+  {
+    title: '1軒目は軽やかに',
+    body: '居酒屋や小料理屋で腹ごしらえをしながら、その夜のペースを作ります。飲みすぎず、会話を楽しむ余白を残すのがコツです。',
+    icon: UtensilsCrossed,
+  },
+  {
+    title: '2軒目でじっくり',
+    body: 'BARやスナックへ移り、お酒と会話をじっくり味わう時間。カウンター越しの店主やママとのやり取りも、本寺小路ならではの醍醐味です。',
+    icon: Martini,
+  },
+  {
+    title: '締めの一杯へ',
+    body: 'ラーメンやおでんで夜を締めくくるのが、本寺小路の定番の流儀。〆まで路地一本で完結する密度こそが、この街の贅沢さです。',
+    icon: Soup,
   },
 ];
 
@@ -68,27 +104,51 @@ const manners = [
 
 <Layout
   title="本寺小路について｜本寺小路ガイド"
-  description="新潟県三条市の歓楽街「本寺小路」の歴史・成り立ちと、初めて訪れる人のための歩き方・マナーをご紹介します。"
+  description="新潟県三条市の歓楽街「本寺小路」の歴史・成り立ちと、初めて訪れる人のための歩き方・ハシゴ酒の心得をご紹介します。"
 >
   <Header showBackLink />
 
-  <main class="mx-auto max-w-3xl px-4 py-10">
+  <main class="mx-auto max-w-4xl px-4 py-10">
     <!-- Hero -->
-    <section class="mb-14">
-      <p class="text-xs tracking-[0.3em] text-amber-glow/80">OUR STORY</p>
-      <h1 class="mt-3 font-serif text-3xl font-bold leading-snug text-gold-100 text-glow sm:text-4xl">
-        本寺小路について
-      </h1>
-      <p class="mt-5 leading-loose text-gold-100/70">
-        新潟県三条市。金物の町として知られるこの街の中心部に、今も灯りを絶やさぬ小さな路地があります。本寺小路——地元の人々が「ほんじ」と親しみを込めて呼ぶこの一角は、職人と商人の街が育んだ「大人の社交場」です。ここでは、その成り立ちと今に受け継がれる魅力、そして初めて訪れる方への歩き方をご紹介します。
-      </p>
+    <section class="relative mb-16 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60 px-5 py-10 sm:px-10 sm:py-14">
+      <div
+        class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_20%_0%,rgba(242,181,68,0.14),transparent),radial-gradient(ellipse_50%_50%_at_100%_100%,rgba(226,71,47,0.12),transparent)]"
+      >
+      </div>
+      <div class="relative">
+        <p class="text-xs tracking-[0.3em] text-amber-glow/80">OUR STORY</p>
+        <h1 class="mt-3 max-w-2xl font-serif text-3xl font-bold leading-snug text-gold-100 text-glow sm:text-4xl">
+          鍛冶の町が育んだ、夜の社交場。
+        </h1>
+        <p class="mt-6 max-w-2xl leading-loose text-gold-100/70">
+          新潟県三条市。金物の町として知られるこの街の中心部に、今も灯りを絶やさぬ小さな路地があります。本寺小路——地元の人々が「ほんじ」と親しみを込めて呼ぶこの一角は、腕一本で身を立てた職人と商人の街が育んだ「大人の社交場」です。ここでは、その成り立ちと今に受け継がれる魅力、そして初めて訪れる方への歩き方をご紹介します。
+        </p>
+        <div class="mt-7 flex flex-wrap gap-2.5">
+          <a
+            href="#roots"
+            class="rounded-full border border-amber-deep/50 bg-amber-glow/10 px-3.5 py-1.5 text-xs font-medium text-amber-glow transition hover:bg-amber-glow/20"
+          >
+            鍛冶職人の町
+          </a>
+          <a
+            href="#timeline"
+            class="rounded-full border border-vermilion/50 bg-vermilion/10 px-3.5 py-1.5 text-xs font-medium text-vermilion transition hover:bg-vermilion/20"
+          >
+            夜の歓楽街の成り立ち
+          </a>
+          <a
+            href="#hashigo"
+            class="rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+          >
+            ハシゴ酒の心得
+          </a>
+        </div>
+      </div>
     </section>
 
-    <Divider />
-
-    <!-- Section 1: ルーツ -->
-    <section class="mb-14">
-      <SectionHeading icon={Anvil} label="ROOTS">
+    <!-- Section: ルーツ -->
+    <section id="roots" class="mb-16 scroll-mt-8">
+      <SectionHeading icon={Anvil} label="ROOTS" accent="amber">
         鍛冶職人の街としてのルーツ
       </SectionHeading>
       <div class="mt-5 space-y-4 leading-loose text-gold-100/70">
@@ -103,46 +163,80 @@ const manners = [
 
     <Divider />
 
-    <!-- Section 2: 花街としての発展 -->
-    <section class="mb-14">
-      <SectionHeading icon={HeartHandshake} label="A GATHERING PLACE">
-        商人・職人の社交場として
-      </SectionHeading>
-      <div class="mt-5 space-y-4 leading-loose text-gold-100/70">
-        <p>
-          金物産業が全国に商圏を広げるにつれ、三条には商談に訪れる商人や、仕事を求めて集まる職人たちの往来が絶えなくなりました。一日の商談を終えた者同士が杯をかわし、明日への英気を養う場所——それが、駅や本町通りに近い路地に飲食店や置屋が集まりはじめた、本寺小路の始まりだといわれています。
-        </p>
-        <p>
-          「はじめまして」の商談相手と「いつもの」常連客が、同じカウンターで肩を並べる。そんな懐の深さこそが、本寺小路という街の一番の財産なのかもしれません。
-        </p>
-      </div>
-    </section>
-
     <!-- Timeline -->
-    <section class="mb-14">
-      <SectionHeading icon={Landmark} label="TIMELINE">
+    <section id="timeline" class="mb-16 scroll-mt-8">
+      <SectionHeading icon={Landmark} label="TIMELINE" accent="amber">
         本寺小路のあゆみ
       </SectionHeading>
+      <p class="mt-5 leading-loose text-gold-100/70">
+        鍛冶職人の町から、商人たちの社交場へ。そして今に受け継がれる大人の社交街へ——本寺小路が歩んできた4つの時代を辿ります。
+      </p>
 
-      <ol class="relative mt-8 space-y-10 border-l border-night-600 pl-6 sm:pl-8">
-        {
-          timeline.map((item) => (
-            <li class="relative">
-              <span class="absolute -left-[calc(1.5rem_+_5px)] top-1.5 h-2.5 w-2.5 rounded-full bg-amber-glow shadow-[0_0_0_4px_rgba(242,181,68,0.15)] sm:-left-[calc(2rem_+_5px)]" />
-              <p class="text-xs font-medium tracking-[0.2em] text-amber-glow/80">{item.era}</p>
-              <h3 class="mt-1 font-serif text-lg font-bold text-gold-100">{item.label}</h3>
-              <p class="mt-2 leading-loose text-gold-100/65">{item.body}</p>
-            </li>
-          ))
-        }
-      </ol>
+      <div class="relative mt-10">
+        <div class="absolute left-4 top-0 bottom-0 w-px bg-night-600 sm:left-1/2" aria-hidden="true"></div>
+
+        <div class="space-y-10">
+          {
+            timeline.map((item, i) => {
+              const Icon = item.icon;
+              const isVermilion = item.accent === 'vermilion';
+              return (
+                <div class="relative">
+                  <span
+                    class:list={[
+                      'absolute left-4 top-0 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border-2 bg-night-900 shadow-[0_0_14px_rgba(0,0,0,0.4)] sm:left-1/2',
+                      isVermilion ? 'border-vermilion text-vermilion' : 'border-amber-deep text-amber-glow',
+                    ]}
+                  >
+                    <Icon size={16} stroke-width={2} aria-hidden="true" />
+                  </span>
+
+                  <div
+                    class:list={[
+                      'pl-14 sm:w-[46%] sm:pl-0',
+                      i % 2 === 0 ? 'sm:pr-10' : 'sm:ml-auto sm:pl-10',
+                    ]}
+                  >
+                    <div class="rounded-xl border border-night-700 bg-night-900/60 p-5">
+                      <p
+                        class:list={[
+                          'text-xs font-medium tracking-[0.2em]',
+                          isVermilion ? 'text-vermilion/90' : 'text-amber-glow/80',
+                        ]}
+                      >
+                        {item.era}
+                      </p>
+                      <h3 class="mt-1 font-serif text-lg font-bold text-gold-100">{item.label}</h3>
+                      <p class="mt-2 leading-loose text-gold-100/65">{item.body}</p>
+                      <div class="mt-3 flex flex-wrap gap-1.5">
+                        {item.keywords.map((keyword) => (
+                          <span
+                            class:list={[
+                              'rounded-full px-2.5 py-0.5 text-[0.65rem] font-medium',
+                              isVermilion
+                                ? 'bg-vermilion/10 text-vermilion/90'
+                                : 'bg-amber-glow/10 text-amber-glow/90',
+                            ]}
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          }
+        </div>
+      </div>
     </section>
 
     <Divider />
 
     <!-- Section: 大人の社交街としての魅力 -->
-    <section class="mb-14">
-      <SectionHeading icon={Sparkles} label="TODAY">
+    <section class="mb-16">
+      <SectionHeading icon={Sparkles} label="TODAY" accent="vermilion">
         大人の社交街としての魅力
       </SectionHeading>
       <div class="mt-5 space-y-4 leading-loose text-gold-100/70">
@@ -158,7 +252,7 @@ const manners = [
         {
           [
             { icon: Wine, text: '一軒目から締めまで、路地一本で完結する密度' },
-            { icon: Users, text: '常連と一見が自然に混ざり合う懐の深さ' },
+            { icon: HeartHandshake, text: '常連と一見が自然に混ざり合う懐の深さ' },
             { icon: Lamp, text: '昭和レトロな看板建築が今も灯す夜の情緒' },
           ].map(({ icon: Icon, text }) => (
             <div class="flex items-start gap-2.5 rounded-lg border border-night-700 bg-night-900/60 px-3.5 py-3">
@@ -172,16 +266,45 @@ const manners = [
 
     <Divider />
 
-    <!-- Section: 歩き方・マナー -->
-    <section class="mb-6">
-      <SectionHeading icon={Footprints} label="FOR FIRST-TIMERS">
-        初めて訪れる方へ — 歩き方とマナー
+    <!-- Section: 本寺小路の歩き方（ハシゴ酒の心得） -->
+    <section id="hashigo" class="mb-6 scroll-mt-8">
+      <SectionHeading icon={Footprints} label="HOW TO ENJOY" accent="amber">
+        本寺小路の歩き方（ハシゴ酒の心得）
       </SectionHeading>
       <p class="mt-5 leading-loose text-gold-100/70">
-        本寺小路は、決して敷居の高い場所ではありません。少しの心構えがあれば、誰でもその夜の空気を楽しむことができます。
+        本寺小路は、決して敷居の高い場所ではありません。少しの心構えとハシゴの流儀があれば、誰でもその夜の空気を楽しむことができます。
       </p>
 
-      <ul class="mt-6 space-y-4">
+      <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-stretch">
+        {
+          hashigoSteps.map((step, i) => {
+            const Icon = step.icon;
+            return (
+              <>
+                <div class="flex-1 rounded-xl border border-night-700 bg-night-900/60 p-5">
+                  <div class="flex items-center gap-2.5">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-glow text-sm font-bold text-night-950">
+                      {i + 1}
+                    </span>
+                    <Icon size={18} stroke-width={1.75} class="text-amber-glow" aria-hidden="true" />
+                  </div>
+                  <h3 class="mt-3 font-serif text-base font-bold text-gold-100">{step.title}</h3>
+                  <p class="mt-2 text-sm leading-relaxed text-gold-100/65">{step.body}</p>
+                </div>
+                {i < hashigoSteps.length - 1 && (
+                  <div class="flex items-center justify-center text-amber-glow/40">
+                    <ChevronRight size={20} class="hidden sm:block" aria-hidden="true" />
+                    <ChevronDown size={20} class="sm:hidden" aria-hidden="true" />
+                  </div>
+                )}
+              </>
+            );
+          })
+        }
+      </div>
+
+      <h3 class="mt-10 text-sm font-medium tracking-wide text-gold-100/50">そのほかの心得</h3>
+      <ul class="mt-4 space-y-4">
         {
           manners.map((item) => (
             <li class="flex gap-3 rounded-xl border border-night-700 bg-night-900/50 p-4">
