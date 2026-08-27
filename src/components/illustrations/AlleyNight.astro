@@ -1,0 +1,95 @@
+---
+// 夜の小路・石畳・暖簾・街灯をモチーフにしたワイドイラスト。
+// Hero や特集バナーの背景/アクセントとして、外部画像の代わりに使う軽量インラインSVG。
+// 呼び出し側で class（配置・不透明度・サイズ）を制御できるよう、装飾色のみここで完結させる。
+
+interface Props {
+  class?: string;
+}
+
+const { class: className = 'w-full h-auto' } = Astro.props;
+const uid = Math.random().toString(36).slice(2, 9);
+
+// 建物のシルエット（連続する軒先）。x座標が隙間なく続くよう幅の合計を1200に揃えてある。
+const buildings = [
+  { x: 0, w: 150, h: 170 },
+  { x: 150, w: 120, h: 230 },
+  { x: 270, w: 160, h: 150 },
+  { x: 430, w: 110, h: 260 },
+  { x: 540, w: 150, h: 180 },
+  { x: 690, w: 130, h: 230 },
+  { x: 820, w: 170, h: 160 },
+  { x: 990, w: 120, h: 210 },
+  { x: 1110, w: 90, h: 180 },
+];
+
+const lanternX = [110, 405, 700, 995];
+---
+
+<svg viewBox="0 0 1200 360" fill="none" class={className} aria-hidden="true" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <radialGradient id={`glow-${uid}`} cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="var(--color-amber-glow)" stop-opacity="0.55" />
+      <stop offset="100%" stop-color="var(--color-amber-glow)" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id={`lantern-${uid}`} cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="var(--color-amber-glow)" />
+      <stop offset="100%" stop-color="var(--color-vermilion)" />
+    </radialGradient>
+    <linearGradient id={`ground-${uid}`} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--color-amber-glow)" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="var(--color-amber-glow)" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <!-- 建物のシルエット -->
+  {
+    buildings.map((b, i) => (
+      <rect
+        x={b.x}
+        y={360 - b.h}
+        width={b.w}
+        height={b.h}
+        fill="var(--color-night-800)"
+        fill-opacity={i % 2 === 0 ? 0.95 : 0.75}
+      />
+    ))
+  }
+
+  <!-- 暖簾（のれん） -->
+  <g fill="var(--color-vermilion-deep)" fill-opacity="0.55">
+    <rect x="300" y="300" width="70" height="50" rx="2" />
+    <rect x="860" y="290" width="80" height="55" rx="2" />
+  </g>
+  <g stroke="var(--color-night-950)" stroke-opacity="0.4" stroke-width="2">
+    <line x1="335" y1="300" x2="335" y2="350" />
+    <line x1="900" y1="290" x2="900" y2="345" />
+  </g>
+
+  <!-- 石畳の照り返し -->
+  <rect x="0" y="340" width="1200" height="20" fill={`url(#ground-${uid})`} />
+  <g stroke="var(--color-night-700)" stroke-opacity="0.4" stroke-width="1">
+    {Array.from({ length: 29 }).map((_, i) => (
+      <line x1={i * 42} y1="345" x2={i * 42 + 10} y2="360" />
+    ))}
+  </g>
+
+  <!-- 街灯（提灯） -->
+  {
+    lanternX.map((x) => (
+      <g>
+        <circle cx={x} cy={258} r={46} fill={`url(#glow-${uid})`} />
+        <line x1={x} y1="360" x2={x} y2="270" stroke="var(--color-night-600)" stroke-width="3" />
+        <path
+          d={`M${x - 12} 258 C${x - 16} 268 ${x - 16} 282 ${x - 12} 292 L${x + 12} 292 C${x + 16} 282 ${x + 16} 268 ${x + 12} 258 Z`}
+          fill={`url(#lantern-${uid})`}
+          stroke="var(--color-night-950)"
+          stroke-opacity="0.3"
+          stroke-width="1"
+        />
+        <line x1={x - 12} y1="269" x2={x + 12} y2="269" stroke="var(--color-night-950)" stroke-opacity="0.25" />
+        <line x1={x - 14} y1="280" x2={x + 14} y2="280" stroke="var(--color-night-950)" stroke-opacity="0.25" />
+      </g>
+    ))
+  }
+</svg>

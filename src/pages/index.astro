@@ -3,7 +3,12 @@ import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import SpotCard from '../components/SpotCard.astro';
+import SectionHeading from '../components/SectionHeading.astro';
+import AlleyNight from '../components/illustrations/AlleyNight.astro';
+import LanternGlow from '../components/illustrations/LanternGlow.astro';
+import CheersSake from '../components/illustrations/CheersSake.astro';
 import { getCollection } from 'astro:content';
+import { ArrowRight, Landmark, MapPin, Megaphone } from '@lucide/astro';
 
 const spots = (await getCollection('spots')).sort(
   (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
@@ -16,16 +21,131 @@ const scenes = [
   { label: '2次会・締め', value: '2次会・締めに最適' },
   { label: '深夜営業', value: '深夜営業' },
 ];
+
+// お知らせ・更新情報（現状は固定サンプル。将来的にはコレクション化も可能）。
+const news = [
+  { date: '2026-08-27', tag: 'NEW SPOT', accent: 'amber', text: '新しい店舗記事を公開しました。夜のハシゴにぜひどうぞ。' },
+  { date: '2026-08-20', tag: 'UPDATE', accent: 'vermilion', text: '店舗詳細ページにGoogleマップの公式埋め込みを追加しました。' },
+  { date: '2026-08-10', tag: 'NOTICE', accent: 'amber', text: '本寺小路の歴史・成り立ちを紹介する「本寺小路について」ページを公開しました。' },
+];
 ---
 
 <Layout title="本寺小路ガイド｜三条市の歓楽街 飲食店・店舗ガイド">
   <Header />
 
-  <main class="mx-auto max-w-5xl px-4 py-8">
-    <section aria-labelledby="filter-heading" class="mb-8">
-      <h2 id="filter-heading" class="sr-only">絞り込み</h2>
+  <main class="mx-auto max-w-5xl px-4 py-10">
+    <!-- Hero -->
+    <section class="relative mb-14 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60">
+      <AlleyNight class="pointer-events-none absolute inset-x-0 bottom-0 h-32 w-full opacity-20 sm:h-44" />
+      <div
+        class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_15%_0%,rgba(242,181,68,0.14),transparent),radial-gradient(ellipse_55%_55%_at_100%_5%,rgba(226,71,47,0.12),transparent)]"
+      >
+      </div>
 
-      <div class="space-y-3">
+      <div class="relative flex flex-col items-center gap-6 px-5 py-12 text-center sm:flex-row sm:gap-8 sm:px-10 sm:py-14 sm:text-left">
+        <LanternGlow class="h-32 w-32 shrink-0 sm:h-40 sm:w-40" />
+        <div>
+          <h2 class="font-serif text-2xl font-bold leading-snug text-gold-100 text-glow sm:text-3xl">
+            灯りともる路地で、今夜の一軒を。
+          </h2>
+          <p class="mt-3 max-w-xl text-sm leading-relaxed text-gold-100/65 sm:text-base">
+            新潟県三条市の歓楽街「本寺小路」。鍛冶職人の町が育んだ、一見さんも常連も分け隔てない大人の社交街へようこそ。
+          </p>
+          <a
+            href="#spots"
+            class="mt-5 inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-5 py-2.5 text-sm font-semibold text-night-950 transition hover:brightness-110"
+          >
+            店舗を探す
+            <ArrowRight size={16} stroke-width={2.25} aria-hidden="true" />
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- News / Updates -->
+    <section class="mb-14" aria-labelledby="news-heading">
+      <div id="news-heading">
+        <SectionHeading icon={Megaphone} label="NEWS" accent="vermilion">お知らせ</SectionHeading>
+      </div>
+
+      <ul class="mt-5 divide-y divide-night-700 overflow-hidden rounded-xl border border-night-700 bg-night-900/50">
+        {
+          news.map((item) => (
+            <li class="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4">
+              <div class="flex shrink-0 items-center gap-2.5">
+                <span
+                  class:list={[
+                    'inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold',
+                    item.accent === 'vermilion'
+                      ? 'bg-vermilion/15 text-vermilion'
+                      : 'bg-amber-glow/15 text-amber-glow',
+                  ]}
+                >
+                  {item.tag}
+                </span>
+                <time class="text-xs text-gold-100/35">{item.date}</time>
+              </div>
+              <p class="text-sm leading-relaxed text-gold-100/75">{item.text}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <!-- 特集バナー: 本寺小路とは -->
+    <section class="mb-14 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60">
+      <div class="grid grid-cols-1 sm:grid-cols-5">
+        <div class="relative h-40 overflow-hidden sm:col-span-2 sm:h-auto">
+          <AlleyNight class="absolute inset-0 h-full w-full opacity-25" />
+          <div
+            class="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,9,15,0),rgba(8,9,15,0.85))] sm:bg-[linear-gradient(90deg,rgba(8,9,15,0),rgba(8,9,15,0.9))]"
+          >
+          </div>
+          <div class="relative flex h-full items-end p-5 sm:items-center">
+            <p class="font-serif text-xl font-bold text-gold-100 text-glow sm:text-2xl">
+              本寺小路とは
+            </p>
+          </div>
+        </div>
+
+        <div class="p-5 sm:col-span-3 sm:p-8">
+          <SectionHeading icon={Landmark} label="FEATURE" accent="amber">
+            鍛冶職人の町が育んだ、夜の文化
+          </SectionHeading>
+          <p class="mt-4 leading-loose text-gold-100/70">
+            三条は古くから鍛冶職人の技で知られる「ものづくりの町」。商談に訪れる商人や職人たちが一杯かわす社交場として、本寺小路は生まれました。昭和には料亭やスナックが軒を連ねる最盛期を迎え、令和の今も「一見さんとも常連ともなく、みんなが顔なじみになっていく」独特の距離感を受け継いでいます。
+          </p>
+          <div class="mt-6 flex flex-wrap gap-3">
+            <a
+              href="/about/#roots"
+              class="inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-4 py-2 text-xs font-semibold text-night-950 transition hover:brightness-110 sm:text-sm"
+            >
+              鍛冶職人の町が育んだ夜の文化
+              <ArrowRight size={14} stroke-width={2.25} aria-hidden="true" />
+            </a>
+            <a
+              href="/about/#hashigo"
+              class="inline-flex items-center gap-1.5 rounded-full border border-vermilion/50 bg-vermilion/10 px-4 py-2 text-xs font-semibold text-vermilion transition hover:bg-vermilion/20 sm:text-sm"
+            >
+              ハシゴ酒の心得を見る
+              <ArrowRight size={14} stroke-width={2.25} aria-hidden="true" />
+            </a>
+          </div>
+          <a href="/about/" class="mt-4 inline-flex items-center gap-1 text-xs text-gold-100/50 transition hover:text-amber-glow">
+            本寺小路について詳しく読む
+            <ArrowRight size={12} stroke-width={2.25} aria-hidden="true" />
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Spots -->
+    <section id="spots" class="scroll-mt-8" aria-labelledby="spots-heading">
+      <div id="spots-heading">
+        <SectionHeading icon={MapPin} label="SPOTS" accent="amber">店舗一覧</SectionHeading>
+      </div>
+
+      <div class="mt-6 space-y-3">
         <div>
           <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">ジャンルで絞り込み</p>
           <div class="flex flex-wrap gap-2" data-filter-group="genre">
@@ -78,23 +198,43 @@ const scenes = [
           </div>
         </div>
       </div>
-    </section>
 
-    <section aria-labelledby="spots-heading">
-      <div class="mb-4 flex items-baseline justify-between">
-        <h2 id="spots-heading" class="font-serif text-lg font-bold text-gold-100">
-          店舗一覧
-        </h2>
+      <div class="mt-6 flex items-baseline justify-between">
         <p class="text-xs text-gold-100/40" data-result-count>{spots.length}件</p>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-spot-grid>
+      <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-spot-grid>
         {spots.map((spot) => <SpotCard spot={spot} />)}
       </div>
 
       <p class="hidden py-16 text-center text-sm text-gold-100/40" data-empty-message>
         条件に合う店舗が見つかりませんでした。
       </p>
+    </section>
+
+    <!-- Culture Column: 小路の歩き方 -->
+    <section class="mt-16 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60">
+      <div class="grid grid-cols-1 items-center gap-6 p-6 sm:grid-cols-5 sm:gap-8 sm:p-10">
+        <div class="sm:col-span-2">
+          <CheersSake class="mx-auto w-full max-w-[220px]" />
+        </div>
+        <div class="sm:col-span-3">
+          <p class="text-xs tracking-[0.3em] text-amber-glow/70">CULTURE COLUMN</p>
+          <h2 class="mt-2 font-serif text-xl font-bold text-gold-100 sm:text-2xl">
+            1軒目・2軒目・締め、ハシゴ酒のカルチャー
+          </h2>
+          <p class="mt-3 leading-loose text-gold-100/65">
+            居酒屋で軽く始め、BARやスナックでじっくり語らい、ラーメンやおでんで締めくくる——本寺小路には、路地一本でハシゴが完結する独特の密度があります。初めての方も、その日の気分で自由に組み立ててみてください。
+          </p>
+          <a
+            href="/about/#hashigo"
+            class="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-amber-glow transition hover:text-amber-deep"
+          >
+            ハシゴ酒の心得を読む
+            <ArrowRight size={15} stroke-width={2.25} aria-hidden="true" />
+          </a>
+        </div>
+      </div>
     </section>
   </main>
 
