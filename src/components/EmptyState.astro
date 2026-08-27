@@ -1,0 +1,15 @@
+---
+// 検索結果0件などの「何も無い」状態を表す共通コンポーネント。
+// data-empty-message は一覧ページのfilterスクリプトが hidden をトグルする対象。
+interface Props {
+  message?: string;
+  class?: string;
+}
+
+const { message = '条件に合う店舗が見つかりませんでした。', class: className = '' } = Astro.props;
+---
+
+<div class:list={['py-16 text-center', className]} data-empty-message>
+  <!-- TODO: 後日、提灯や路地をモチーフにしたイラストをここに差し込む -->
+  <p class="text-sm text-gold-100/40">{message}</p>
+</div>

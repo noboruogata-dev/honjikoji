@@ -28,7 +28,7 @@ const accent = CATEGORY_ACCENT[category] ?? 'amber';
 ---
 
 <Layout title={`${title}｜本寺小路ガイド`} description={summary} ogType="article" publishedTime={pubDate}>
-  <Header showBackLink />
+  <Header showBackLink backHref="/news/" />
 
   <main class="mx-auto max-w-3xl px-4 py-8">
     <article>
@@ -72,8 +72,8 @@ const accent = CATEGORY_ACCENT[category] ?? 'amber';
       }
 
       <div class="mt-12 border-t border-night-700 pt-6">
-        <a href="/" class="inline-flex items-center gap-1 text-sm text-gold-100/60 transition hover:text-amber-glow">
-          ← 本寺小路の店舗一覧に戻る
+        <a href="/news/" class="inline-flex items-center gap-1 text-sm text-gold-100/60 transition hover:text-amber-glow">
+          ← ニュース一覧に戻る
         </a>
       </div>
     </article>

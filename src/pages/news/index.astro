@@ -1,0 +1,86 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import { getCollection } from 'astro:content';
+import { ArrowRight, MapPin, Megaphone } from '@lucide/astro';
+
+const news = (await getCollection('news')).sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
+);
+
+const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
+  'NEW SPOT': 'vermilion',
+  EVENT: 'amber',
+  NOTICE: 'amber',
+};
+---
+
+<Layout
+  title="ニュース一覧｜本寺小路ガイド"
+  description="本寺小路ガイドのお知らせ・新店舗情報・イベント情報を新着順にまとめています。"
+>
+  <Header />
+
+  <main class="mx-auto max-w-5xl px-4 py-10">
+    <SectionHeading icon={Megaphone} label="NEWS" accent="vermilion">ニュース一覧</SectionHeading>
+
+    {
+      news.length > 0 ? (
+        <ul class="mt-6 divide-y divide-night-700 overflow-hidden rounded-xl border border-night-700 bg-night-900/50">
+          {news.map((item) => {
+            const accent = CATEGORY_ACCENT[item.data.category] ?? 'amber';
+            const relatedSpotSlug = item.data.relatedSpotSlug;
+            const dateStr = item.data.pubDate.toISOString().slice(0, 10);
+            const href = `/news/${item.id}/`;
+            return (
+              <li class="flex items-center gap-2.5 px-4 py-3 sm:gap-3">
+                <time class="hidden shrink-0 text-xs tabular-nums text-gold-100/35 sm:block" datetime={dateStr}>
+                  {dateStr}
+                </time>
+                <span
+                  class:list={[
+                    'shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[0.6rem] font-semibold',
+                    accent === 'vermilion' ? 'bg-vermilion/15 text-vermilion' : 'bg-amber-glow/15 text-amber-glow',
+                  ]}
+                >
+                  {item.data.category}
+                </span>
+                <a
+                  href={href}
+                  class="min-w-0 flex-1 truncate text-sm font-medium text-gold-100 underline-offset-4 transition hover:text-amber-glow hover:underline"
+                >
+                  {item.data.title}
+                </a>
+                {relatedSpotSlug && (
+                  <a
+                    href={`/spots/${relatedSpotSlug}/`}
+                    class="hidden shrink-0 items-center gap-1 rounded-full border border-night-600 px-2 py-1 text-[0.6rem] text-gold-100/50 transition hover:border-amber-deep/60 hover:text-amber-glow sm:inline-flex"
+                  >
+                    <MapPin size={10} stroke-width={2} aria-hidden="true" />
+                    店舗
+                  </a>
+                )}
+                <a
+                  href={href}
+                  class="inline-flex shrink-0 items-center gap-1 rounded-full bg-night-800 px-2.5 py-1 text-[0.65rem] font-semibold text-amber-glow/90 transition hover:bg-amber-glow hover:text-night-950"
+                >
+                  読む
+                  <ArrowRight size={10} stroke-width={2.5} aria-hidden="true" />
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <div class="mt-6 rounded-xl border border-night-700 bg-night-900/50">
+          <EmptyState message="現在お知らせはありません。" />
+        </div>
+      )
+    }
+  </main>
+
+  <Footer />
+</Layout>

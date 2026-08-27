@@ -3,13 +3,16 @@ import Logo from './Logo.astro';
 
 interface Props {
   showBackLink?: boolean;
+  /** showBackLink=true のときの戻り先。ページごとの一覧に戻す。 */
+  backHref?: string;
 }
-const { showBackLink = false } = Astro.props;
+const { showBackLink = false, backHref = '/' } = Astro.props;
 
 const pathname = Astro.url.pathname;
 
 const navLinks = [
-  { href: '/', label: '店舗一覧', active: pathname === '/' },
+  { href: '/spots/', label: '店舗一覧', active: pathname.startsWith('/spots') },
+  { href: '/news/', label: 'ニュース', active: pathname.startsWith('/news') },
   { href: '/about/', label: '本寺小路について', active: pathname.startsWith('/about') },
 ];
 ---
@@ -23,7 +26,7 @@ const navLinks = [
     {
       showBackLink && (
         <a
-          href="/"
+          href={backHref}
           class="mb-4 inline-flex items-center gap-1 text-sm text-gold-100/70 transition hover:text-amber-glow"
         >
           ← 一覧に戻る
@@ -40,7 +43,7 @@ const navLinks = [
         </p>
       </div>
 
-      <nav aria-label="サイトナビゲーション" class="flex shrink-0 gap-2">
+      <nav aria-label="サイトナビゲーション" class="flex shrink-0 flex-wrap gap-2">
         {
           navLinks.map((link) => (
             <a

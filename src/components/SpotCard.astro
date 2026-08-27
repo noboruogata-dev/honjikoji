@@ -9,7 +9,8 @@ interface Props {
 }
 
 const { spot } = Astro.props;
-const { title, genre, budget, openHours, regularHoliday, vibes, isNew, hours, description } = spot.data;
+const { title, genre, budget, budgetMax, openHours, regularHoliday, vibes, isNew, hours, description } =
+  spot.data;
 ---
 
 <a
@@ -17,6 +18,8 @@ const { title, genre, budget, openHours, regularHoliday, vibes, isNew, hours, de
   data-spot-card
   data-genre={genre}
   data-vibes={vibes.join('|')}
+  data-hours={JSON.stringify(hours ?? null)}
+  data-budget-max={budgetMax ?? ''}
   class="group relative flex flex-col overflow-hidden rounded-xl border border-night-700 bg-night-900/80 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70 hover:shadow-amber-deep/10"
 >
   {

@@ -1,0 +1,357 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import SpotCard from '../../components/SpotCard.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import { getCollection } from 'astro:content';
+import { MapPin } from '@lucide/astro';
+
+const spots = (await getCollection('spots')).sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
+);
+
+const genres = [...new Set(spots.map((spot) => spot.data.genre))].sort();
+
+const scenes = [
+  { key: '1st', label: '1軒目', value: '1軒目におすすめ' },
+  { key: 'shime', label: '2次会・締め', value: '2次会・締めに最適' },
+  { key: 'late', label: '深夜営業', value: '深夜営業' },
+];
+
+// budgetMax（数値・任意）に対する「〜◯◯円」の固定バケット。キーはURLクエリにもそのまま使う。
+const budgets = [
+  { key: '2000', label: '〜￥2,000' },
+  { key: '3000', label: '〜￥3,000' },
+  { key: '5000', label: '〜￥5,000' },
+  { key: '5000plus', label: '￥5,000〜' },
+];
+
+const seatTypes = [
+  { key: 'counter', label: 'カウンター', value: 'カウンター席あり' },
+  { key: 'private', label: '個室', value: '個室あり' },
+  { key: 'tatami', label: '座敷・小上がり', value: '座敷・小上がりあり' },
+];
+---
+
+<Layout
+  title="店舗一覧｜本寺小路ガイド"
+  description="新潟県三条市の歓楽街「本寺小路」の飲食店・店舗を、ジャンル・シーン・予算・席タイプ・今営業中かどうかで絞り込んで探せます。"
+>
+  <Header />
+
+  <main class="mx-auto max-w-5xl px-4 py-10">
+    <SectionHeading icon={MapPin} label="SPOTS" accent="amber">店舗一覧</SectionHeading>
+
+    <div class="mt-6 space-y-3">
+      <div>
+        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">ジャンルで絞り込み</p>
+        <div class="flex flex-wrap gap-2" data-filter-group="genre">
+          <button
+            type="button"
+            data-value="all"
+            aria-pressed="true"
+            class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+          >
+            すべて
+          </button>
+          {
+            genres.map((genre) => (
+              <button
+                type="button"
+                data-value={genre}
+                aria-pressed="false"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                {genre}
+              </button>
+            ))
+          }
+        </div>
+      </div>
+
+      <div>
+        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">シーンで絞り込み</p>
+        <div class="flex flex-wrap gap-2" data-filter-group="scene">
+          <button
+            type="button"
+            data-value="all"
+            aria-pressed="true"
+            class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+          >
+            すべて
+          </button>
+          {
+            scenes.map((scene) => (
+              <button
+                type="button"
+                data-value={scene.key}
+                data-match={scene.value}
+                aria-pressed="false"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                {scene.label}
+              </button>
+            ))
+          }
+        </div>
+      </div>
+
+      <div>
+        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">予算帯で絞り込み</p>
+        <div class="flex flex-wrap gap-2" data-filter-group="budget">
+          <button
+            type="button"
+            data-value="all"
+            aria-pressed="true"
+            class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+          >
+            すべて
+          </button>
+          {
+            budgets.map((budget) => (
+              <button
+                type="button"
+                data-value={budget.key}
+                aria-pressed="false"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                {budget.label}
+              </button>
+            ))
+          }
+        </div>
+      </div>
+
+      <div>
+        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">席タイプで絞り込み</p>
+        <div class="flex flex-wrap gap-2" data-filter-group="seat">
+          <button
+            type="button"
+            data-value="all"
+            aria-pressed="true"
+            class="filter-btn rounded-full border border-amber-deep bg-amber-glow px-3.5 py-1.5 text-xs font-semibold text-night-950 transition"
+          >
+            すべて
+          </button>
+          {
+            seatTypes.map((seat) => (
+              <button
+                type="button"
+                data-value={seat.key}
+                data-match={seat.value}
+                aria-pressed="false"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                {seat.label}
+              </button>
+            ))
+          }
+        </div>
+      </div>
+
+      <div>
+        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">営業状況で絞り込み</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            data-open-toggle
+            aria-pressed="false"
+            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+          >
+            今営業中
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 flex items-baseline justify-between">
+      <p class="text-xs text-gold-100/40" data-result-count>{spots.length}件</p>
+    </div>
+
+    <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-spot-grid>
+      {spots.map((spot) => <SpotCard spot={spot} />)}
+    </div>
+
+    <EmptyState message="条件に合う店舗が見つかりませんでした。" class="hidden" />
+  </main>
+
+  <Footer />
+</Layout>
+
+<style>
+  .filter-btn[aria-pressed='true'] {
+    border-color: var(--color-amber-deep);
+    background-color: var(--color-amber-glow);
+    color: var(--color-night-950);
+  }
+</style>
+
+<script>
+  import { getOpenStatus, type HourRule } from '../../lib/hours';
+
+  // "2000"/"3000"/"5000" は「その金額以下」（累積的な上限バンド、budgetMax <= 値）。
+  // "5000plus" だけは向きが逆で「5,000円より上」（budgetMax > 5000）を表す特別扱い。
+  const BUDGET_MAX_OR_LESS: Record<string, number> = {
+    '2000': 2000,
+    '3000': 3000,
+    '5000': 5000,
+  };
+  const BUDGET_PLUS_THRESHOLD = 5000;
+
+  function matchesBudget(cardBudgetMax: number | undefined, budgetKey: string): boolean {
+    if (budgetKey === 'all') return true;
+    if (cardBudgetMax === undefined) return false;
+    if (budgetKey === '5000plus') return cardBudgetMax > BUDGET_PLUS_THRESHOLD;
+    const max = BUDGET_MAX_OR_LESS[budgetKey];
+    return max !== undefined && cardBudgetMax <= max;
+  }
+
+  const groups = document.querySelectorAll<HTMLElement>('[data-filter-group]');
+  const openToggle = document.querySelector<HTMLButtonElement>('[data-open-toggle]');
+  const cards = document.querySelectorAll<HTMLElement>('[data-spot-card]');
+  const resultCount = document.querySelector<HTMLElement>('[data-result-count]');
+  const emptyMessage = document.querySelector<HTMLElement>('[data-empty-message]');
+
+  function parseHours(raw: string | undefined): HourRule[] | undefined {
+    if (!raw || raw === 'null') return undefined;
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  function group(name: string): HTMLElement | null {
+    return document.querySelector<HTMLElement>(`[data-filter-group="${name}"]`);
+  }
+
+  /** グループ内で選択中のボタンの data-value（URL同期にも使う短いkey）。未選択なら 'all'。 */
+  function activeKey(el: HTMLElement | null): string {
+    const pressed = el?.querySelector<HTMLButtonElement>('.filter-btn[aria-pressed="true"]');
+    return pressed?.dataset.value ?? 'all';
+  }
+
+  /** グループ内で選択中のボタンの実際の照合値（data-matchがあればそれ、無ければdata-value自身）。 */
+  function activeMatch(el: HTMLElement | null): string {
+    const pressed = el?.querySelector<HTMLButtonElement>('.filter-btn[aria-pressed="true"]');
+    return pressed?.dataset.match ?? pressed?.dataset.value ?? 'all';
+  }
+
+  function isOpenToggleActive(): boolean {
+    return openToggle?.getAttribute('aria-pressed') === 'true';
+  }
+
+  function applyFilters() {
+    const genreKey = activeKey(group('genre'));
+    const sceneMatch = activeMatch(group('scene'));
+    const budgetKey = activeKey(group('budget'));
+    const seatMatch = activeMatch(group('seat'));
+    const openActive = isOpenToggleActive();
+
+    let visible = 0;
+    cards.forEach((card) => {
+      const genre = card.dataset.genre ?? '';
+      const vibes = (card.dataset.vibes ?? '').split('|');
+      const budgetMaxAttr = card.dataset.budgetMax;
+      const cardBudgetMax = budgetMaxAttr ? Number(budgetMaxAttr) : undefined;
+
+      const genreOk = genreKey === 'all' || genre === genreKey;
+      const sceneOk = sceneMatch === 'all' || vibes.includes(sceneMatch);
+      const seatOk = seatMatch === 'all' || vibes.includes(seatMatch);
+      const budgetOk = matchesBudget(cardBudgetMax, budgetKey);
+
+      let openOk = true;
+      if (openActive) {
+        const result = getOpenStatus(parseHours(card.dataset.hours));
+        openOk = result.state === 'open' || result.state === 'closing-soon';
+      }
+
+      const show = genreOk && sceneOk && seatOk && budgetOk && openOk;
+      card.classList.toggle('hidden', !show);
+      if (show) visible += 1;
+    });
+
+    if (resultCount) resultCount.textContent = `${visible}件`;
+    if (emptyMessage) emptyMessage.classList.toggle('hidden', visible !== 0);
+  }
+
+  function syncUrl() {
+    const params: [string, string][] = [];
+    const genreKey = activeKey(group('genre'));
+    const sceneKey = activeKey(group('scene'));
+    const budgetKey = activeKey(group('budget'));
+    const seatKey = activeKey(group('seat'));
+
+    if (genreKey !== 'all') params.push(['genre', genreKey]);
+    if (sceneKey !== 'all') params.push(['scene', sceneKey]);
+    if (budgetKey !== 'all') params.push(['budget', budgetKey]);
+    if (seatKey !== 'all') params.push(['seat', seatKey]);
+    if (isOpenToggleActive()) params.push(['open', 'now']);
+
+    const url = new URL(location.href);
+    url.search = '';
+    for (const [key, value] of params) url.searchParams.set(key, value);
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }
+
+  function selectButton(groupEl: HTMLElement | null, value: string) {
+    if (!groupEl) return;
+    const buttons = groupEl.querySelectorAll<HTMLButtonElement>('.filter-btn');
+    const target = Array.from(buttons).find((b) => b.dataset.value === value);
+    if (!target) return;
+    buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    target.setAttribute('aria-pressed', 'true');
+  }
+
+  function restoreFromUrl() {
+    const params = new URL(location.href).searchParams;
+
+    const genreParam = params.get('genre');
+    if (genreParam) selectButton(group('genre'), genreParam);
+
+    const sceneParam = params.get('scene');
+    if (sceneParam) selectButton(group('scene'), sceneParam);
+
+    const budgetParam = params.get('budget');
+    if (budgetParam) selectButton(group('budget'), budgetParam);
+
+    const seatParam = params.get('seat');
+    if (seatParam) selectButton(group('seat'), seatParam);
+
+    if (params.get('open') === 'now' && openToggle) {
+      openToggle.setAttribute('aria-pressed', 'true');
+    }
+  }
+
+  // 初期表示: URLクエリを読んでボタン状態を復元してからフィルタを適用する。
+  restoreFromUrl();
+  applyFilters();
+  syncUrl(); // 不正なクエリ値などをこの時点で正規化しておく。
+
+  groups.forEach((groupEl) => {
+    const buttons = groupEl.querySelectorAll<HTMLButtonElement>('.filter-btn');
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
+        button.setAttribute('aria-pressed', 'true');
+        applyFilters();
+        syncUrl();
+      });
+    });
+  });
+
+  openToggle?.addEventListener('click', () => {
+    const active = isOpenToggleActive();
+    openToggle.setAttribute('aria-pressed', String(!active));
+    applyFilters();
+    syncUrl();
+  });
+
+  // 「今営業中」有効時は、閲覧中に営業状態が変わりうるので定期的に再評価する。
+  setInterval(() => {
+    if (isOpenToggleActive()) applyFilters();
+  }, 60_000);
+</script>
