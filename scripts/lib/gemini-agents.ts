@@ -16,7 +16,7 @@
  */
 
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
-import { mkdir, readdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { load as parseYaml } from 'js-yaml';
 import type { ZodError } from 'zod';
@@ -50,6 +50,48 @@ export function slugify(input: string): string {
 
 export function normalizeText(value: string): string {
   return value.replace(/\s+/g, '').toLowerCase();
+}
+
+// ============================================================
+// 試行結果の集計・GitHub Actions Job Summary への出力
+//
+// generate-spot.ts / generate-news.ts はどちらも「最大N回リトライして、
+// 候補なし・重複でスキップし続けた場合はエラーにせず静かに終了する」
+// 設計になっている。これ自体は意図通りだが、以前はその「静かに終了」が
+// 文字通り無言（＝Actionsの実行一覧が緑のチェックのまま、中で何が
+// 起きたか一切分からない）だったため、各試行の結果を集計してログと
+// Job Summaryの両方に必ず残すための共通ヘルパー。
+// ============================================================
+
+/** 試行結果（例: 'notFound' | 'duplicate' | 'success' | 'error'）の配列を、
+ *  「候補なし2回、重複1回」のような日本語サマリ文字列に集計する。
+ *  labels に無いキーはキー名をそのまま表示する。 */
+export function summarizeOutcomes(outcomes: string[], labels: Record<string, string> = {}): string {
+  const counts = new Map<string, number>();
+  for (const outcome of outcomes) {
+    counts.set(outcome, (counts.get(outcome) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([key, n]) => `${labels[key] ?? key}${n}回`)
+    .join('、');
+}
+
+/**
+ * GitHub Actions の Job Summary（$GITHUB_STEP_SUMMARY）にMarkdownを追記する。
+ * ローカル実行など環境変数が無い場合は何もしない（no-op）。書き込み失敗は
+ * 本処理を止める理由にならないため、warnするだけで握りつぶす。
+ */
+export async function appendStepSummary(markdown: string): Promise<void> {
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (!summaryPath) return;
+  try {
+    await appendFile(summaryPath, `${markdown.replace(/\n+$/, '')}\n\n`, 'utf-8');
+  } catch (err) {
+    console.warn(
+      '[gemini-agents] GITHUB_STEP_SUMMARY への書き込みに失敗しました（処理は継続します）:',
+      err instanceof Error ? err.message : err
+    );
+  }
 }
 
 export function uniqueSlug(baseSlug: string, existingSlugs: string[], fallbackPrefix = 'entry'): string {

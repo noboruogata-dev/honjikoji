@@ -34,6 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
   analyzeArticleStructure,
+  appendStepSummary,
   callGroundedJsonAgent,
   callPlainJsonAgent,
   checkArticleStructure,
@@ -43,6 +44,7 @@ import {
   normalizeText,
   parseJsonOrThrow,
   slugify,
+  summarizeOutcomes,
   toYamlString,
   uniqueSlug,
 } from './lib/gemini-agents.js';
@@ -51,6 +53,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NEWS_DIR = path.resolve(__dirname, '../src/content/news');
 const SPOTS_DIR = path.resolve(__dirname, '../src/content/spots');
 const MAX_ATTEMPTS = 3;
+
+// 各試行が最終的にどうなったかを記録し、全滅した場合でも「何が起きたか」を
+// ログとJob Summaryに必ず残すための集計用ラベル（generate-spot.tsと同じ方針）。
+type AttemptOutcome = 'notFound' | 'duplicate' | 'success' | 'error';
+const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
+  notFound: '該当話題なし',
+  duplicate: '重複',
+  success: '成功',
+  error: 'エラー',
+};
 
 const CATEGORIES = ['NEW SPOT', 'EVENT', 'NOTICE'] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -369,6 +381,8 @@ async function main() {
   console.log(' Agent1(Research) -> Agent2(Writer) -> Agent3(QA & Save)');
   console.log('============================================================');
 
+  const outcomes: AttemptOutcome[] = [];
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     console.log(`\n----- 試行 ${attempt}/${MAX_ATTEMPTS} -----`);
 
@@ -384,6 +398,7 @@ async function main() {
       const research = await runResearchAgent(ai, excludeTopics, knownSpots);
 
       if (research.notFound) {
+        outcomes.push('notFound');
         console.warn('[generate-news] 該当する話題が見つからなかったため、リトライします。');
         continue;
       }
@@ -392,36 +407,90 @@ async function main() {
         (topic) => normalizeText(topic) === normalizeText(research.headline)
       );
       if (isDuplicate) {
+        outcomes.push('duplicate');
         console.warn(`[generate-news] 「${research.headline}」はすでに記事化済みでした。リトライします。`);
         continue;
       }
 
       const writer = await runWriterAgent(ai, research);
       const filePath = await runQaAgent(research, writer, existingSlugs);
+      outcomes.push('success');
 
       console.log('\n============================================================');
       console.log(` 完了: 「${writer.title}」（${research.category}）を保存しました。`);
       console.log(` -> ${path.relative(process.cwd(), filePath)}`);
       console.log('============================================================');
+
+      await appendStepSummary(
+        [
+          '## 📰 本寺小路ガイド 自動記事生成（news）',
+          '',
+          `「${writer.title}」（${research.category}）を保存しました。`,
+          '',
+          `- ファイル: \`${path.relative(process.cwd(), filePath)}\``,
+          `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+        ].join('\n')
+      );
       return;
     } catch (err) {
       if (err instanceof FatalPipelineError) {
+        outcomes.push('error');
         console.error(`\n[generate-news] 致命的エラーのため処理を安全に停止します: ${err.message}`);
         process.exitCode = 1;
+        await appendStepSummary(
+          [
+            '## 📰 本寺小路ガイド 自動記事生成（news）',
+            '',
+            `❌ 致命的エラーのため処理を停止しました: ${err.message}`,
+            '',
+            `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+          ].join('\n')
+        );
         return;
       }
 
+      outcomes.push('error');
       console.error(
         `[generate-news] 試行 ${attempt}/${MAX_ATTEMPTS} でエラーが発生しました:`,
         err instanceof Error ? err.message : err
       );
 
       if (attempt === MAX_ATTEMPTS) {
+        await appendStepSummary(
+          [
+            '## 📰 本寺小路ガイド 自動記事生成（news）',
+            '',
+            `❌ ${MAX_ATTEMPTS}回試行しましたが、ニュース記事の生成に失敗しました。`,
+            '',
+            `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+          ].join('\n')
+        );
         throw new Error(`${MAX_ATTEMPTS}回試行しましたが、ニュース記事の生成に失敗しました。処理を停止します。`);
       }
       console.log('[generate-news] リトライします...');
     }
   }
+
+  // generate-spot.ts と同じ方針: MAX_ATTEMPTS回すべてが notFound か duplicate
+  // だった場合の無言終了を解消する。エラーではなく意図的なスキップなので
+  // exitCode は変更しない（0のまま）。
+  const summaryLine = summarizeOutcomes(outcomes, OUTCOME_LABELS);
+  console.log('\n============================================================');
+  console.log(` 完了: ${MAX_ATTEMPTS}回試行しましたが、新しいニュース記事は生成されませんでした（${summaryLine}）。`);
+  console.log(' エラーではなく意図的なスキップです。次回の定期実行で再度リトライされます。');
+  console.log('============================================================');
+
+  await appendStepSummary(
+    [
+      '## 📰 本寺小路ガイド 自動記事生成（news）',
+      '',
+      `${MAX_ATTEMPTS}回試行しましたが、新しいニュース記事は生成されませんでした。`,
+      '',
+      `- 試行内訳: ${summaryLine}`,
+      '',
+      '_エラーではなく意図的なスキップです。次回の定期実行で再試行されます。_',
+    ].join('\n')
+  );
 }
 
 main().catch((err) => {
