@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "astro dev",
+    "prebuild": "tsx scripts/generate-ogp-images.ts",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
@@ -14,6 +15,7 @@
     "generate:news": "tsx scripts/generate-news.ts",
     "generate:column": "tsx scripts/generate-column.ts",
     "generate:column-image": "tsx scripts/generate-column-image.ts",
+    "generate:ogp-images": "tsx scripts/generate-ogp-images.ts",
     "match:youtube": "tsx scripts/match-youtube.ts",
     "test": "vitest run"
   },
@@ -37,6 +39,7 @@
     "@types/js-yaml": "^4.0.9",
     "dotenv": "^17.4.2",
     "js-yaml": "^5.4.1",
+    "satori": "^0.33.4",
     "sharp": "^0.35.4",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3",

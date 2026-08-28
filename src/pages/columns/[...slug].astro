@@ -6,6 +6,7 @@ import Prose from '../../components/Prose.astro';
 import StructuredData from '../../components/StructuredData.astro';
 import { ArrowLeft, ExternalLink } from '@lucide/astro';
 import { getCollection, render } from 'astro:content';
+import { resolveOgpImage } from '../../lib/ogpImagePath';
 
 export async function getStaticPaths() {
   const columns = await getCollection('columns', ({ data }) => !data.draft);
@@ -16,6 +17,11 @@ const { item } = Astro.props;
 const { title, pubDate, category, summary, disclaimer, sources, eyecatch, imageStatus } = item.data;
 const { Content } = await render(item);
 const reviewedEyecatch = imageStatus === 'reviewed' || imageStatus === 'qa-passed' ? eyecatch : undefined;
+// OGP画像の優先順位: ①人によるレビュー・QA通過済みのAI生成アイキャッチ
+// （既存機能。個別に描き下ろされた挿絵なので最優先）→ ②
+// scripts/generate-ogp-images.ts が生成したテンプレート画像 → ③
+// Layout.astroのデフォルト（ogp-default.png）。
+const ogImagePath = reviewedEyecatch?.src ?? resolveOgpImage('column', item.id);
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toString();
 const structuredData = {
   '@context': 'https://schema.org',
@@ -25,11 +31,11 @@ const structuredData = {
   description: summary,
   url: canonicalUrl,
   author: { '@type': 'Organization', name: '本寺小路ガイド' },
-  ...(reviewedEyecatch ? { image: new URL(reviewedEyecatch.src, Astro.site ?? Astro.url).toString() } : {}),
+  ...(ogImagePath ? { image: new URL(ogImagePath, Astro.site ?? Astro.url).toString() } : {}),
 };
 ---
 
-<Layout title={`${title}｜本寺小路夜話`} description={summary} ogType="article" ogImage={reviewedEyecatch?.src} publishedTime={pubDate}>
+<Layout title={`${title}｜本寺小路夜話`} description={summary} ogType="article" ogImage={ogImagePath} publishedTime={pubDate}>
   <StructuredData data={structuredData} />
   <Header showBackLink backHref="/columns/" />
   <main class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
