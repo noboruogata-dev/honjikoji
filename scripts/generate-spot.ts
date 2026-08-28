@@ -35,22 +35,25 @@
 
 import 'dotenv/config';
 import { GoogleGenAI, Type } from '@google/genai';
-import { readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
   analyzeArticleStructure,
   appendStepSummary,
+  buildNewsFrontmatterBlock,
   callGroundedJsonAgent,
   callPlainJsonAgent,
   checkArticleStructure,
   FatalPipelineError,
   getExistingEntries,
   logZodIssues,
+  newsFrontmatterSchema,
   normalizeText,
   parseJsonOrThrow,
   pickRandom,
+  readFrontmatter,
   slugify,
   summarizeOutcomes,
   toYamlString,
@@ -59,6 +62,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SPOTS_DIR = path.resolve(__dirname, '../src/content/spots');
+const NEWS_DIR = path.resolve(__dirname, '../src/content/news');
 // scripts/match-youtube.ts が書き出すファイルと同じパス（リポジトリルート直下）。
 const UNMATCHED_VIDEOS_PATH = path.resolve(__dirname, '../unmatched-videos.json');
 const MAX_ATTEMPTS = 3;
@@ -541,10 +545,182 @@ async function runQaAgent(
 }
 
 // ============================================================
+// Agent 4（非LLM・決定論的）: 公開お知らせの自動生成
+//
+// 店舗記事の保存に成功した直後、対応する「〇〇の紹介記事を公開しました」
+// ニュースを src/content/news/{spotSlug}-published.md として自動生成する。
+// LLMは使わない（文面をLLMに書かせると事実誤認のリスクが増え、API消費も
+// 増えるため）。Agent1/Agent2がすでに調べた情報（店名・ジャンル・
+// description）だけをテンプレートに流し込んで組み立てる、純粋な決定論的
+// 処理。GEMINI_API_KEYが無くても動く（--backfill-announcements用）。
+//
+// 失敗しても店舗記事の保存自体は成功として扱う（お知らせは副次的な
+// 成果物であり、これで全体を失敗にはしない）。そのため、この関数は
+// 例外を投げず、常にstatusつきの結果オブジェクトを返す。
+// ============================================================
+
+interface AnnouncementSource {
+  slug: string;
+  title: string;
+  genre: string;
+  description: string;
+}
+
+type AnnouncementResult =
+  | { status: 'created'; detail: string }
+  | { status: 'skipped'; detail: string }
+  | { status: 'error'; detail: string };
+
+function ensureTrailingPunctuation(text: string): string {
+  const trimmed = text.trim();
+  return /[。！？]$/.test(trimmed) ? trimmed : `${trimmed}。`;
+}
+
+function announcementSummaryLine(result: AnnouncementResult): string {
+  switch (result.status) {
+    case 'created':
+      return `お知らせ: 公開しました（${result.detail}）`;
+    case 'skipped':
+      return `お知らせ: スキップしました（${result.detail}）`;
+    case 'error':
+      return `お知らせ: 生成に失敗しました（${result.detail}）`;
+  }
+}
+
+async function runAnnouncementAgent(spot: AnnouncementSource): Promise<AnnouncementResult> {
+  const label = '[Agent4:Announcement]';
+  const newsSlug = `${spot.slug}-published`;
+  const filePath = path.join(NEWS_DIR, `${newsSlug}.md`);
+
+  try {
+    const alreadyExists = await access(filePath).then(
+      () => true,
+      () => false
+    );
+    if (alreadyExists) {
+      console.log(`${label} news/${newsSlug}.md は既に存在するためスキップします。`);
+      return { status: 'skipped', detail: `既に存在します: news/${newsSlug}.md` };
+    }
+
+    // research/writerが既に調べた事実（店名・ジャンル・description）だけを
+    // 使い、新しい事実は作らない。descriptionはAgent2が書いた「魅力的な
+    // 要約（100字前後）」の流用で、新規のLLM呼び出しは行わない。
+    const desc = ensureTrailingPunctuation(spot.description);
+    const title = `「${spot.title}」の紹介記事を公開しました`;
+    const summary = `本寺小路の${spot.genre}「${spot.title}」の紹介記事を公開しました。${desc}`;
+    const body =
+      `本寺小路の${spot.genre}「${spot.title}」の紹介記事を公開しました。${desc}\n\n` +
+      `詳しくは店舗ページをご覧ください。`;
+
+    const candidate: Record<string, unknown> = {
+      title,
+      pubDate: new Date().toISOString().slice(0, 10),
+      category: 'NEW SPOT',
+      summary,
+      relatedSpotSlug: spot.slug,
+    };
+
+    const result = newsFrontmatterSchema.safeParse(candidate);
+    if (!result.success) {
+      logZodIssues(result, label);
+      return { status: 'error', detail: 'newsFrontmatterSchemaの検証に失敗しました。' };
+    }
+
+    // 構造要件チェック（テンプレートは固定文言なので、ここが鳴るのは
+    // 店舗のdescriptionが極端に長い等、テンプレート側の想定漏れを意味する。
+    // LLM出力と同じく非ブロッキングでwarnのみ、保存は継続する）。
+    const structure = analyzeArticleStructure(body);
+    const structureWarnings = checkArticleStructure(structure);
+    for (const warning of structureWarnings) {
+      console.warn(`${label} [構造チェック] ${warning}`);
+    }
+
+    const frontmatter = buildNewsFrontmatterBlock(result.data);
+    await mkdir(NEWS_DIR, { recursive: true });
+    await writeFile(filePath, frontmatter + body + '\n', 'utf-8');
+
+    console.log(`${label} 完了。保存しました: ${path.relative(process.cwd(), filePath)}`);
+    return { status: 'created', detail: `news/${newsSlug}.md` };
+  } catch (err) {
+    console.error(
+      `${label} お知らせ生成に失敗しました（店舗記事の保存自体は成功として扱います）:`,
+      err instanceof Error ? err.message : err
+    );
+    return { status: 'error', detail: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ============================================================
+// --backfill-announcements: 既存の店舗記事のうち、公開お知らせが
+// まだ無いものだけを遡って生成する（冪等・GEMINI_API_KEY不要）。
+// ============================================================
+
+async function runBackfillAnnouncements(): Promise<void> {
+  console.log('============================================================');
+  console.log(' 本寺小路ガイド 公開お知らせ 遡及生成（--backfill-announcements）');
+  console.log('============================================================');
+
+  await mkdir(SPOTS_DIR, { recursive: true });
+  const files = (await readdir(SPOTS_DIR)).filter((file) => file.endsWith('.md'));
+
+  const results: Array<{ slug: string; result: AnnouncementResult }> = [];
+
+  for (const file of files) {
+    const slug = file.replace(/\.md$/, '');
+    const frontmatter = await readFrontmatter(SPOTS_DIR, slug);
+    if (!frontmatter) {
+      console.warn(`[backfill] ${file} のfrontmatterを読み取れなかったためスキップします。`);
+      continue;
+    }
+
+    const title = typeof frontmatter.title === 'string' ? frontmatter.title : '';
+    const genre = typeof frontmatter.genre === 'string' ? frontmatter.genre : '';
+    const description = typeof frontmatter.description === 'string' ? frontmatter.description : '';
+    if (!title || !description) {
+      console.warn(`[backfill] ${file} は title/description が不足しているためスキップします。`);
+      continue;
+    }
+
+    const result = await runAnnouncementAgent({ slug, title, genre, description });
+    results.push({ slug, result });
+  }
+
+  const created = results.filter((r) => r.result.status === 'created');
+  const skipped = results.filter((r) => r.result.status === 'skipped');
+  const errored = results.filter((r) => r.result.status === 'error');
+
+  console.log('\n============================================================');
+  console.log(
+    ` 完了: 対象${results.length}件中、生成${created.length}件・スキップ${skipped.length}件・失敗${errored.length}件`
+  );
+  for (const { slug, result } of results) {
+    console.log(`  - ${slug}: ${announcementSummaryLine(result)}`);
+  }
+  console.log('============================================================');
+
+  await appendStepSummary(
+    [
+      '## 🏮 本寺小路ガイド 公開お知らせ 遡及生成（backfill）',
+      '',
+      `対象${results.length}件中、生成${created.length}件・スキップ${skipped.length}件・失敗${errored.length}件`,
+      '',
+      ...results.map(({ slug, result }) => `- ${slug}: ${announcementSummaryLine(result)}`),
+    ].join('\n')
+  );
+}
+
+// ============================================================
 // オーケストレーター
 // ============================================================
 
 async function main() {
+  // 遡及生成モード: LLM/GEMINI_API_KEYを使わず、既存の店舗記事のうち
+  // 公開お知らせが無いものだけを生成して終了する。
+  if (process.argv[2] === '--backfill-announcements') {
+    await runBackfillAnnouncements();
+    return;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error(
@@ -607,11 +783,23 @@ async function main() {
       const filePath = await runQaAgent(research, writer, existingSlugs);
       outcomes.push('success');
 
+      // 店舗記事の保存が成功した直後に、対応する公開お知らせを生成する。
+      // runAnnouncementAgentは例外を投げないため、失敗しても店舗記事の
+      // 保存自体は成功のまま処理を続けられる。
+      const spotSlug = path.basename(filePath, '.md');
+      const announcement = await runAnnouncementAgent({
+        slug: spotSlug,
+        title: research.title,
+        genre: research.genre,
+        description: writer.description,
+      });
+
       console.log('\n============================================================');
       console.log(
         ` 完了: 「${research.title}」（${research.genre}）${research.isNew ? '[NEW] ' : ''}を保存しました。`
       );
       console.log(` -> ${path.relative(process.cwd(), filePath)}`);
+      console.log(` ${announcementSummaryLine(announcement)}`);
       console.log('============================================================');
 
       await appendStepSummary(
@@ -621,6 +809,7 @@ async function main() {
           `「${research.title}」（${research.genre}）${research.isNew ? ' [NEW]' : ''} を保存しました。`,
           '',
           `- ファイル: \`${path.relative(process.cwd(), filePath)}\``,
+          `- ${announcementSummaryLine(announcement)}`,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
           unconfirmedHintLine(),
         ]
