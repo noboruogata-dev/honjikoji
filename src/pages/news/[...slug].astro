@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import Prose from '../../components/Prose.astro';
+import StructuredData from '../../components/StructuredData.astro';
 import { getCollection, getEntry, render } from 'astro:content';
 import { ArrowRight, Megaphone } from '@lucide/astro';
 
@@ -26,9 +27,28 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
   NOTICE: 'amber',
 };
 const accent = CATEGORY_ACCENT[category] ?? 'amber';
+
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toString();
+
+// NewsArticleではなくArticleを使う: NewsArticleはGoogleニュース面への掲載を
+// 想定した型で、当サイトの店舗告知・お知らせ記事に使うのは過大な表現になる
+// ため。
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: title,
+  datePublished: pubDate.toISOString(),
+  description: summary,
+  url: canonicalUrl,
+  author: {
+    '@type': 'Organization',
+    name: '本寺小路ガイド',
+  },
+};
 ---
 
 <Layout title={`${title}｜本寺小路ガイド`} description={summary} ogType="article" publishedTime={pubDate}>
+  <StructuredData data={structuredData} />
   <Header showBackLink backHref="/news/" />
 
   <main class="mx-auto max-w-3xl px-4 py-8">

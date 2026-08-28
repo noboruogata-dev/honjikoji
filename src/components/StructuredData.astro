@@ -1,0 +1,28 @@
+---
+/**
+ * src/components/StructuredData.astro
+ *
+ * JSON-LD（schema.org構造化データ）を <script type="application/ld+json"> として
+ * 出力する、汎用・受動的なコンポーネント。@type やフィールドの組み立ては
+ * 呼び出し側（各ページ）と src/lib/structuredData.ts / src/lib/spotSchemaType.ts
+ * の責務とし、このコンポーネント自体はデータの中身を一切解釈しない。
+ *
+ * 配置方針: <head>ではなく各ページの<body>内に置くこと。ClientRouterは
+ * デフォルトで<body>全体を遷移のたびに丸ごと差し替えるため、<head>の
+ * マージ判定に頼るより確実に「毎回そのページ専用の内容に置き換わる」ことが
+ * 保証できる。
+ */
+interface Props {
+  data: Record<string, unknown> | Record<string, unknown>[];
+}
+
+const { data } = Astro.props;
+
+// set:html + JSON.stringify はAstro公式ドキュメントが示すJSON-LD出力の
+// 標準パターン。</script>によるタグ脱出を防ぐため、"<"をUnicodeエスケープ
+// する（descriptionなどLLM生成の自由文が万一"</script>"を含んでいても
+// 安全なように、という一般的な防御）。
+const json = JSON.stringify(data).replace(/</g, '\\u003c');
+---
+
+<script type="application/ld+json" set:html={json} is:inline />

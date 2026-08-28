@@ -8,8 +8,16 @@ import GenreIcon from '../../components/GenreIcon.astro';
 import MapEmbed from '../../components/MapEmbed.astro';
 import OpenStatus from '../../components/OpenStatus.astro';
 import YouTubeEmbed from '../../components/YouTubeEmbed.astro';
+import StructuredData from '../../components/StructuredData.astro';
 import { getCollection, render } from 'astro:content';
 import { ExternalLink } from '@lucide/astro';
+import { getSpotSchemaType } from '../../lib/spotSchemaType';
+import {
+  buildGoogleMapsUrl,
+  buildOpeningHoursSpecification,
+  buildSpotAddress,
+  hasIrregularHoliday,
+} from '../../lib/structuredData';
 
 export async function getStaticPaths() {
   const spots = await getCollection('spots');
@@ -36,6 +44,34 @@ const {
   youtubeVideos,
 } = spot.data;
 const { Content } = await render(spot);
+
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toString();
+// 現状どの店舗も個別のOGP画像を持たず、Layout.astroと同じサイト共通の
+// デフォルト画像を使っている（ogImageをLayoutに渡していないため）。
+const absoluteImage = new URL('/images/ogp-default.png', Astro.site ?? Astro.url).toString();
+
+// 不定休の店は、hoursに「便宜上の毎日営業」として登録されていることがある
+// （実際に何曜日が休みか特定できないため）。この状態のままGoogleに
+// openingHoursSpecificationとして渡すと、本来休んでいる日を「営業中」と
+// 検索結果に表示させてしまう恐れがあるため、不定休と判断できる店では
+// openingHoursSpecification自体を出力しない。
+const openingHoursSpecification = hasIrregularHoliday(regularHoliday)
+  ? undefined
+  : buildOpeningHoursSpecification(hours);
+
+const structuredData: Record<string, unknown> = {
+  '@context': 'https://schema.org',
+  '@type': getSpotSchemaType(genre),
+  name: title,
+  description,
+  url: canonicalUrl,
+  address: buildSpotAddress(address),
+  servesCuisine: genre,
+  priceRange: budget,
+  hasMap: buildGoogleMapsUrl(mapQuery),
+  image: absoluteImage,
+  ...(openingHoursSpecification ? { openingHoursSpecification } : {}),
+};
 ---
 
 <Layout
@@ -44,6 +80,7 @@ const { Content } = await render(spot);
   ogType="article"
   publishedTime={pubDate}
 >
+  <StructuredData data={structuredData} />
   <Header showBackLink backHref="/spots/" />
 
   <main class="mx-auto max-w-3xl px-4 py-8">

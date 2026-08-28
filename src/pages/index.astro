@@ -7,6 +7,7 @@ import SectionHeading from '../components/SectionHeading.astro';
 import AlleyNight from '../components/illustrations/AlleyNight.astro';
 import LanternIcon from '../components/illustrations/LanternIcon.astro';
 import RuleDivider from '../components/RuleDivider.astro';
+import StructuredData from '../components/StructuredData.astro';
 import { getCollection } from 'astro:content';
 import { ArrowRight, Landmark, MapPin, Megaphone } from '@lucide/astro';
 
@@ -31,9 +32,32 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
   EVENT: 'amber',
   NOTICE: 'amber',
 };
+
+const siteUrl = new URL('/', Astro.site ?? Astro.url).toString();
+
+// 本寺小路ガイドは非公式のファンサイト。Organization.nameは「本寺小路」自体
+// ではなく当サイトの名称にし、descriptionにも明示的な断り書きを入れることで、
+// 本寺小路そのものの公式運営組織と誤認されないようにする。
+const structuredData = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: '本寺小路ガイド',
+    url: siteUrl,
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: '本寺小路ガイド',
+    url: siteUrl,
+    description:
+      '新潟県三条市の歓楽街「本寺小路」を紹介する非公式のファンサイトです。本寺小路の公式な運営組織ではありません。',
+  },
+];
 ---
 
 <Layout title="本寺小路ガイド｜三条市の歓楽街 飲食店・店舗ガイド">
+  <StructuredData data={structuredData} />
   <Header />
 
   <main class="mx-auto max-w-5xl px-4 py-6 sm:py-10">

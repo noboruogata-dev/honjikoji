@@ -6,12 +6,23 @@ import SpotCard from '../../components/SpotCard.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
 import EmptyState from '../../components/EmptyState.astro';
 import GenreIcon from '../../components/GenreIcon.astro';
+import StructuredData from '../../components/StructuredData.astro';
 import { getCollection } from 'astro:content';
 import { MapPin } from '@lucide/astro';
 
 const spots = (await getCollection('spots')).sort(
   (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
 );
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  itemListElement: spots.map((spot, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    url: new URL(`/spots/${spot.id}/`, Astro.site ?? Astro.url).toString(),
+  })),
+};
 
 const genres = [...new Set(spots.map((spot) => spot.data.genre))].sort();
 
@@ -40,6 +51,7 @@ const seatTypes = [
   title="店舗一覧｜本寺小路ガイド"
   description="新潟県三条市の歓楽街「本寺小路」の飲食店・店舗を、ジャンル・シーン・予算・席タイプ・今営業中かどうかで絞り込んで探せます。"
 >
+  <StructuredData data={structuredData} />
   <Header />
 
   <main class="mx-auto max-w-5xl px-4 py-10">
