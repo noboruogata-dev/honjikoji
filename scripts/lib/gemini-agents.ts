@@ -215,3 +215,64 @@ export function logZodIssues(result: { success: false; error: ZodError }, label:
     console.error(`  - ${issue.path.join('.') || '(root)'}: ${issue.message}`);
   }
 }
+
+// ============================================================
+// 記事本文の構造解析（generate-spot.ts / generate-news.ts の
+// Agent3が共通で使う、決定論的な可読性チェック）
+// ============================================================
+
+export interface ArticleStructure {
+  charCount: number;
+  paragraphCount: number;
+  /** "## " / "### " 等、見出し行の数 */
+  headingCount: number;
+  /** 段落（見出し行を除く）のうち最も文字数が多いものの文字数。段落が無ければ0。 */
+  maxParagraphChars: number;
+}
+
+/** Markdown本文を空行区切りで段落分割し、文字数・段落数・見出し数を数える。 */
+export function analyzeArticleStructure(body: string): ArticleStructure {
+  const trimmed = body.trim();
+  const charCount = [...trimmed].length;
+
+  const blocks = trimmed.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+  const headingBlocks = blocks.filter((b) => /^#{1,6}\s/.test(b));
+  const paragraphBlocks = blocks.filter((b) => !/^#{1,6}\s/.test(b));
+
+  const maxParagraphChars = paragraphBlocks.reduce(
+    (max, p) => Math.max(max, [...p.replace(/\n/g, '')].length),
+    0
+  );
+
+  return {
+    charCount,
+    paragraphCount: paragraphBlocks.length,
+    headingCount: headingBlocks.length,
+    maxParagraphChars,
+  };
+}
+
+/**
+ * 構造要件（200字超で2段落以上・400字超で見出し1つ以上・1段落150字程度）を
+ * 満たしているか決定論的にチェックし、満たさない項目のメッセージ一覧を返す
+ * （空配列なら問題なし）。呼び出し側はこれを console.warn するだけで、
+ * 保存自体はブロックしない（既存の文字数チェックと同じ非ブロッキング方針）。
+ */
+export function checkArticleStructure(structure: ArticleStructure): string[] {
+  const warnings: string[] = [];
+  const { charCount, paragraphCount, headingCount, maxParagraphChars } = structure;
+
+  if (charCount > 200 && paragraphCount < 2) {
+    warnings.push(
+      `本文が${charCount}字あるのに段落が${paragraphCount}個しかありません（200字超は2段落以上が目安）。`
+    );
+  }
+  if (charCount > 400 && headingCount < 1) {
+    warnings.push(`本文が${charCount}字あるのに見出し(##)がありません（400字超は見出し1つ以上が目安）。`);
+  }
+  if (maxParagraphChars > 150) {
+    warnings.push(`最も長い段落が${maxParagraphChars}字あります（1段落150字程度が目安）。`);
+  }
+
+  return warnings;
+}

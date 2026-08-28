@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
+import Prose from '../../components/Prose.astro';
 import Badge from '../../components/Badge.astro';
 import GenreIcon from '../../components/GenreIcon.astro';
 import MapEmbed from '../../components/MapEmbed.astro';
@@ -98,11 +99,9 @@ const { Content } = await render(spot);
         </div>
       </dl>
 
-      <div
-        class="prose prose-invert prose-headings:font-serif prose-headings:text-gold-100 prose-p:text-gold-100/70 prose-li:text-gold-100/70 prose-strong:text-amber-glow mt-10 max-w-none prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-xl prose-h2:border-b prose-h2:border-night-700 prose-h2:pb-2"
-      >
+      <Prose class="mt-10">
         <Content />
-      </div>
+      </Prose>
 
       {
         youtubeVideos && youtubeVideos.length > 0 && (

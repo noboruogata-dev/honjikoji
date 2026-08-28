@@ -1,0 +1,35 @@
+---
+// ニュース・店舗詳細ページの記事本文（Markdown）に共通で使うprose設定。
+// @tailwindcss/typography をベースに、日本語長文向けに調整している:
+//   - 測度(max-width)を34em程度に制限（日本語16pxで1行35〜38字程度）
+//   - 行間1.9・段落間マージン1.75em（日本語は字面が密なので欧文より広めに）
+//   - h2/h3のサイズを分けて階層を出す
+//   - リンク・引用・リストマーカーをサイトのアクセント色に揃える
+// 呼び出し側の上マージン差（news: mt-8 / spots: mt-10）は class props で吸収する。
+interface Props {
+  class?: string;
+}
+
+const { class: className = '' } = Astro.props;
+---
+
+<div
+  class:list={[
+    'prose prose-invert',
+    'prose-headings:font-serif prose-headings:text-gold-100',
+    'prose-headings:mt-8 prose-headings:mb-3 prose-headings:tracking-[0.02em]',
+    'prose-h2:text-[1.35rem] prose-h2:border-b prose-h2:border-night-700 prose-h2:pb-2',
+    'prose-h3:text-[1.1rem]',
+    'prose-p:text-gold-100/70 prose-p:my-[1.75em]',
+    'prose-li:text-gold-100/70',
+    'prose-strong:text-amber-glow',
+    'prose-a:text-amber-glow [&_a]:transition [&_a:hover]:text-vermilion',
+    'prose-blockquote:text-gold-100/70',
+    '[--tw-prose-quote-borders:var(--color-amber-deep)]',
+    '[--tw-prose-bullets:var(--color-amber-glow)] [--tw-prose-counters:var(--color-amber-glow)]',
+    'leading-[1.9] max-w-[34em]',
+    className,
+  ]}
+>
+  <slot />
+</div>

@@ -9,10 +9,13 @@
  *            1軒選定し、事実情報を厳密なJSONで抽出する。新規開店・リニューアル
  *            情報を優先的に探索し、開店から約1年以内なら isNew フラグを立てる。
  *   Agent 2: Writer Agent    — Agent 1のJSONだけを事実源として、地元メディア
- *            らしい紹介記事（800〜1200字）を執筆する（Grounding無し）。
+ *            らしい紹介記事（800〜1200字）を執筆する（Grounding無し）。読みやすさの
+ *            ため、段落数・見出し・1段落の文字数について構造要件を守るよう指示する。
  *   Agent 3: QA & Schema Validator Agent — Zodでフロントマターを厳密に検証し、
- *            通過したものだけを src/content/spots/[slug].md に保存する
- *            （LLM呼び出しなし、コードのみ）。
+ *            bodyの構造要件（段落数・見出し数・最長段落文字数）も決定論的に
+ *            チェックしたうえで、通過したものだけを src/content/spots/[slug].md
+ *            に保存する（LLM呼び出しなし、コードのみ。構造要件は非ブロッキングの
+ *            WARNで、満たさなくても保存はされる）。
  *
  * 注意: youtubeVideos はこのパイプラインでは絶対に生成・推測しない。
  * 実在する動画IDをLLMが幻覚する（または存在するが別動画を取り違える）
@@ -37,8 +40,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
+  analyzeArticleStructure,
   callGroundedJsonAgent,
   callPlainJsonAgent,
+  checkArticleStructure,
   FatalPipelineError,
   getExistingEntries,
   logZodIssues,
@@ -260,7 +265,11 @@ ${research.facts}
   ただし、事実メモに具体的な記載がない場合は、断定的な固有の料理名などを創作せず、一般的・控えめな表現に留めること。
 - 新店舗である場合は、その新しさ・オープンの経緯にも自然に触れること（無理に強調しすぎないこと）。
 - 文体は敬体（です・ます調）で、本寺小路の夜の情緒が伝わるように。
-- 見出し（## など）を使ってもよいが、必須ではない。
+- 以下の構造要件を必ず守ること（読みやすさのため。800〜1200字なら通常は
+  自然に満たせるはずです）:
+  - 200字を超える場合は、必ず2段落以上（空行区切り）に分けること
+  - 400字を超える場合は、「## 」で始まる見出しを1つ以上入れること
+  - 1段落は最大でも150字程度に収めること
 - 動画やYouTubeへの言及・リンク・埋め込みは一切書かないでください。
   youtubeVideos はこの記事執筆の範囲外で、別の仕組み（運営者の手動設定、または
   決定論的な自動マッチング処理）でのみ設定されるフィールドです。事実メモに
@@ -378,6 +387,14 @@ async function runQaAgent(
 
   const slug = uniqueSlug(slugify(research.slug), existingSlugs, 'spot');
   console.log(`${label} 検証OK。保存先slug: ${slug}${fm.isNew ? '（新店舗フラグ: ON）' : ''}`);
+
+  // 構造要件（段落数・見出し数・最長段落文字数）の決定論的チェック。
+  // generate-news.ts と同じ非ブロッキング方針（満たさなくても保存は続行）。
+  const structure = analyzeArticleStructure(writer.body);
+  const structureWarnings = checkArticleStructure(structure);
+  for (const warning of structureWarnings) {
+    console.warn(`${label} [構造チェック] ${warning}`);
+  }
 
   const frontmatter = [
     '---',

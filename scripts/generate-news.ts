@@ -9,10 +9,15 @@
  *            イベント」「三条市 歓楽街 祭り」「三条市 新規オープン 飲食店」
  *            などを調査し、1つの話題を選んで事実情報を厳密なJSONで抽出する。
  *   Agent 2: Writer Agent   — Agent 1のJSONだけを事実源として、街の回遊を
- *            促す簡潔なニュース記事（300〜500字）を執筆する（Grounding無し）。
+ *            促すニュース記事本文（body・300〜500字）と、一覧カード/OGP用の
+ *            短い要約（summary・100字前後）を分けて執筆する（Grounding無し）。
+ *            bodyは読みやすさのため、段落数・見出し・1段落の文字数について
+ *            構造要件を守るよう指示している。
  *   Agent 3: QA & Schema Validator Agent — Zodでフロントマターを厳密に検証し、
- *            通過したものだけを src/content/news/[slug].md に保存する
- *            （LLM呼び出しなし、コードのみ）。
+ *            bodyの構造要件（段落数・見出し数・最長段落文字数）も決定論的に
+ *            チェックしたうえで、通過したものだけを src/content/news/[slug].md
+ *            に保存する（LLM呼び出しなし、コードのみ。構造要件は非ブロッキングの
+ *            WARNで、満たさなくても保存はされる）。
  *
  * 使い方:
  *   npm run generate:news
@@ -28,8 +33,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
+  analyzeArticleStructure,
   callGroundedJsonAgent,
   callPlainJsonAgent,
+  checkArticleStructure,
   FatalPipelineError,
   getExistingEntries,
   logZodIssues,
@@ -67,9 +74,13 @@ const researchSchema = z.object({
 type ResearchResult = z.infer<typeof researchSchema>;
 
 // Agent 2（Writer）の出力スキーマ。
+// summary（frontmatter・一覧カード・OGP用の短い要約）と body（記事本文）は
+// 別物として分離する。以前は summary をそのまま本文としても保存しており、
+// 「短い要約」と「読み応えのある本文」を両立できなかったため。
 const writerSchema = z.object({
   title: z.string(),
   summary: z.string(),
+  body: z.string(),
 });
 type WriterResult = z.infer<typeof writerSchema>;
 
@@ -127,10 +138,16 @@ const writerResponseSchema = {
     title: { type: Type.STRING, description: '30字前後の簡潔な見出し' },
     summary: {
       type: Type.STRING,
-      description: '300〜500字程度。街の回遊を促す、明るく読みやすいニュース記事本文。',
+      description:
+        '100字前後。一覧カード・OGP説明文に使う短い要約。bodyの書き出しと同じ文にしないこと。',
+    },
+    body: {
+      type: Type.STRING,
+      description:
+        '300〜500字程度、Markdown形式。街の回遊を促す、明るく読みやすいニュース記事本文。',
     },
   },
-  required: ['title', 'summary'],
+  required: ['title', 'summary', 'body'],
 };
 
 // ============================================================
@@ -197,9 +214,15 @@ ${research.facts}
 
 執筆ルール:
 - title: 30字前後の簡潔な見出し。
-- summary: 300〜500字程度。街の回遊を促す、明るく読みやすい文体（です・ます調）で、
-  読んだ人が「行ってみよう」「寄ってみよう」と思えるように書くこと。
-  事実メモにない情報を創作しないこと。`;
+- summary: 100字前後。一覧カード・OGP説明文に使う短い要約。bodyとは独立した
+  文章にすること（bodyの書き出しと同一文・ほぼ同じ文にしない）。
+- body: 300〜500字程度、Markdown形式。街の回遊を促す、明るく読みやすい文体
+  （です・ます調）で、読んだ人が「行ってみよう」「寄ってみよう」と思えるように
+  書くこと。事実メモにない情報を創作しないこと。
+  以下の構造要件を必ず守ること（読みやすさのため）:
+  - 200字を超える場合は、必ず2段落以上（空行区切り）に分けること
+  - 400字を超える場合は、「## 」で始まる見出しを1つ以上入れること
+  - 1段落は最大でも150字程度に収めること`;
 }
 
 // ============================================================
@@ -260,8 +283,8 @@ async function runWriterAgent(ai: GoogleGenAI, research: ResearchResult): Promis
     throw new Error('Agent2(Writer)のレスポンスがスキーマ違反です。');
   }
 
-  const charCount = [...result.data.summary].length;
-  console.log(`${label} 完了。記事を生成しました（${charCount}字）。`);
+  const charCount = [...result.data.body].length;
+  console.log(`${label} 完了。記事を生成しました（本文${charCount}字）。`);
   if (charCount < 200 || charCount > 700) {
     console.warn(`${label} 文字数が目安（300〜500字）から外れています（${charCount}字）。内容は保存されます。`);
   }
@@ -299,6 +322,14 @@ async function runQaAgent(
   const slug = uniqueSlug(slugify(research.slug), existingSlugs, 'news');
   console.log(`${label} 検証OK。保存先slug: ${slug}`);
 
+  // 構造要件（段落数・見出し数・最長段落文字数）の決定論的チェック。
+  // 満たさなくても保存はブロックしない（既存の文字数チェックと同じ方針）。
+  const structure = analyzeArticleStructure(writer.body);
+  const structureWarnings = checkArticleStructure(structure);
+  for (const warning of structureWarnings) {
+    console.warn(`${label} [構造チェック] ${warning}`);
+  }
+
   const frontmatter = [
     '---',
     `title: ${toYamlString(fm.title)}`,
@@ -312,7 +343,7 @@ async function runQaAgent(
   ].join('\n');
 
   const filePath = path.join(NEWS_DIR, `${slug}.md`);
-  await writeFile(filePath, frontmatter + fm.summary.trim() + '\n', 'utf-8');
+  await writeFile(filePath, frontmatter + writer.body.trim() + '\n', 'utf-8');
 
   console.log(`${label} 完了。保存しました: ${path.relative(process.cwd(), filePath)}`);
   return filePath;

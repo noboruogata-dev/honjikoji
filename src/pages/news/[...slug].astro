@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
+import Prose from '../../components/Prose.astro';
 import { getCollection, getEntry, render } from 'astro:content';
 import { ArrowRight, Megaphone } from '@lucide/astro';
 
@@ -53,11 +54,9 @@ const accent = CATEGORY_ACCENT[category] ?? 'amber';
 
       <p class="mt-4 leading-relaxed text-gold-100/70">{summary}</p>
 
-      <div
-        class="prose prose-invert prose-headings:font-serif prose-headings:text-gold-100 prose-p:text-gold-100/70 prose-li:text-gold-100/70 prose-strong:text-amber-glow mt-8 max-w-none prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-xl prose-h2:border-b prose-h2:border-night-700 prose-h2:pb-2"
-      >
+      <Prose class="mt-8">
         <Content />
-      </div>
+      </Prose>
 
       {
         relatedSpot && (
