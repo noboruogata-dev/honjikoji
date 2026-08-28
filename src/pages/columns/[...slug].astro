@@ -1,0 +1,66 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import Prose from '../../components/Prose.astro';
+import StructuredData from '../../components/StructuredData.astro';
+import { ArrowLeft, ExternalLink } from '@lucide/astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const columns = await getCollection('columns', ({ data }) => !data.draft);
+  return columns.map((item) => ({ params: { slug: item.id }, props: { item } }));
+}
+
+const { item } = Astro.props;
+const { title, pubDate, category, summary, disclaimer, sources, illustration, eyecatch, imageStatus } = item.data;
+const { Content } = await render(item);
+const reviewedIllustration = imageStatus === 'reviewed' ? illustration : undefined;
+const reviewedEyecatch = imageStatus === 'reviewed' ? eyecatch : undefined;
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toString();
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: title,
+  datePublished: pubDate.toISOString(),
+  description: summary,
+  url: canonicalUrl,
+  author: { '@type': 'Organization', name: '本寺小路ガイド' },
+  ...(reviewedEyecatch ? { image: new URL(reviewedEyecatch.src, Astro.site ?? Astro.url).toString() } : {}),
+};
+---
+
+<Layout title={`${title}｜本寺小路夜話`} description={summary} ogType="article" ogImage={reviewedEyecatch?.src} publishedTime={pubDate}>
+  <StructuredData data={structuredData} />
+  <Header showBackLink backHref="/columns/" />
+  <main class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
+    <article>
+      <div class="flex items-center gap-3 text-xs">
+        <span class="text-amber-glow">{category}</span>
+        <time class="text-gold-100/40" datetime={pubDate.toISOString().slice(0, 10)}>{pubDate.toISOString().slice(0, 10)}</time>
+      </div>
+      <h1 class="mt-3 font-serif text-2xl font-bold leading-snug text-gold-100 text-glow sm:text-3xl">{title}</h1>
+      <p class="mt-5 max-w-[34em] leading-[1.9] text-gold-100/70">{summary}</p>
+
+      {reviewedEyecatch && <img src={reviewedEyecatch.src} alt={reviewedEyecatch.alt} width="1200" height="630" decoding="async" class="mt-8 aspect-[1200/630] w-full rounded-2xl border border-gold-100/15 object-cover" />}
+      {reviewedIllustration && <img src={reviewedIllustration.src} alt={reviewedIllustration.alt} width="900" height="900" loading="lazy" decoding="async" class="mx-auto mt-10 h-auto w-full max-w-sm" />}
+
+      <Prose class="mt-10"><Content /></Prose>
+      {disclaimer && <p class="mt-10 rounded-xl border border-gold-100/15 bg-gold-100/[0.025] px-4 py-3 text-xs leading-relaxed text-gold-100/55">{disclaimer}</p>}
+
+      {sources && sources.length > 0 && (
+        <section class="mt-10 border-t border-night-700 pt-6" aria-labelledby="sources-heading">
+          <h2 id="sources-heading" class="font-serif text-lg font-bold text-gold-100">参考資料</h2>
+          <ul class="mt-4 space-y-3 text-sm">
+            {sources.map((source) => <li><a href={source.url} target="_blank" rel="noopener noreferrer" class="inline-flex items-start gap-1.5 text-gold-100/60 transition hover:text-amber-glow hover:underline"><span>{source.title}</span><ExternalLink size={13} class="mt-1 shrink-0" aria-hidden="true" /></a></li>)}
+          </ul>
+        </section>
+      )}
+
+      <div class="mt-12 border-t border-night-700 pt-6">
+        <a href="/columns/" class="inline-flex items-center gap-1.5 text-sm text-gold-100/60 transition hover:text-amber-glow"><ArrowLeft size={14} aria-hidden="true" />本寺小路夜話に戻る</a>
+      </div>
+    </article>
+  </main>
+  <Footer />
+</Layout>
