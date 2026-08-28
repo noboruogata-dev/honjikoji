@@ -128,6 +128,43 @@ const structuredData = [
     />
     <template data-lantern-icon-template><LanternIcon /></template>
 
+    <!-- 新着店舗: サイトの主目的なので、リアルタイム営業状況の直後に配置 -->
+    <section id="spots" class="scroll-mt-8" aria-labelledby="spots-heading">
+      <div class="flex items-baseline justify-between" id="spots-heading">
+        <SectionHeading icon={MapPin} label="SPOTS" accent="amber">新着店舗</SectionHeading>
+      </div>
+
+      <p class="mt-4 flex items-center justify-end gap-1 text-xs text-gold-100/45 sm:hidden" aria-hidden="true">
+        横にスワイプして見る
+        <ArrowRight size={13} stroke-width={2.25} />
+      </p>
+
+      <div
+        class="-mx-4 mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-4 pb-3 scroll-pl-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:mt-6 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3"
+        aria-label="新着店舗一覧"
+      >
+        {
+          featuredSpots.map((spot) => (
+            <div class="flex w-[82vw] max-w-[20rem] shrink-0 snap-start sm:w-auto sm:max-w-none">
+              <SpotCard spot={spot} />
+            </div>
+          ))
+        }
+      </div>
+
+      <div class="mt-6 text-center">
+        <a
+          href="/spots/"
+          class="inline-flex items-center gap-1.5 rounded-full border border-night-600 bg-night-800/60 px-5 py-2.5 text-sm font-medium text-gold-100/80 transition hover:border-amber-deep/60 hover:text-amber-glow"
+        >
+          店舗一覧をすべて見る
+          <ArrowRight size={15} stroke-width={2.25} aria-hidden="true" />
+        </a>
+      </div>
+    </section>
+
+    <RuleDivider variant="ochoko" />
+
     <!-- News / Updates -->
     <section class="mb-14" aria-labelledby="news-heading">
       <div id="news-heading">
@@ -287,45 +324,6 @@ const structuredData = [
         </div>
       </div>
     </section>
-
-    <RuleDivider variant="noren" />
-
-    <!-- 新着店舗 -->
-    <section id="spots" class="scroll-mt-8" aria-labelledby="spots-heading">
-      <div class="flex items-baseline justify-between" id="spots-heading">
-        <SectionHeading icon={MapPin} label="SPOTS" accent="amber">新着店舗</SectionHeading>
-      </div>
-
-      <p class="mt-4 flex items-center justify-end gap-1 text-xs text-gold-100/45 sm:hidden" aria-hidden="true">
-        横にスワイプして見る
-        <ArrowRight size={13} stroke-width={2.25} />
-      </p>
-
-      <div
-        class="-mx-4 mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-4 pb-3 scroll-pl-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:mt-6 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3"
-        aria-label="新着店舗一覧"
-      >
-        {
-          featuredSpots.map((spot) => (
-            <div class="flex w-[82vw] max-w-[20rem] shrink-0 snap-start sm:w-auto sm:max-w-none">
-              <SpotCard spot={spot} />
-            </div>
-          ))
-        }
-      </div>
-
-      <div class="mt-6 text-center">
-        <a
-          href="/spots/"
-          class="inline-flex items-center gap-1.5 rounded-full border border-night-600 bg-night-800/60 px-5 py-2.5 text-sm font-medium text-gold-100/80 transition hover:border-amber-deep/60 hover:text-amber-glow"
-        >
-          店舗一覧をすべて見る
-          <ArrowRight size={15} stroke-width={2.25} aria-hidden="true" />
-        </a>
-      </div>
-    </section>
-
-    <RuleDivider variant="ochoko" />
 
     <!-- Culture Column: 小路の歩き方 -->
     <section class="mt-16 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60">
