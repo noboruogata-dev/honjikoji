@@ -4,6 +4,7 @@ genre: "BAR"
 address: "新潟県三条市本町2-5-1 角吾ビル 2F"
 mapQuery: "Bar Keywest 三条市"
 budget: "￥3,000〜￥4,000"
+budgetMin: 3000
 budgetMax: 4000
 openHours: "19:00〜02:00"
 regularHoliday: "不定休"

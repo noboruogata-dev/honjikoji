@@ -4,6 +4,8 @@ genre: "居酒屋"
 address: "新潟県三条市本町2-7-23"
 mapQuery: "もつ焼き たかはし 三条市"
 budget: "￥2,000〜￥3,000"
+budgetMin: 2000
+budgetMax: 3000
 openHours: "17:00〜21:30"
 regularHoliday: "日曜日"
 hours:

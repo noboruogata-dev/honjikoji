@@ -10,7 +10,13 @@ const spots = defineCollection({
     // Google マップの検索クエリ（"店名 三条市" 形式）。
     mapQuery: z.string(),
     budget: z.string(),
-    // 予算帯フィルタ用の数値上限（任意）。表示用の budget 文字列とは独立して並走させる。
+    // 予算帯フィルタ用の数値下限（任意）。表示用の budget 文字列とは独立して
+    // 並走させる。spots/index.astroの予算フィルタは「〜¥3,000」のような
+    // 上限ラベルでも budgetMin（下限）で判定する（例: budget "¥3,000〜¥4,000"
+    // の店は「〜¥3,000」を選んだ利用者にとって候補になり得るため）。
+    budgetMin: z.number().int().positive().optional(),
+    // 予算帯の数値上限（任意）。現在フィルタでは使っていないが、将来使う
+    // 可能性があるため削除せず残す。表示用の budget 文字列とは独立して並走させる。
     budgetMax: z.number().int().positive().optional(),
     openHours: z.string(),
     regularHoliday: z.string(),

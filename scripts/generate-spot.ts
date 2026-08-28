@@ -59,6 +59,7 @@ import {
   toYamlString,
   uniqueSlug,
 } from './lib/gemini-agents.js';
+import { parseBudgetRange } from './lib/budgetParser.js';
 import { isIrregularHoliday, parseOpenHoursToHours } from './lib/openHoursParser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -133,6 +134,10 @@ const spotFrontmatterSchema = z.object({
   address: z.string().min(1, 'address が空です'),
   mapQuery: z.string().min(1, 'mapQuery が空です'),
   budget: z.string().min(1, 'budget が空です'),
+  // budgetからscripts/lib/budgetParser.tsで導出できた場合のみ設定する
+  // （導出できなければ未設定のまま）。
+  budgetMin: z.number().int().positive().optional(),
+  budgetMax: z.number().int().positive().optional(),
   openHours: z.string().min(1, 'openHours が空です'),
   regularHoliday: z.string().min(1, 'regularHoliday が空です'),
   vibes: z.array(z.string().min(1)).min(1, 'vibes が空です'),
@@ -526,6 +531,9 @@ async function runQaAgent(
   // ように運営者が手動でhoursを追加できる（isIrregular: trueとhoursの併用は
   // 意図的な例外として許容。詳細はcontent.config.tsのコメント参照）。
   const isIrregular = isIrregularHoliday(research.regularHoliday);
+  // budgetから予算の下限・上限を決定論的に導出する（LLM不使用）。
+  // 抽出できなければundefinedのまま保存する（scripts/lib/budgetParser.ts）。
+  const budgetRange = parseBudgetRange(research.budget);
 
   const candidate: Record<string, unknown> = {
     title: research.title,
@@ -533,6 +541,8 @@ async function runQaAgent(
     address: research.address,
     mapQuery: `${research.title} 三条市`,
     budget: research.budget,
+    budgetMin: budgetRange.min,
+    budgetMax: budgetRange.max,
     openHours: research.openHours,
     regularHoliday: research.regularHoliday,
     vibes: research.vibes,
@@ -566,6 +576,14 @@ async function runQaAgent(
     console.log(`${label} 不定休と判定したため isIrregular: true を設定しました。`);
   }
 
+  if (fm.budgetMin === undefined && fm.budgetMax === undefined) {
+    console.warn(
+      `${label} budget "${research.budget}" から予算の数値を抽出できませんでした。budgetMin/budgetMaxは未設定のまま保存します。`
+    );
+  } else {
+    console.log(`${label} 予算(budgetMin/budgetMax)を自動導出しました: min=${fm.budgetMin ?? '不明'}, max=${fm.budgetMax ?? '不明'}`);
+  }
+
   const slug = uniqueSlug(slugify(research.slug), existingSlugs, 'spot');
   console.log(`${label} 検証OK。保存先slug: ${slug}${fm.isNew ? '（新店舗フラグ: ON）' : ''}`);
 
@@ -584,6 +602,8 @@ async function runQaAgent(
     `address: ${toYamlString(fm.address)}`,
     `mapQuery: ${toYamlString(fm.mapQuery)}`,
     `budget: ${toYamlString(fm.budget)}`,
+    ...(fm.budgetMin !== undefined ? [`budgetMin: ${fm.budgetMin}`] : []),
+    ...(fm.budgetMax !== undefined ? [`budgetMax: ${fm.budgetMax}`] : []),
     `openHours: ${toYamlString(fm.openHours)}`,
     `regularHoliday: ${toYamlString(fm.regularHoliday)}`,
     ...(fm.isIrregular ? [`isIrregular: ${fm.isIrregular}`] : []),
@@ -888,6 +908,160 @@ async function runBackfillHours(): Promise<void> {
 }
 
 // ============================================================
+// --backfill-budget: 既存の店舗記事のうち、budgetMin/budgetMaxが
+// まだ無いものだけを budget 文字列から遡って導出する
+// （冪等・GEMINI_API_KEY不要）。budgetMin/budgetMaxはそれぞれ独立に
+// 判定し、既にある方だけを絶対に上書きしない（例: budgetMaxだけ既存の
+// 店には、budgetMinだけを追記する）。
+// ============================================================
+
+type BudgetBackfillStatus = 'derived' | 'skipped-existing' | 'not-derived';
+
+interface BudgetBackfillResult {
+  slug: string;
+  status: BudgetBackfillStatus;
+  detail?: string;
+}
+
+function budgetBackfillSummaryLine(result: BudgetBackfillResult): string {
+  switch (result.status) {
+    case 'derived':
+      return `導出できました（${result.detail}）`;
+    case 'skipped-existing':
+      return '既にbudgetMin/budgetMaxがあるためスキップしました';
+    case 'not-derived':
+      return `導出できませんでした（${result.detail}）`;
+  }
+}
+
+/**
+ * budgetMin/budgetMaxのうち新たに追加する行を、frontmatterの生テキストに
+ * 挿入する。既存フィールドの位置関係（budget → budgetMin → budgetMax）を
+ * 保つため、挿入位置を状況に応じて選ぶ:
+ * - budgetMaxが既存でbudgetMinだけ追加する場合 → budgetMax行の直前
+ * - budgetMinが既存でbudgetMaxだけ追加する場合 → budgetMin行の直後
+ * - どちらも新規追加する場合 → budget行の直後
+ * frontmatter全体をjs-yamlで再シリアライズする方式は手書きデータの
+ * フォーマットを崩すリスクがあるため採らない（--backfill-hoursと同じ方針）。
+ */
+function insertBudgetFields(
+  raw: string,
+  toInsert: { budgetMin?: number; budgetMax?: number }
+): string | null {
+  const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(raw);
+  if (!frontmatterMatch) return null;
+  const fmBlock = frontmatterMatch[1];
+  const fmStart = frontmatterMatch.index + '---\n'.length;
+
+  const budgetLineMatch = /^budget:.*$/m.exec(fmBlock);
+  if (!budgetLineMatch) return null;
+  const budgetMinLineMatch = /^budgetMin:.*$/m.exec(fmBlock);
+  const budgetMaxLineMatch = /^budgetMax:.*$/m.exec(fmBlock);
+
+  const lines: string[] = [];
+  if (toInsert.budgetMin !== undefined) lines.push(`budgetMin: ${toInsert.budgetMin}`);
+  if (toInsert.budgetMax !== undefined) lines.push(`budgetMax: ${toInsert.budgetMax}`);
+  if (lines.length === 0) return raw;
+
+  let insertAt: number;
+  if (toInsert.budgetMax !== undefined && toInsert.budgetMin === undefined && budgetMinLineMatch) {
+    insertAt = fmStart + budgetMinLineMatch.index + budgetMinLineMatch[0].length + 1;
+  } else if (toInsert.budgetMin !== undefined && toInsert.budgetMax === undefined && budgetMaxLineMatch) {
+    insertAt = fmStart + budgetMaxLineMatch.index;
+  } else {
+    insertAt = fmStart + budgetLineMatch.index + budgetLineMatch[0].length + 1;
+  }
+
+  const insertText = lines.map((l) => `${l}\n`).join('');
+  return raw.slice(0, insertAt) + insertText + raw.slice(insertAt);
+}
+
+async function runBackfillBudget(): Promise<void> {
+  console.log('============================================================');
+  console.log(' 本寺小路ガイド 予算(budgetMin/budgetMax) 遡及生成（--backfill-budget）');
+  console.log('============================================================');
+
+  await mkdir(SPOTS_DIR, { recursive: true });
+  const files = (await readdir(SPOTS_DIR)).filter((file) => file.endsWith('.md'));
+
+  const results: BudgetBackfillResult[] = [];
+
+  for (const file of files) {
+    const slug = file.replace(/\.md$/, '');
+    const filePath = path.join(SPOTS_DIR, file);
+    const frontmatter = await readFrontmatter(SPOTS_DIR, slug);
+
+    if (!frontmatter) {
+      results.push({ slug, status: 'not-derived', detail: 'frontmatterを読み取れませんでした' });
+      continue;
+    }
+
+    const needsMin = frontmatter.budgetMin === undefined;
+    const needsMax = frontmatter.budgetMax === undefined;
+    if (!needsMin && !needsMax) {
+      results.push({ slug, status: 'skipped-existing' });
+      continue;
+    }
+
+    const budget = typeof frontmatter.budget === 'string' ? frontmatter.budget : '';
+    if (!budget) {
+      results.push({ slug, status: 'not-derived', detail: 'budgetを読み取れませんでした' });
+      continue;
+    }
+
+    const parsed = parseBudgetRange(budget);
+    const toInsert: { budgetMin?: number; budgetMax?: number } = {};
+    if (needsMin && parsed.min !== undefined) toInsert.budgetMin = parsed.min;
+    if (needsMax && parsed.max !== undefined) toInsert.budgetMax = parsed.max;
+
+    if (toInsert.budgetMin === undefined && toInsert.budgetMax === undefined) {
+      results.push({ slug, status: 'not-derived', detail: `budget "${budget}" から数値を抽出できませんでした` });
+      continue;
+    }
+
+    const raw = await readFile(filePath, 'utf-8');
+    const newRaw = insertBudgetFields(raw, toInsert);
+    if (newRaw === null) {
+      results.push({
+        slug,
+        status: 'not-derived',
+        detail: 'budget行が見つからず、安全に挿入できませんでした',
+      });
+      continue;
+    }
+    await writeFile(filePath, newRaw, 'utf-8');
+
+    const parts: string[] = [];
+    if (toInsert.budgetMin !== undefined) parts.push(`budgetMin=${toInsert.budgetMin}`);
+    if (toInsert.budgetMax !== undefined) parts.push(`budgetMax=${toInsert.budgetMax}`);
+    results.push({ slug, status: 'derived', detail: parts.join(', ') });
+  }
+
+  const derived = results.filter((r) => r.status === 'derived');
+  const skippedExisting = results.filter((r) => r.status === 'skipped-existing');
+  const notDerived = results.filter((r) => r.status === 'not-derived');
+
+  console.log('\n============================================================');
+  console.log(
+    ` 完了: 対象${results.length}件中、導出${derived.length}件・既存スキップ${skippedExisting.length}件・導出不可${notDerived.length}件`
+  );
+  for (const result of results) {
+    console.log(`  - ${result.slug}: ${budgetBackfillSummaryLine(result)}`);
+  }
+  console.log('============================================================');
+
+  await appendStepSummary(
+    [
+      '## 💰 本寺小路ガイド 予算(budgetMin/budgetMax) 遡及生成（backfill）',
+      '',
+      `対象${results.length}件中、導出${derived.length}件・既存スキップ${skippedExisting.length}件・導出不可${notDerived.length}件`,
+      '',
+      ...results.map((result) => `- ${result.slug}: ${budgetBackfillSummaryLine(result)}`),
+    ].join('\n')
+  );
+}
+
+// ============================================================
 // オーケストレーター
 // ============================================================
 
@@ -904,6 +1078,14 @@ async function main() {
   // 既存のhoursは絶対に上書きしない。
   if (process.argv[2] === '--backfill-hours') {
     await runBackfillHours();
+    return;
+  }
+
+  // 遡及生成モード: LLM/GEMINI_API_KEYを使わず、既存の店舗記事のうち
+  // budgetMin/budgetMaxが無いものだけを budget から導出して終了する。
+  // 既存のbudgetMin/budgetMaxは絶対に上書きしない。
+  if (process.argv[2] === '--backfill-budget') {
+    await runBackfillBudget();
     return;
   }
 

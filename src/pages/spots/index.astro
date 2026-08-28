@@ -32,7 +32,8 @@ const scenes = [
   { key: 'late', label: '深夜営業', value: '深夜営業' },
 ];
 
-// budgetMax（数値・任意）に対する「〜◯◯円」の固定バケット。キーはURLクエリにもそのまま使う。
+// budgetMin（数値・任意）に対する「〜◯◯円」の固定バケット。キーはURLクエリにもそのまま使う。
+// 判定はbudgetMin基準（下限が◯◯円以内なら候補に含める）。詳細は下のmatchesBudgetを参照。
 const budgets = [
   { key: '2000', label: '〜￥2,000' },
   { key: '3000', label: '〜￥3,000' },
@@ -213,21 +214,28 @@ const seatTypes = [
 <script>
   import { getOpenStatus, type HourRule } from '../../lib/hours';
 
-  // "2000"/"3000"/"5000" は「その金額以下」（累積的な上限バンド、budgetMax <= 値）。
-  // "5000plus" だけは向きが逆で「5,000円より上」（budgetMax > 5000）を表す特別扱い。
-  const BUDGET_MAX_OR_LESS: Record<string, number> = {
+  // 判定は budgetMax（上限）ではなく budgetMin（下限）で行う。「〜¥3,000」は
+  // 「3,000円で入れる可能性がある店」を探す意味合いなので、budget
+  // "¥3,000〜¥4,000" の店（budgetMin=3000）も「〜¥3,000」の候補に含める。
+  // "2000"/"3000"/"5000" は「下限がその金額以下」（budgetMin <= 値）。
+  // "5000plus" だけは向きが逆で「下限が5,000円より上」（budgetMin > 5000）を
+  // 表す特別扱い。ラベル文字列（〜¥2,000等）自体は変更しない。
+  const BUDGET_MIN_OR_LESS: Record<string, number> = {
     '2000': 2000,
     '3000': 3000,
     '5000': 5000,
   };
   const BUDGET_PLUS_THRESHOLD = 5000;
 
-  function matchesBudget(cardBudgetMax: number | undefined, budgetKey: string): boolean {
+  // budgetMinが無い店は、営業中フィルタでのunknown除外と同じ方針で
+  // 「すべて」以外のキーが選ばれているときは除外する（実際の予算帯が
+  // 分からない店を、特定の予算帯の候補として誤って見せないため）。
+  function matchesBudget(cardBudgetMin: number | undefined, budgetKey: string): boolean {
     if (budgetKey === 'all') return true;
-    if (cardBudgetMax === undefined) return false;
-    if (budgetKey === '5000plus') return cardBudgetMax > BUDGET_PLUS_THRESHOLD;
-    const max = BUDGET_MAX_OR_LESS[budgetKey];
-    return max !== undefined && cardBudgetMax <= max;
+    if (cardBudgetMin === undefined) return false;
+    if (budgetKey === '5000plus') return cardBudgetMin > BUDGET_PLUS_THRESHOLD;
+    const min = BUDGET_MIN_OR_LESS[budgetKey];
+    return min !== undefined && cardBudgetMin <= min;
   }
 
   function parseHours(raw: string | undefined): HourRule[] | undefined {
@@ -323,13 +331,13 @@ const seatTypes = [
       cards.forEach((card) => {
         const genre = card.dataset.genre ?? '';
         const vibes = (card.dataset.vibes ?? '').split('|');
-        const budgetMaxAttr = card.dataset.budgetMax;
-        const cardBudgetMax = budgetMaxAttr ? Number(budgetMaxAttr) : undefined;
+        const budgetMinAttr = card.dataset.budgetMin;
+        const cardBudgetMin = budgetMinAttr ? Number(budgetMinAttr) : undefined;
 
         const genreOk = genreKey === 'all' || genre === genreKey;
         const sceneOk = sceneMatch === 'all' || vibes.includes(sceneMatch);
         const seatOk = seatMatch === 'all' || vibes.includes(seatMatch);
-        const budgetOk = matchesBudget(cardBudgetMax, budgetKey);
+        const budgetOk = matchesBudget(cardBudgetMin, budgetKey);
         const videoOk = !videoActive || card.dataset.hasVideo === '1';
 
         let openOk = true;
