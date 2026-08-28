@@ -6,7 +6,7 @@ import SectionHeading from '../../components/SectionHeading.astro';
 import { getEntry } from 'astro:content';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Map as MapIcon, ArrowRight } from '@lucide/astro';
+import { Map as MapIcon, ArrowRight, Info } from '@lucide/astro';
 import { MAP_BUILDING_TO_SPOT } from '../../lib/mapBuildings';
 import type { HourRule } from '../../lib/hours';
 
@@ -86,6 +86,16 @@ svgMarkup = svgMarkup.replace(/<rect id="(bldg-\d+)"([^>]*)><\/rect>/g, (_match,
     <p class="mt-4 max-w-2xl leading-relaxed text-gold-100/70">
       本寺小路の路地を見取り図にしました。灯りがついている区画が、いま営業中の店です。気になる建物をクリック（タップ）すると、店舗の詳細ページに移動します。
     </p>
+
+    <aside
+      class="mt-5 flex max-w-2xl items-start gap-3 rounded-xl border border-amber-deep/30 bg-amber-glow/[0.045] px-4 py-3 text-sm leading-relaxed text-gold-100/65"
+      aria-label="マップについての注意"
+    >
+      <Info class="mt-0.5 shrink-0 text-amber-glow/75" size={17} stroke-width={1.8} aria-hidden="true" />
+      <p>
+        このマップの店舗位置は現在仮配置です。正確な所在地は、各店舗詳細ページのGoogleマップでご確認ください。
+      </p>
+    </aside>
 
     <div class="relative mt-6" data-map-wrapper>
       <div class="overflow-x-auto rounded-2xl border border-night-700 bg-night-900/60 p-4" data-map-scroll>
