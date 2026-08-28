@@ -217,6 +217,55 @@ body {
   animation: lantern-icon-breathe 4s ease-in-out infinite;
 }
 
+/* /map/ の路地マップ（src/pages/map/index.astro）。
+   高さ基準でサイズを決める（幅基準だと縦横比の都合でモバイルで縦に
+   長くなりすぎ、横スクロールに加えて縦スクロールも必要になってしまうため）。
+   heightをvh単位で明示的に指定し、widthはauto（viewBox 1200:700の
+   縦横比に従って自動計算される）。結果として「縦は画面に収まり、横は
+   はみ出して横スクロールで辿る」形になる。max-widthを解除しないと
+   縦横比維持のための十分な横幅を持てないので、ここでも明示しておく。
+   touch-actionは明示的に既定(auto)のままにし、横スクロールとピンチズーム
+   の両方をブラウザ標準の挙動に任せる。 */
+.roji-map-svg {
+  display: block;
+  height: 50vh;
+  width: auto;
+  max-width: none;
+}
+@media (min-width: 768px) {
+  .roji-map-svg {
+    height: 60vh;
+  }
+}
+
+/* 20区画が同時に光りうるため、Hero提灯のような常時アニメーションは付けず、
+   --glow自体の時間帯変化だけで強弱を表現する（ペイントコストを抑えるため）。 */
+.roji-bldg-empty {
+  opacity: 0.32;
+}
+/* 手描きの線画という素材の性格を活かし、面のベタ塗りではなく線と光で
+   状態を表す。fillはSVGルートのfill="none"を継承させたまま
+   （明示もしておく）、strokeの色・不透明度と、営業中のみのdrop-shadowだけで
+   「空き区画 < 閉店中の割り当て済み区画 < 営業中（灯りが漏れている）」の
+   3段階を表現する。 */
+.roji-bldg-assigned {
+  fill: none;
+  stroke: var(--color-amber-glow);
+  stroke-opacity: 0.55;
+  cursor: pointer;
+  transition:
+    stroke-opacity 0.6s ease,
+    filter 0.6s ease;
+}
+.roji-bldg-open {
+  stroke-opacity: 0.95;
+  filter: drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 16px var(--glow));
+}
+.roji-bldg-link:hover .roji-bldg,
+.roji-bldg-link:focus-visible .roji-bldg {
+  stroke-opacity: 1;
+}
+
 @keyframes lantern-flicker {
   0%,
   100% {
@@ -298,11 +347,14 @@ body {
     filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 8px var(--glow)) !important;
   }
 
-  /* Illust.astro / Hero統計の時間帯フィルタ切り替え(.6s)も動きを止める。
-     animationではなくtransitionなので、上のanimation:noneとは別に指定する。 */
+  /* Illust.astro / Hero統計 / 路地マップの時間帯フィルタ切り替え(.6s)も
+     動きを止める。animationではなくtransitionなので、上のanimation:none
+     とは別に指定する。 */
   .ill-tint,
   .ill-glow,
-  .hero-status-number {
+  .hero-status-number,
+  .roji-bldg-assigned,
+  .roji-bldg-open {
     transition: none !important;
   }
 }
