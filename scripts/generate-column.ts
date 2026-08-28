@@ -49,6 +49,7 @@ import { buildColumnImagePrompt, generateColumnImages } from './lib/column-image
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COLUMNS_DIR = path.resolve(__dirname, '../src/content/columns');
+const NEWS_DIR = path.resolve(__dirname, '../src/content/news');
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const MAX_ATTEMPTS = 3;
 const MAX_SOURCE_CHARS = 30_000;
@@ -304,6 +305,27 @@ function buildFrontmatter(frontmatter: ColumnFrontmatter): string {
   return `${lines.concat('---', '', '').join('\n')}`;
 }
 
+export function buildColumnNewsMarkdown(slug: string, frontmatter: ColumnFrontmatter): string {
+  const columnHref = `/columns/${slug}/`;
+  const newsSummary = `本寺小路夜話に「${frontmatter.title}」を公開しました。`;
+  return [
+    '---',
+    `title: ${toYamlString(`新しい夜話を公開しました｜${frontmatter.title}`)}`,
+    `pubDate: ${frontmatter.pubDate}`,
+    'category: NOTICE',
+    `summary: ${toYamlString(newsSummary)}`,
+    `relatedColumnSlug: ${toYamlString(slug)}`,
+    '---',
+    '',
+    `${newsSummary}`,
+    '',
+    `${frontmatter.summary}`,
+    '',
+    `[コラムを読む](${columnHref})`,
+    '',
+  ].join('\n');
+}
+
 async function runQaAgent(
   ai: GoogleGenAI,
   profile: ColumnProfile,
@@ -375,6 +397,11 @@ async function runQaAgent(
   } else {
     await writeFile(filePath, markdown, 'utf-8');
     console.log(`${label} ${publish ? '公開記事' : '下書き'}を保存しました: ${path.relative(process.cwd(), filePath)}`);
+    if (publish) {
+      const newsPath = path.join(NEWS_DIR, `column-${slug}.md`);
+      await writeFile(newsPath, buildColumnNewsMarkdown(slug, parsed.data), { encoding: 'utf-8', flag: 'wx' });
+      console.log(`${label} ニュース告知を保存しました: ${path.relative(process.cwd(), newsPath)}`);
+    }
   }
   return { filePath, warnings: qa.warnings };
 }

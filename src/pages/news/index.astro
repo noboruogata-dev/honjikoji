@@ -5,7 +5,7 @@ import Footer from '../../components/Footer.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
 import EmptyState from '../../components/EmptyState.astro';
 import { getCollection } from 'astro:content';
-import { ArrowRight, MapPin, Megaphone } from '@lucide/astro';
+import { ArrowRight, BookOpenText, MapPin, Megaphone } from '@lucide/astro';
 
 const news = (await getCollection('news')).sort(
   (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
@@ -33,6 +33,7 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
           {news.map((item) => {
             const accent = CATEGORY_ACCENT[item.data.category] ?? 'amber';
             const relatedSpotSlug = item.data.relatedSpotSlug;
+            const relatedColumnSlug = item.data.relatedColumnSlug;
             const dateStr = item.data.pubDate.toISOString().slice(0, 10);
             const href = `/news/${item.id}/`;
             return (
@@ -61,6 +62,15 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
                   >
                     <MapPin size={10} stroke-width={2} aria-hidden="true" />
                     店舗
+                  </a>
+                )}
+                {relatedColumnSlug && (
+                  <a
+                    href={`/columns/${relatedColumnSlug}/`}
+                    class="hidden shrink-0 items-center gap-1 rounded-full border border-night-600 px-2 py-1 text-[0.6rem] text-gold-100/50 transition hover:border-amber-deep/60 hover:text-amber-glow sm:inline-flex"
+                  >
+                    <BookOpenText size={10} stroke-width={2} aria-hidden="true" />
+                    夜話
                   </a>
                 )}
                 <a
