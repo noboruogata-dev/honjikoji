@@ -15,7 +15,7 @@ export async function getStaticPaths() {
 const { item } = Astro.props;
 const { title, pubDate, category, summary, disclaimer, sources, eyecatch, imageStatus } = item.data;
 const { Content } = await render(item);
-const reviewedEyecatch = imageStatus === 'reviewed' ? eyecatch : undefined;
+const reviewedEyecatch = imageStatus === 'reviewed' || imageStatus === 'qa-passed' ? eyecatch : undefined;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toString();
 const structuredData = {
   '@context': 'https://schema.org',

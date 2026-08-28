@@ -33,7 +33,7 @@ const columns = (await getCollection('columns', ({ data }) => !data.draft)).sort
         <h2 id="column-list-heading" class="font-serif text-2xl font-bold text-gold-100">夜話を読む</h2>
         <div class="mt-6 grid gap-6 sm:grid-cols-2">
           {columns.map((column) => {
-            const image = column.data.imageStatus === 'reviewed' ? column.data.eyecatch : undefined;
+            const image = column.data.imageStatus === 'reviewed' || column.data.imageStatus === 'qa-passed' ? column.data.eyecatch : undefined;
             return (
               <article class="group overflow-hidden rounded-2xl border border-gold-100/15 bg-gold-100/[0.025] transition hover:border-amber-glow/35">
                 {image && <a href={`/columns/${column.id}/`} tabindex="-1" aria-hidden="true"><img src={image.src} alt="" width="1200" height="630" loading="lazy" decoding="async" class="aspect-[1200/630] w-full object-cover" /></a>}

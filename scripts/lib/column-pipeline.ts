@@ -40,7 +40,7 @@ export const columnFrontmatterSchema = z.object({
   category: z.enum(COLUMN_CATEGORIES),
   summary: z.string().min(1),
   kind: z.enum(COLUMN_KINDS),
-  draft: z.literal(true),
+  draft: z.boolean(),
   sources: z
     .array(
       z.object({
@@ -53,7 +53,7 @@ export const columnFrontmatterSchema = z.object({
   disclaimer: z.string().min(1).optional(),
   illustration: z.object({ src: z.string().min(1), alt: z.string().min(1) }).optional(),
   eyecatch: z.object({ src: z.string().min(1), alt: z.string().min(1) }).optional(),
-  imageStatus: z.enum(['draft', 'reviewed']).optional(),
+  imageStatus: z.enum(['draft', 'qa-passed', 'reviewed']).optional(),
 });
 
 export type ColumnResearch = z.infer<typeof columnResearchSchema>;

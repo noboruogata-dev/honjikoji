@@ -1,0 +1,94 @@
+name: Auto-generate and publish column
+
+on:
+  schedule:
+    # 毎週日曜日 17:00 JST (= 日曜日 08:00 UTC)
+    - cron: '0 8 * * 0'
+  workflow_dispatch:
+    inputs:
+      category:
+        description: '手動実行時のカテゴリ（autoは週次循環）'
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - alcohol
+          - manners
+          - history
+          - people
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Select rotating category
+        id: category
+        env:
+          MANUAL_CATEGORY: ${{ inputs.category || 'auto' }}
+        run: |
+          if [ "$MANUAL_CATEGORY" != "auto" ]; then
+            category="$MANUAL_CATEGORY"
+          else
+            week_index=$(( $(date -u +%s) / 604800 % 4 ))
+            categories=(alcohol manners history people)
+            category="${categories[$week_index]}"
+          fi
+
+          echo "category=$category" >> "$GITHUB_OUTPUT"
+          echo "Selected category: $category"
+
+      - name: Generate and publish column
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image' }}
+          CATEGORY: ${{ steps.category.outputs.category }}
+        run: |
+          if [ "$CATEGORY" = "people" ]; then
+            npm run generate:column -- --category=people --kind=fiction --publish
+          else
+            npm run generate:column -- --category="$CATEGORY" --publish
+          fi
+
+      - name: Build published site
+        run: npm run build
+
+      - name: Commit and push if there are changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add src/content/columns public/images/columns
+
+          if git diff --cached --quiet; then
+            echo "No new column was generated. Skipping commit."
+            exit 0
+          fi
+
+          NEW_FILE=$(git diff --cached --name-only --diff-filter=A -- 'src/content/columns/*.md' | head -n 1)
+          if [ -n "$NEW_FILE" ]; then
+            git commit -m "chore(columns): コラムを自動公開 ($(basename "$NEW_FILE"))"
+          else
+            git commit -m "chore(columns): 自動生成コラムを更新"
+          fi
+
+          git push origin HEAD:${{ github.ref_name }}

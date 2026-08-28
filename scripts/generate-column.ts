@@ -3,13 +3,14 @@
  *
  * Agent 1: Google Search Groundingで主張単位の事実・出典・確度を収集
  * Agent 2: Agent 1のJSONだけを事実源として執筆（Groundingなし）
- * Agent 3: Zodと決定論的ルールで検証し、必ずdraftとして保存
+ * Agent 3: Zodと決定論的ルールで検証。通常はdraft、--publish時は公開状態で保存
  *
  * 例:
  *   npm run generate:column -- --category=alcohol --dry-run
  *   npm run generate:column -- --category=history --topic="本寺小路の花街としての歩み"
  *   npm run generate:column -- --category=people --kind=fiction
  *   npm run generate:column -- --category=people --kind=interview --source-file=./interview-notes.txt
+ *   npm run generate:column -- --category=alcohol --publish
  */
 
 import 'dotenv/config';
@@ -59,12 +60,14 @@ interface CliOptions {
   sourceFile?: string;
   dryRun: boolean;
   noImage: boolean;
+  publish: boolean;
 }
 
 function parseArgs(argv: string[]): CliOptions {
   const values = new Map<string, string>();
   let dryRun = false;
   let noImage = false;
+  let publish = false;
   for (const arg of argv) {
     if (arg === '--dry-run') {
       dryRun = true;
@@ -72,6 +75,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === '--no-image') {
       noImage = true;
+      continue;
+    }
+    if (arg === '--publish') {
+      publish = true;
       continue;
     }
     const match = arg.match(/^--([a-z-]+)=(.+)$/);
@@ -84,6 +91,7 @@ function parseArgs(argv: string[]): CliOptions {
     sourceFile: values.get('source-file'),
     dryRun,
     noImage,
+    publish,
   };
 }
 
@@ -271,7 +279,7 @@ function buildFrontmatter(frontmatter: ColumnFrontmatter): string {
     `category: ${toYamlString(frontmatter.category)}`,
     `summary: ${toYamlString(frontmatter.summary)}`,
     `kind: ${frontmatter.kind}`,
-    'draft: true',
+    `draft: ${frontmatter.draft}`,
   ];
   if (frontmatter.disclaimer) lines.push(`disclaimer: ${toYamlString(frontmatter.disclaimer)}`);
   if (frontmatter.illustration) {
@@ -304,7 +312,8 @@ async function runQaAgent(
   existingSlugs: string[],
   hasProvidedMaterial: boolean,
   dryRun: boolean,
-  noImage: boolean
+  noImage: boolean,
+  publish: boolean
 ): Promise<{ filePath: string; warnings: string[] }> {
   const label = '[Agent3:QA]';
   console.log(`${label} Zod・出典・構造・記事種別を決定論的に検証中...`);
@@ -343,12 +352,12 @@ async function runQaAgent(
     category: profile.category,
     summary: writer.summary,
     kind: profile.kind,
-    draft: true as const,
+    draft: !publish,
     sources: sources.length ? sources : undefined,
     disclaimer: writer.disclaimer || undefined,
     illustration: images?.illustration,
     eyecatch: images?.eyecatch,
-    imageStatus: images?.imageStatus,
+    imageStatus: images ? (publish ? 'qa-passed' as const : images.imageStatus) : undefined,
   };
   const parsed = columnFrontmatterSchema.safeParse(candidate);
   if (!parsed.success) {
@@ -365,7 +374,7 @@ async function runQaAgent(
     console.log(markdown);
   } else {
     await writeFile(filePath, markdown, 'utf-8');
-    console.log(`${label} 下書きを保存しました: ${path.relative(process.cwd(), filePath)}`);
+    console.log(`${label} ${publish ? '公開記事' : '下書き'}を保存しました: ${path.relative(process.cwd(), filePath)}`);
   }
   return { filePath, warnings: qa.warnings };
 }
@@ -388,7 +397,7 @@ async function main() {
 
   console.log('============================================================');
   console.log(' 本寺小路夜話 3段階生成パイプライン');
-  console.log(` ${profile.category} / ${profile.kind} / ${options.dryRun ? 'DRY RUN' : 'DRAFT SAVE'}`);
+  console.log(` ${profile.category} / ${profile.kind} / ${options.dryRun ? 'DRY RUN' : options.publish ? 'AUTO PUBLISH' : 'DRAFT SAVE'}`);
   console.log(' Agent1(Research) -> Agent2(Writer) -> Agent3(QA)');
   console.log('============================================================');
 
@@ -416,7 +425,8 @@ async function main() {
         existing.slugs,
         Boolean(providedMaterial),
         options.dryRun,
-        options.noImage
+        options.noImage,
+        options.publish
       );
       await appendStepSummary(
         [
@@ -425,7 +435,7 @@ async function main() {
           `- タイトル: ${writer.title}`,
           `- カテゴリ: ${profile.category}`,
           `- 種別: ${profile.kind}`,
-          `- 状態: ${options.dryRun ? 'dry-run（未保存）' : 'draft（要確認）'}`,
+          `- 状態: ${options.dryRun ? 'dry-run（未保存）' : options.publish ? 'published（自動QA通過）' : 'draft（要確認）'}`,
           `- ファイル: \`${path.relative(process.cwd(), saved.filePath)}\``,
           `- QA警告: ${saved.warnings.length}件`,
         ].join('\n')
