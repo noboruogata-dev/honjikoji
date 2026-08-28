@@ -22,10 +22,12 @@ const featuredSpots = [...allSpots]
   })
   .slice(0, 6);
 
-// お知らせ・更新情報。src/content/news/ から新しい順に取得（`npm run generate:news` で自動生成も可能）。
+// お知らせ・更新情報。夜話の公開通知は直後の専用セクションと重複するため
+// トップでは除外し、ニュース一覧には残す。ここでは最新3件に絞る。
 const news = (await getCollection('news'))
+  .filter((item) => !item.data.relatedColumnSlug)
   .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
-  .slice(0, 5);
+  .slice(0, 3);
 
 const columns = (await getCollection('columns', ({ data }) => !data.draft))
   .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
