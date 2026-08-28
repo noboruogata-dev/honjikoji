@@ -10,8 +10,9 @@ import OpenStatus from '../../components/OpenStatus.astro';
 import YouTubeEmbed from '../../components/YouTubeEmbed.astro';
 import StructuredData from '../../components/StructuredData.astro';
 import SocialIcon from '../../components/SocialIcon.astro';
+import ShareButton from '../../components/ShareButton.astro';
 import { getCollection, render } from 'astro:content';
-import { ExternalLink } from '@lucide/astro';
+import { ExternalLink, Map as MapIcon } from '@lucide/astro';
 import { getSpotSchemaType } from '../../lib/spotSchemaType';
 import { buildGoogleMapsUrl, buildOpeningHoursSpecification, buildSpotAddress } from '../../lib/structuredData';
 import { resolveOgpImage } from '../../lib/ogpImagePath';
@@ -43,6 +44,12 @@ const {
   socialLinks,
 } = spot.data;
 const { Content } = await render(spot);
+const publishedDateLabel = new Intl.DateTimeFormat('ja-JP', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  timeZone: 'Asia/Tokyo',
+}).format(pubDate);
 
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toString();
 // scripts/generate-ogp-images.tsが生成した店舗ごとのOGP画像。生成に
@@ -91,7 +98,7 @@ const socialPlatformLabels = {
   publishedTime={pubDate}
 >
   <StructuredData data={structuredData} />
-  <Header showBackLink backHref="/spots/" />
+  <Header showBackLink backHref="/spots/" backLabel="店舗一覧に戻る" />
 
   <main class="mx-auto max-w-3xl px-4 py-8">
     <article>
@@ -124,6 +131,8 @@ const socialPlatformLabels = {
         {vibes.map((vibe) => <Badge label={vibe} variant="solid" />)}
       </div>
 
+      <ShareButton title={title} url={canonicalUrl} class="mt-5" />
+
       <dl class="mt-8 grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-night-700 bg-night-700 sm:grid-cols-2">
         <div class="bg-night-900 px-4 py-3 sm:col-span-2">
           <dt class="text-xs text-gold-100/40">住所</dt>
@@ -145,6 +154,13 @@ const socialPlatformLabels = {
           <dd class="mt-1 text-sm text-gold-100/85">{budget}</dd>
         </div>
       </dl>
+
+      <div class="mt-3 flex flex-col gap-1 text-xs leading-relaxed text-gold-100/40 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <p>営業時間・定休日・予算などは変更される場合があります。来店前に店舗の公式情報をご確認ください。</p>
+        <p class="shrink-0">
+          掲載日：<time datetime={pubDate.toISOString().slice(0, 10)}>{publishedDateLabel}</time>
+        </p>
+      </div>
 
       {
         socialLinks && socialLinks.length > 0 && (
@@ -205,14 +221,21 @@ const socialPlatformLabels = {
 
       <MapEmbed title={title} query={mapQuery} />
 
-      <div class="mt-12 border-t border-night-700 pt-6">
+      <nav class="mt-12 flex flex-col gap-3 border-t border-night-700 pt-6 sm:flex-row sm:items-center sm:justify-between" aria-label="店舗ページの次の行き先">
         <a
           href="/spots/"
-          class="inline-flex items-center gap-1 text-sm text-gold-100/60 transition hover:text-amber-glow"
+          class="inline-flex min-h-11 items-center gap-1 text-sm text-gold-100/60 transition hover:text-amber-glow"
         >
           ← 本寺小路の店舗一覧に戻る
         </a>
-      </div>
+        <a
+          href="/map/"
+          class="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-amber-glow transition hover:underline hover:underline-offset-4"
+        >
+          <MapIcon size={15} stroke-width={1.8} aria-hidden="true" />
+          路地マップで店を探す
+        </a>
+      </nav>
     </article>
   </main>
 

@@ -6,8 +6,10 @@ interface Props {
   showBackLink?: boolean;
   /** showBackLink=true のときの戻り先。ページごとの一覧に戻す。 */
   backHref?: string;
+  /** 戻り先を具体的に伝えるリンク文言。 */
+  backLabel?: string;
 }
-const { showBackLink = false, backHref = '/' } = Astro.props;
+const { showBackLink = false, backHref = '/', backLabel = 'トップに戻る' } = Astro.props;
 
 const pathname = Astro.url.pathname;
 
@@ -41,7 +43,7 @@ const navLinks = [
           href={backHref}
           class="mb-4 inline-flex items-center gap-1 text-sm text-gold-100/70 transition hover:text-amber-glow"
         >
-          ← 一覧に戻る
+          ← {backLabel}
         </a>
       )
     }

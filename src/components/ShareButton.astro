@@ -1,0 +1,65 @@
+---
+import { Share2 } from '@lucide/astro';
+
+interface Props {
+  title: string;
+  url: string;
+  class?: string;
+}
+
+const { title, url, class: className = '' } = Astro.props;
+---
+
+<div class:list={['hidden items-center gap-3', className]} data-share-wrapper>
+  <button
+    type="button"
+    class="inline-flex min-h-11 items-center gap-2 rounded-full border border-night-600 bg-night-900/70 px-4 py-2 text-xs font-medium text-gold-100/65 transition hover:border-amber-deep/60 hover:text-amber-glow"
+    data-share-button
+    data-share-title={title}
+    data-share-url={url}
+  >
+    <Share2 size={14} stroke-width={1.9} aria-hidden="true" />
+    このページを共有
+  </button>
+  <span class="text-xs text-amber-glow" aria-live="polite" data-share-status></span>
+</div>
+
+<script>
+  function initShareButtons() {
+    document.querySelectorAll<HTMLElement>('[data-share-wrapper]').forEach((wrapper) => {
+      if (wrapper.dataset.shareInit === '1') return;
+      wrapper.dataset.shareInit = '1';
+      wrapper.classList.remove('hidden');
+      wrapper.classList.add('flex');
+
+      const button = wrapper.querySelector<HTMLButtonElement>('[data-share-button]');
+      const status = wrapper.querySelector<HTMLElement>('[data-share-status]');
+      if (!button || !status) return;
+
+      button.addEventListener('click', async () => {
+        const title = button.dataset.shareTitle ?? document.title;
+        const url = button.dataset.shareUrl ?? window.location.href;
+        status.textContent = '';
+
+        try {
+          if (navigator.share) {
+            await navigator.share({ title, url });
+            status.textContent = '共有しました';
+          } else {
+            await navigator.clipboard.writeText(url);
+            status.textContent = 'URLをコピーしました';
+          }
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
+          status.textContent = '共有できませんでした';
+        }
+
+        window.setTimeout(() => {
+          status.textContent = '';
+        }, 2500);
+      });
+    });
+  }
+
+  document.addEventListener('astro:page-load', initShareButtons);
+</script>
