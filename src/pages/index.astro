@@ -78,9 +78,9 @@ const structuredData = [
 
       <div class="relative grid grid-cols-1 items-center gap-5 px-5 py-6 sm:grid-cols-2 sm:gap-10 sm:px-10 sm:py-14">
         <div class="text-center sm:text-left">
-          <h2 class="font-serif text-[1.65rem] font-bold leading-[1.45] text-gold-100 text-glow sm:text-3xl">
+          <h1 class="font-serif text-[1.65rem] font-bold leading-[1.45] text-gold-100 text-glow sm:text-3xl">
             灯りともる路地で、<br />今夜の一軒を。
-          </h2>
+          </h1>
           <p class="mt-3 hidden text-sm leading-relaxed text-gold-100/65 sm:block sm:text-base">
             新潟県三条市の歓楽街「本寺小路」。鍛冶職人の町が育んだ、一見さんも常連も分け隔てない大人の社交街へようこそ。
           </p>
@@ -294,8 +294,22 @@ const structuredData = [
         <SectionHeading icon={MapPin} label="SPOTS" accent="amber">新着店舗</SectionHeading>
       </div>
 
-      <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {featuredSpots.map((spot) => <SpotCard spot={spot} />)}
+      <p class="mt-4 flex items-center justify-end gap-1 text-xs text-gold-100/45 sm:hidden" aria-hidden="true">
+        横にスワイプして見る
+        <ArrowRight size={13} stroke-width={2.25} />
+      </p>
+
+      <div
+        class="-mx-4 mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-4 pb-3 scroll-pl-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:mt-6 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3"
+        aria-label="新着店舗一覧"
+      >
+        {
+          featuredSpots.map((spot) => (
+            <div class="flex w-[82vw] max-w-[20rem] shrink-0 snap-start sm:w-auto sm:max-w-none">
+              <SpotCard spot={spot} />
+            </div>
+          ))
+        }
       </div>
 
       <div class="mt-6 text-center">
