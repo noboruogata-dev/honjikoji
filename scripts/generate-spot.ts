@@ -17,12 +17,13 @@
  *            に保存する（LLM呼び出しなし、コードのみ。構造要件は非ブロッキングの
  *            WARNで、満たさなくても保存はされる）。
  *
- * 注意: youtubeVideos と socialLinks はこのパイプラインでは絶対に生成・推測しない。
+ * 注意: youtubeVideos はこのパイプラインでは絶対に生成・推測しない。
  * 実在する動画IDをLLMが幻覚する（または存在するが別動画を取り違える）
  * リスクを避けるため、意図的にAgent1/Agent2のどちらにも出力させていない。
  * youtubeVideos は運営者の手動編集、または scripts/match-youtube.ts による
  * 決定論的な自動マッチング（LLM不使用）でのみ設定される。
- * socialLinks は運営者が公式アカウントと確認できたURLのみを手動設定する。
+ * socialLinks はAgent 1のGoogle Search Groundingで公式性を確認できた候補だけを
+ * 収集し、Agent 3がSNSごとのURL形式を決定論的に検証してから設定する。
  *
  * 使い方:
  *   npm run generate:spot                      # 自律選定（除外リストは既存記事から自動生成）
@@ -40,6 +41,7 @@ import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { SOCIAL_PLATFORMS, validateResearchedSocialLinks } from './lib/socialLinks';
 import {
   analyzeArticleStructure,
   appendStepSummary,
@@ -114,6 +116,16 @@ const researchSchema = z.object({
   facts: z.string(),
   slug: z.string(),
   sources: z.array(z.string()).optional(),
+  socialLinks: z
+    .array(
+      z.object({
+        platform: z.enum(SOCIAL_PLATFORMS),
+        url: z.string(),
+        evidenceUrl: z.string(),
+      })
+    )
+    .optional()
+    .default([]),
   // 参考ヒントリスト（燕三条TV動画由来の店名候補）のうち、Google検索で現在の
   // 営業状況を確認できなかった店名。ヒントを渡していない試行では空配列になる。
   unconfirmedHintStores: z.array(z.string()).optional().default([]),
@@ -158,6 +170,14 @@ const spotFrontmatterSchema = z.object({
   // regularHolidayに「不定休」を含む場合のみtrue（isIrregularHoliday）。
   // hours/budgetMaxと同じ完全な任意フィールドで、falseは書き込まない。
   isIrregular: z.boolean().optional(),
+  socialLinks: z
+    .array(
+      z.object({
+        platform: z.enum(SOCIAL_PLATFORMS),
+        url: z.url(),
+      })
+    )
+    .optional(),
   description: z.string().min(1, 'description が空です'),
   pubDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'pubDate は YYYY-MM-DD 形式である必要があります'),
 });
@@ -204,6 +224,25 @@ const researchResponseSchema = {
       items: { type: Type.STRING },
       description: '参照したサイト名やURL（分かる範囲で）',
     },
+    socialLinks: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          platform: {
+            type: Type.STRING,
+            description: 'instagram / facebook / x / line のいずれか',
+          },
+          url: { type: Type.STRING, description: '店舗公式SNSアカウントのHTTPS完全URL' },
+          evidenceUrl: {
+            type: Type.STRING,
+            description: 'そのSNSが店舗公式だと確認できる公式サイトまたは信頼できる店舗情報ページのHTTPS URL',
+          },
+        },
+        required: ['platform', 'url', 'evidenceUrl'],
+      },
+      description: '公式性を高い確度で確認できたSNSのみ。不明・候補・推測は含めず空配列にする。',
+    },
     unconfirmedHintStores: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
@@ -223,6 +262,7 @@ const researchResponseSchema = {
     'isNew',
     'facts',
     'slug',
+    'socialLinks',
     'unconfirmedHintStores',
   ],
 };
@@ -310,6 +350,13 @@ ${exclusionText}
 - facts: 名物料理・お酒のこだわり・店内の雰囲気・お店の歴史（開店/リニューアル時期の情報があれば必ず含める）など、紹介記事の執筆に使える事実をまとめたテキスト。分からない項目は「不明」と明記し、絶対に創作しないこと。
 - slug: ファイル名用の英小文字ケバブケースslug（ローマ字/英訳）
 - sources: 参照したサイト名やURL（分かる範囲で）
+- socialLinks: 店舗の公式SNSアカウント。次の条件をすべて満たすものだけを配列に入れる:
+  - platform は instagram / facebook / x / line のいずれか
+  - url はプロフィールまたはLINE友だち追加画面へのHTTPS完全URL。投稿・検索・共有URLは禁止
+  - evidenceUrl は、そのアカウントが当該店舗の公式だと確認できる公式サイトまたは信頼できる店舗情報ページのHTTPS URL
+  - 店名・所在地・公式サイトからの直接リンク等で同一店舗だと高い確度で確認できること
+  - 表記揺れ、同名店、地域不明など少しでも曖昧なら絶対に推測せず、配列に入れないこと
+  - 公式SNSを確認できない場合は空配列
 - unconfirmedHintStores: 上記の参考情報リストを提示された場合のみ使用。検索しても現在の
   営業状況を確認できなかった店名の配列（無ければ空配列）
 
@@ -355,8 +402,8 @@ ${research.facts}
   youtubeVideos はこの記事執筆の範囲外で、別の仕組み（運営者の手動設定、または
   決定論的な自動マッチング処理）でのみ設定されるフィールドです。事実メモに
   動画に関する情報が含まれていても、本文では触れないでください。
-- Instagram、Facebook、XなどのSNSアカウントやURLは一切生成・推測しないでください。
-  socialLinks は運営者が公式アカウントと確認できた場合だけ手動設定するフィールドです。
+- Instagram、Facebook、X、LINEなどのSNSアカウントやURLを本文・descriptionへ書かないでください。
+  socialLinks はAgent 1とAgent 3が管理するFrontmatter専用フィールドです。
 
 description（Frontmatter用の要約）は100字前後で、記事の魅力が一目で伝わるように。`;
 }
@@ -452,6 +499,9 @@ async function runResearchAgent(
     );
     console.log(`${label} 住所: ${result.data.address} / 営業時間: ${result.data.openHours} / 定休日: ${result.data.regularHoliday}`);
     console.log(`${label} vibes: ${result.data.vibes.join(', ') || '(なし)'}`);
+    console.log(
+      `${label} 公式SNS候補: ${result.data.socialLinks.length > 0 ? result.data.socialLinks.map((link) => `${link.platform}: ${link.url}`).join(', ') : '(確認できず)'}`
+    );
   }
 
   if (result.data.unconfirmedHintStores.length > 0) {
@@ -516,6 +566,17 @@ function buildHoursYamlLines(hours: SpotFrontmatter['hours']): string[] {
   return lines;
 }
 
+/** Agent 3で検証済みのsocialLinksをFrontmatter用YAMLへ変換する。 */
+function buildSocialLinksYamlLines(socialLinks: SpotFrontmatter['socialLinks']): string[] {
+  if (!socialLinks || socialLinks.length === 0) return [];
+  const lines: string[] = ['socialLinks:'];
+  for (const link of socialLinks) {
+    lines.push(`  - platform: ${toYamlString(link.platform)}`);
+    lines.push(`    url: ${toYamlString(link.url)}`);
+  }
+  return lines;
+}
+
 async function runQaAgent(
   research: ResearchResult,
   writer: WriterResult,
@@ -537,6 +598,12 @@ async function runQaAgent(
   // budgetから予算の下限・上限を決定論的に導出する（LLM不使用）。
   // 抽出できなければundefinedのまま保存する（scripts/lib/budgetParser.ts）。
   const budgetRange = parseBudgetRange(research.budget);
+  // Agent 1がGroundingで収集したSNS候補を、許可ドメイン・プロフィールURL形式・
+  // HTTPS必須の決定論的ルールで検証する。拒否された候補は保存しない。
+  const socialLinkResult = validateResearchedSocialLinks(research.socialLinks);
+  for (const reason of socialLinkResult.rejected) {
+    console.warn(`${label} [SNS検証] 不採用: ${reason}`);
+  }
 
   const candidate: Record<string, unknown> = {
     title: research.title,
@@ -552,6 +619,7 @@ async function runQaAgent(
     isNew: research.isNew,
     hours: hoursResult.hours,
     isIrregular: isIrregular || undefined,
+    socialLinks: socialLinkResult.accepted.length > 0 ? socialLinkResult.accepted : undefined,
     description: writer.description,
     pubDate: new Date().toISOString().slice(0, 10),
   };
@@ -577,6 +645,11 @@ async function runQaAgent(
   }
   if (fm.isIrregular) {
     console.log(`${label} 不定休と判定したため isIrregular: true を設定しました。`);
+  }
+  if (fm.socialLinks?.length) {
+    console.log(`${label} 公式SNSを${fm.socialLinks.length}件採用しました。`);
+  } else {
+    console.log(`${label} 公式性を確認できたSNSはないため、socialLinksを省略します。`);
   }
 
   if (fm.budgetMin === undefined && fm.budgetMax === undefined) {
@@ -614,6 +687,7 @@ async function runQaAgent(
     'vibes:',
     ...fm.vibes.map((vibe) => `  - ${toYamlString(vibe)}`),
     `isNew: ${fm.isNew}`,
+    ...buildSocialLinksYamlLines(fm.socialLinks),
     `description: ${toYamlString(fm.description)}`,
     `pubDate: ${fm.pubDate}`,
     '---',
