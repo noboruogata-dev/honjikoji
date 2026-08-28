@@ -57,6 +57,17 @@ const spots = defineCollection({
         })
       )
       .optional(),
+    // 店舗が公式に運用しているSNS（任意）。誤ったアカウントへの誘導を避けるため、
+    // 運営者が確認できたURLだけを手動で登録し、生成AIには作成・推測させない。
+    socialLinks: z
+      .array(
+        z.object({
+          platform: z.enum(['instagram', 'facebook', 'x', 'line']),
+          url: z.string().url(),
+          label: z.string().optional(),
+        })
+      )
+      .optional(),
     description: z.string(),
     pubDate: z.coerce.date(),
   }),
