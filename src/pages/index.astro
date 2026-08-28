@@ -9,7 +9,7 @@ import LanternIcon from '../components/illustrations/LanternIcon.astro';
 import RuleDivider from '../components/RuleDivider.astro';
 import StructuredData from '../components/StructuredData.astro';
 import { getCollection } from 'astro:content';
-import { ArrowRight, Landmark, MapPin, Megaphone } from '@lucide/astro';
+import { ArrowRight, BookOpenText, Landmark, MapPin, Megaphone } from '@lucide/astro';
 
 // 新着店舗: isNewを優先し、次点でpubDate降順。先頭6件のみトップに出す
 // （全件・フィルタ付きの一覧は /spots/ へ移設済み）。Hero内の「何軒中何軒が
@@ -26,6 +26,10 @@ const featuredSpots = [...allSpots]
 const news = (await getCollection('news'))
   .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
   .slice(0, 5);
+
+const columns = (await getCollection('columns', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+  .slice(0, 3);
 
 const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
   'NEW SPOT': 'vermilion',
@@ -134,6 +138,7 @@ const structuredData = [
             {news.map((item) => {
               const accent = CATEGORY_ACCENT[item.data.category] ?? 'amber';
               const relatedSpotSlug = item.data.relatedSpotSlug;
+              const relatedColumnSlug = item.data.relatedColumnSlug;
               const dateStr = item.data.pubDate.toISOString().slice(0, 10);
               const href = `/news/${item.id}/`;
               return (
@@ -164,6 +169,15 @@ const structuredData = [
                       店舗
                     </a>
                   )}
+                  {relatedColumnSlug && (
+                    <a
+                      href={`/columns/${relatedColumnSlug}/`}
+                      class="hidden shrink-0 items-center gap-1 rounded-full border border-night-600 px-2 py-1 text-[0.6rem] text-gold-100/50 transition hover:border-amber-deep/60 hover:text-amber-glow sm:inline-flex"
+                    >
+                      <BookOpenText size={10} stroke-width={2} aria-hidden="true" />
+                      夜話
+                    </a>
+                  )}
                   <a
                     href={href}
                     class="inline-flex shrink-0 items-center gap-1 rounded-full bg-night-800 px-2.5 py-1 text-[0.65rem] font-semibold text-amber-glow/90 transition hover:bg-amber-glow hover:text-night-950"
@@ -192,6 +206,36 @@ const structuredData = [
         </a>
       </div>
     </section>
+
+    {columns.length > 0 && (
+      <section class="mb-14" aria-labelledby="columns-heading">
+        <div class="flex items-end justify-between gap-4" id="columns-heading">
+          <SectionHeading icon={BookOpenText} label="YOBANASHI" accent="amber">本寺小路夜話</SectionHeading>
+          <a href="/columns/" class="hidden items-center gap-1 text-xs text-gold-100/50 transition hover:text-amber-glow sm:inline-flex">
+            すべて読む <ArrowRight size={12} aria-hidden="true" />
+          </a>
+        </div>
+        <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {columns.map((column) => {
+            const image = column.data.imageStatus === 'reviewed' || column.data.imageStatus === 'qa-passed'
+              ? column.data.eyecatch
+              : undefined;
+            return (
+              <article class="group overflow-hidden rounded-2xl border border-gold-100/15 bg-gold-100/[0.025] transition hover:border-amber-glow/35">
+                {image && <a href={`/columns/${column.id}/`} tabindex="-1" aria-hidden="true"><img src={image.src} alt="" width="1200" height="630" loading="lazy" decoding="async" class="aspect-[1200/630] w-full object-cover" /></a>}
+                <div class="p-5">
+                  <div class="flex items-center gap-2 text-[0.65rem]"><span class="text-amber-glow">{column.data.category}</span><time class="text-gold-100/35" datetime={column.data.pubDate.toISOString().slice(0, 10)}>{column.data.pubDate.toISOString().slice(0, 10)}</time></div>
+                  <h3 class="mt-2 font-serif text-lg font-bold leading-relaxed text-gold-100"><a href={`/columns/${column.id}/`} class="transition group-hover:text-amber-glow">{column.data.title}</a></h3>
+                  <p class="mt-2 line-clamp-3 text-sm leading-[1.8] text-gold-100/60">{column.data.summary}</p>
+                  <a href={`/columns/${column.id}/`} class="mt-4 inline-flex items-center gap-1 text-xs text-amber-glow hover:underline hover:underline-offset-4">続きを読む <ArrowRight size={12} aria-hidden="true" /></a>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div class="mt-5 text-center sm:hidden"><a href="/columns/" class="inline-flex items-center gap-1 text-sm text-amber-glow">本寺小路夜話をすべて読む <ArrowRight size={13} aria-hidden="true" /></a></div>
+      </section>
+    )}
 
     <RuleDivider variant="noren" />
 

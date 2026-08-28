@@ -16,10 +16,12 @@ export async function getStaticPaths() {
 }
 
 const { item } = Astro.props;
-const { title, pubDate, category, summary, relatedSpotSlug } = item.data;
+const { title, pubDate, category, summary, relatedSpotSlug, relatedColumnSlug } = item.data;
 const { Content } = await render(item);
 
 const relatedSpot = relatedSpotSlug ? await getEntry('spots', relatedSpotSlug) : undefined;
+const relatedColumnEntry = relatedColumnSlug ? await getEntry('columns', relatedColumnSlug) : undefined;
+const relatedColumn = relatedColumnEntry && !relatedColumnEntry.data.draft ? relatedColumnEntry : undefined;
 
 const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
   'NEW SPOT': 'vermilion',
@@ -85,6 +87,17 @@ const structuredData = {
             class="mt-8 inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-4 py-2 text-sm font-semibold text-night-950 transition hover:brightness-110"
           >
             「{relatedSpot.data.title}」の記事を見る
+            <ArrowRight size={14} stroke-width={2.25} aria-hidden="true" />
+          </a>
+        )
+      }
+      {
+        relatedColumn && (
+          <a
+            href={`/columns/${relatedColumn.id}/`}
+            class="mt-8 inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-4 py-2 text-sm font-semibold text-night-950 transition hover:brightness-110"
+          >
+            「{relatedColumn.data.title}」を読む
             <ArrowRight size={14} stroke-width={2.25} aria-hidden="true" />
           </a>
         )

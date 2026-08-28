@@ -71,6 +71,8 @@ const news = defineCollection({
     summary: z.string(),
     // 関連する店舗記事（src/content/spots/[slug].md）へのリンク用。
     relatedSpotSlug: z.string().optional(),
+    // コラム公開告知から src/content/columns/[slug].md へのリンク用。
+    relatedColumnSlug: z.string().optional(),
   }),
 });
 
