@@ -53,28 +53,13 @@ export function buildGoogleMapsUrl(mapQuery: string): string {
 }
 
 // ============================================================
-// 不定休の判定（openingHoursSpecificationを出すべきでない店の判定）
-// ============================================================
-
-/**
- * regularHoliday（表示用の自由文字列）に「不定休」という語が含まれるかを判定する。
- *
- * content.config.ts の hours は「その曜日に共通する1つの営業区間」という
- * 前提のフィールドだが、不定休の店では実際に何曜日が休みか特定できないため、
- * 便宜上「毎日その時間帯で営業している」という形でhoursに登録されていることが
- * ある（例: Bar Keywest）。この状態のままopeningHoursSpecificationを出力すると、
- * Googleの検索結果に「本来休んでいる日でも営業中」という誤情報が表示されうる。
- * サイト内表示（OpenStatus等）より外部への影響が大きいため、不定休と判断できる
- * 店では構造化データのopeningHoursSpecification自体を省略する
- * （呼び出し側でこの関数の結果を見て、buildOpeningHoursSpecificationの呼び出し
- * 自体をスキップすること）。
- */
-export function hasIrregularHoliday(regularHoliday: string): boolean {
-  return regularHoliday.includes('不定休');
-}
-
-// ============================================================
 // 営業時間（hours → openingHoursSpecification）
+//
+// 不定休の店（spot.data.isIrregular）でopeningHoursSpecification自体を
+// 省略する判断は、呼び出し側（spots/[...slug].astro）がisIrregularを
+// 直接見て行う。以前はregularHolidayの文字列に"不定休"を含むかで判定する
+// hasIrregularHoliday()がここにあったが、明示的なisIrregularフラグに
+// 置き換えたため削除した。
 // ============================================================
 
 export interface SchemaOpeningHoursSpecification {
@@ -135,7 +120,7 @@ function dayNumberToSchemaName(day: number): string | null {
  * の配列を組み立てる。hours が無い・空・全ruleが不正な場合は undefined を返す
  * （呼び出し側はこれを見て openingHoursSpecification フィールド自体を省略する）。
  *
- * 不定休の店（hasIrregularHoliday）を除外する判断は、この関数の責務ではなく
+ * 不定休の店（spot.data.isIrregular）を除外する判断は、この関数の責務ではなく
  * 呼び出し側で行う（hours自体は「不定休かどうか」を知らないデータのため）。
  */
 export function buildOpeningHoursSpecification(

@@ -190,3 +190,19 @@ function buildOpenResult(remainingMinutes: number, closeAtMinutes: number): Open
   }
   return { state: 'open', label: '営業中', nextChange };
 }
+
+/**
+ * 表示用に組み立て済みのラベル文字列（例: "営業中（02:00）"）に、
+ * 不定休の店（spot.data.isIrregular）であれば末尾へ「（不定休）」を
+ * 付け加える。OpenStatus.astro（バッジ表示）と src/pages/map/index.astro
+ * （路地マップのツールチップ・aria-label）の両方から呼ぶ共通ロジック。
+ *
+ * open/closing-soon のときだけ付け加える: closedは休みであること自体は
+ * 確定しているため但し書き不要、unknownは営業状況自体が判定不能なため
+ * 「不定休」を強調する意味が薄いため。
+ */
+export function withIrregularNotice(label: string, state: OpenState, isIrregular: boolean | undefined): string {
+  if (!isIrregular) return label;
+  if (state !== 'open' && state !== 'closing-soon') return label;
+  return `${label}（不定休）`;
+}

@@ -14,6 +14,7 @@ interface BuildingSpot {
   slug: string;
   title: string;
   hours: HourRule[] | null;
+  isIrregular: boolean;
 }
 
 // 対応表のslugを実際の店舗記事に解決する。存在しないslugは安全に無視し、
@@ -26,6 +27,7 @@ for (const [buildingId, slug] of Object.entries(MAP_BUILDING_TO_SPOT)) {
     slug,
     title: spot.data.title,
     hours: spot.data.hours ?? null,
+    isIrregular: spot.data.isIrregular ?? false,
   };
 }
 const assignedSpots = Object.entries(buildingSpotData);
@@ -66,7 +68,8 @@ svgMarkup = svgMarkup.replace(/<rect id="(bldg-\d+)"([^>]*)><\/rect>/g, (_match,
   const label = escapeAttr(`${spot.title}の店舗詳細を見る`);
   return (
     `<a href="/spots/${spot.slug}/" class="roji-bldg-link" data-building-id="${id}" ` +
-    `data-hours="${hoursAttr}" data-title="${titleAttr}" aria-label="${label}">` +
+    `data-hours="${hoursAttr}" data-title="${titleAttr}" data-irregular="${spot.isIrregular}" ` +
+    `aria-label="${label}">` +
     `<rect id="${id}"${attrs} class="roji-bldg roji-bldg-assigned"></rect></a>`
   );
 });
@@ -138,7 +141,7 @@ svgMarkup = svgMarkup.replace(/<rect id="(bldg-\d+)"([^>]*)><\/rect>/g, (_match,
   // 「ここに店がある」地色（roji-bldg-assigned、CSSのみ）だけが機能し、
   // 営業状況の強い灯り（roji-bldg-open）とツールチップは出ない
   // （誤情報を出さないため。OpenStatus.astroと同じ方針）。
-  import { getOpenStatus, type HourRule } from '../../lib/hours';
+  import { getOpenStatus, withIrregularNotice, type HourRule } from '../../lib/hours';
 
   function parseHours(raw: string | undefined): HourRule[] | null {
     if (!raw) return null;
@@ -170,8 +173,10 @@ svgMarkup = svgMarkup.replace(/<rect id="(bldg-\d+)"([^>]*)><\/rect>/g, (_match,
     function showTooltip(link: SVGAElement) {
       const rect = link.querySelector('rect');
       const hours = parseHours(link.dataset.hours);
+      const isIrregular = link.dataset.irregular === 'true';
       const result = getOpenStatus(hours ?? undefined);
-      tooltip!.textContent = `${link.dataset.title ?? ''}・${result.label}`;
+      const label = withIrregularNotice(result.label, result.state, isIrregular);
+      tooltip!.textContent = `${link.dataset.title ?? ''}・${label}`;
       positionTooltip(rect ?? link);
       tooltip!.classList.remove('opacity-0');
       tooltip!.classList.add('opacity-100');
@@ -186,10 +191,12 @@ svgMarkup = svgMarkup.replace(/<rect id="(bldg-\d+)"([^>]*)><\/rect>/g, (_match,
       links.forEach((link) => {
         const rect = link.querySelector<SVGRectElement>('rect');
         const hours = parseHours(link.dataset.hours);
+        const isIrregular = link.dataset.irregular === 'true';
         const result = getOpenStatus(hours ?? undefined);
         const isOpen = result.state === 'open' || result.state === 'closing-soon';
+        const label = withIrregularNotice(result.label, result.state, isIrregular);
         rect?.classList.toggle('roji-bldg-open', isOpen);
-        link.setAttribute('aria-label', `${link.dataset.title ?? ''}（${result.label}）`);
+        link.setAttribute('aria-label', `${link.dataset.title ?? ''}（${label}）`);
       });
     }
 

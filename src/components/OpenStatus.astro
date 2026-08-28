@@ -7,10 +7,12 @@ import type { HourRule } from '../lib/hours';
 
 interface Props {
   hours?: HourRule[];
+  /** 不定休の店（spot.data.isIrregular）で true にすると、営業中/まもなく閉店の表示に「（不定休）」を添える。 */
+  isIrregular?: boolean;
   size?: 'sm' | 'md';
 }
 
-const { hours, size = 'md' } = Astro.props;
+const { hours, isIrregular = false, size = 'md' } = Astro.props;
 
 const TEXT_SIZE: Record<string, string> = {
   sm: 'text-[0.65rem]',
@@ -26,11 +28,12 @@ const baseClass = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 fon
   data-open-status
   data-base-class={baseClass}
   data-hours={JSON.stringify(hours ?? null)}
+  data-irregular={isIrregular ? 'true' : 'false'}
   aria-live="polite"
 ></span>
 
 <script>
-  import { getOpenStatus, type HourRule, type OpenState } from '../lib/hours';
+  import { getOpenStatus, withIrregularNotice, type HourRule, type OpenState } from '../lib/hours';
 
   const STATE_CLASSES: Record<OpenState, string> = {
     open: 'bg-amber-glow/15 text-amber-glow',
@@ -58,6 +61,7 @@ const baseClass = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 fon
 
   function render(el: HTMLElement) {
     const hours = parseHours(el.dataset.hours);
+    const isIrregular = el.dataset.irregular === 'true';
     const result = getOpenStatus(hours);
 
     el.className = `${el.dataset.baseClass ?? ''} ${STATE_CLASSES[result.state]}`.trim();
@@ -78,7 +82,11 @@ const baseClass = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 fon
       el.appendChild(label);
     }
     const showNextChange = result.nextChange && (result.state === 'open' || result.state === 'closing-soon');
-    label.textContent = showNextChange ? `${result.label}（${result.nextChange}）` : result.label;
+    const baseLabel = showNextChange ? `${result.label}（${result.nextChange}）` : result.label;
+    const finalLabel = withIrregularNotice(baseLabel, result.state, isIrregular);
+    label.textContent = finalLabel;
+    // アクセシブルネームをテキストコンテンツの暗黙的な合成に委ねず、明示的に設定する。
+    el.setAttribute('aria-label', finalLabel);
   }
 
   function renderAll() {

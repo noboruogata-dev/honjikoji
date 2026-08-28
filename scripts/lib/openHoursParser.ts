@@ -10,8 +10,8 @@
  * のまま返す。誤った営業時間（例: 実際は休みの曜日を「営業中」）を
  * Google検索結果やサイト内のOpenStatus/提灯表示に出すことの方が、
  * hours欠落によるunknown表示より実害が大きいため
- * （src/lib/hours.ts の設計方針、および構造化データでの
- * hasIrregularHoliday判定と同じ考え方）。
+ * （src/lib/hours.ts の設計方針、および content.config.ts の
+ * isIrregularフラグと同じ考え方）。
  */
 
 export interface ParsedHourRule {
@@ -55,6 +55,15 @@ function formatMinutes(totalMinutes: number): string {
 }
 
 /**
+ * regularHoliday に「不定休」という語が含まれるかを判定する。
+ * content.config.ts の isIrregular フラグの導出元。generate-spot.ts が
+ * このフラグをfrontmatterに書き込むかどうかの判定にも使う。
+ */
+export function isIrregularHoliday(regularHoliday: string): boolean {
+  return regularHoliday.includes('不定休');
+}
+
+/**
  * regularHoliday から、休業する曜日の集合を判定する。
  * - "不定休" を含む → null（曜日を特定できない。呼び出し側で導出自体を諦める）
  * - "年中無休" を含む → 空集合（休業日なし）
@@ -63,7 +72,7 @@ function formatMinutes(totalMinutes: number): string {
  *   見つからなければ null
  */
 function extractClosedDays(regularHoliday: string): Set<number> | null {
-  if (regularHoliday.includes('不定休')) return null;
+  if (isIrregularHoliday(regularHoliday)) return null;
   if (regularHoliday.includes('年中無休')) return new Set();
 
   const hasOrdinalOrBiweekly = /第[1-5一二三四五]|隔週/.test(regularHoliday);

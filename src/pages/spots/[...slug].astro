@@ -12,12 +12,7 @@ import StructuredData from '../../components/StructuredData.astro';
 import { getCollection, render } from 'astro:content';
 import { ExternalLink } from '@lucide/astro';
 import { getSpotSchemaType } from '../../lib/spotSchemaType';
-import {
-  buildGoogleMapsUrl,
-  buildOpeningHoursSpecification,
-  buildSpotAddress,
-  hasIrregularHoliday,
-} from '../../lib/structuredData';
+import { buildGoogleMapsUrl, buildOpeningHoursSpecification, buildSpotAddress } from '../../lib/structuredData';
 
 export async function getStaticPaths() {
   const spots = await getCollection('spots');
@@ -38,6 +33,7 @@ const {
   vibes,
   isNew,
   hours,
+  isIrregular,
   description,
   mapQuery,
   pubDate,
@@ -50,14 +46,14 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toStri
 // デフォルト画像を使っている（ogImageをLayoutに渡していないため）。
 const absoluteImage = new URL('/images/ogp-default.png', Astro.site ?? Astro.url).toString();
 
-// 不定休の店は、hoursに「便宜上の毎日営業」として登録されていることがある
-// （実際に何曜日が休みか特定できないため）。この状態のままGoogleに
-// openingHoursSpecificationとして渡すと、本来休んでいる日を「営業中」と
-// 検索結果に表示させてしまう恐れがあるため、不定休と判断できる店では
-// openingHoursSpecification自体を出力しない。
-const openingHoursSpecification = hasIrregularHoliday(regularHoliday)
-  ? undefined
-  : buildOpeningHoursSpecification(hours);
+// 不定休の店（isIrregular）は、hoursに「便宜上の毎日営業」として登録
+// されていることがある（実際に何曜日が休みか特定できないため）。この状態
+// のままGoogleにopeningHoursSpecificationとして渡すと、本来休んでいる日を
+// 「営業中」と検索結果に表示させてしまう恐れがあるため、isIrregularが
+// trueの店ではopeningHoursSpecification自体を出力しない。
+// （以前はregularHolidayの文字列に"不定休"を含むかで判定していたが、
+// 明示的なisIrregularフラグの方が確実なため切り替えた）
+const openingHoursSpecification = isIrregular ? undefined : buildOpeningHoursSpecification(hours);
 
 const structuredData: Record<string, unknown> = {
   '@context': 'https://schema.org',
@@ -122,7 +118,7 @@ const structuredData: Record<string, unknown> = {
         <div class="bg-night-900 px-4 py-3">
           <div class="flex items-center justify-between gap-2">
             <dt class="text-xs text-gold-100/40">営業時間</dt>
-            <OpenStatus hours={hours} size="sm" />
+            <OpenStatus hours={hours} isIrregular={isIrregular} size="sm" />
           </div>
           <dd class="mt-1 text-sm text-gold-100/85">{openHours}</dd>
         </div>

@@ -59,7 +59,7 @@ import {
   toYamlString,
   uniqueSlug,
 } from './lib/gemini-agents.js';
-import { parseOpenHoursToHours } from './lib/openHoursParser.js';
+import { isIrregularHoliday, parseOpenHoursToHours } from './lib/openHoursParser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SPOTS_DIR = path.resolve(__dirname, '../src/content/spots');
@@ -149,6 +149,9 @@ const spotFrontmatterSchema = z.object({
       })
     )
     .optional(),
+  // regularHolidayに「不定休」を含む場合のみtrue（isIrregularHoliday）。
+  // hours/budgetMaxと同じ完全な任意フィールドで、falseは書き込まない。
+  isIrregular: z.boolean().optional(),
   description: z.string().min(1, 'description が空です'),
   pubDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'pubDate は YYYY-MM-DD 形式である必要があります'),
 });
@@ -517,6 +520,12 @@ async function runQaAgent(
   // 導出できなければhoursは未設定のまま保存する（誤った営業時間よりは
   // hours欠落＝unknown表示の方が安全という方針。scripts/lib/openHoursParser.ts）。
   const hoursResult = parseOpenHoursToHours(research.openHours, research.regularHoliday);
+  // regularHolidayに「不定休」を含む店は isIrregular: true を明示的に立てる。
+  // hoursは（不定休のため）通常はundefinedのままだが、サイト内の営業中
+  // カウント・提灯表示・路地マップの点灯に含めたい場合は、bar-keywest.mdの
+  // ように運営者が手動でhoursを追加できる（isIrregular: trueとhoursの併用は
+  // 意図的な例外として許容。詳細はcontent.config.tsのコメント参照）。
+  const isIrregular = isIrregularHoliday(research.regularHoliday);
 
   const candidate: Record<string, unknown> = {
     title: research.title,
@@ -529,6 +538,7 @@ async function runQaAgent(
     vibes: research.vibes,
     isNew: research.isNew,
     hours: hoursResult.hours,
+    isIrregular: isIrregular || undefined,
     description: writer.description,
     pubDate: new Date().toISOString().slice(0, 10),
   };
@@ -552,6 +562,9 @@ async function runQaAgent(
       `${label} 営業時間(hours)を自動導出できませんでした（${hoursResult.reason}）。hoursは未設定（サイト上はunknown表示）のまま保存します。`
     );
   }
+  if (fm.isIrregular) {
+    console.log(`${label} 不定休と判定したため isIrregular: true を設定しました。`);
+  }
 
   const slug = uniqueSlug(slugify(research.slug), existingSlugs, 'spot');
   console.log(`${label} 検証OK。保存先slug: ${slug}${fm.isNew ? '（新店舗フラグ: ON）' : ''}`);
@@ -573,6 +586,7 @@ async function runQaAgent(
     `budget: ${toYamlString(fm.budget)}`,
     `openHours: ${toYamlString(fm.openHours)}`,
     `regularHoliday: ${toYamlString(fm.regularHoliday)}`,
+    ...(fm.isIrregular ? [`isIrregular: ${fm.isIrregular}`] : []),
     ...buildHoursYamlLines(fm.hours),
     'vibes:',
     ...fm.vibes.map((vibe) => `  - ${toYamlString(vibe)}`),

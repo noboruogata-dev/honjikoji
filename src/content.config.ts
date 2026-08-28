@@ -31,6 +31,17 @@ const spots = defineCollection({
         })
       )
       .optional(),
+    // 不定休の店で、hoursに便宜上「毎日営業」等として登録している場合に true。
+    // 構造化データ（openingHoursSpecification）の出力可否や、OpenStatusの
+    // 表示文言（「営業中（不定休）」）の判定に使う。hours/budgetMaxと同じく
+    // 完全な任意フィールド（省略時はfalse相当、falseは書き込まない）。
+    // 「isIrregular: true かつ hours あり」は本来矛盾しうる組み合わせだが、
+    // bar-keywest.md だけは意図的な例外として両方を持つ
+    // （実際の休業曜日は特定できないが、既知の営業時間帯を毎日分として
+    // 登録し、サイト内表示では営業中カウントに含めつつ「不定休」の
+    // 但し書きを添える、という運用上の判断。詳細はbar-keywest.md自身の
+    // コメントを参照）。
+    isIrregular: z.boolean().optional(),
     // 店舗紹介動画（任意）。1店舗に複数（旧店舗/新店舗など）が紐づきうるため配列。
     youtubeVideos: z
       .array(

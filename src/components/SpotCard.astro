@@ -20,6 +20,7 @@ const {
   vibes,
   isNew,
   hours,
+  isIrregular,
   description,
   youtubeVideos,
 } = spot.data;
@@ -71,7 +72,7 @@ const hasVideo = (youtubeVideos?.length ?? 0) > 0;
       <div class="flex items-center gap-2">
         <dt class="shrink-0 text-gold-100/35">営業時間</dt>
         <dd class="min-w-0 flex-1 truncate">{openHours}</dd>
-        <OpenStatus hours={hours} size="sm" />
+        <OpenStatus hours={hours} isIrregular={isIrregular} size="sm" />
       </div>
       <div class="flex gap-2">
         <dt class="shrink-0 text-gold-100/35">定休日</dt>
