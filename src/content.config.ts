@@ -74,4 +74,42 @@ const news = defineCollection({
   }),
 });
 
-export const collections = { spots, news };
+const columns = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/columns' }),
+  schema: z.object({
+    title: z.string(),
+    pubDate: z.coerce.date(),
+    category: z.enum(['お酒の豆知識', '街の歴史', '店と人', '夜の作法']),
+    summary: z.string(),
+    // standard=一般コラム / history=歴史検証 / interview=取材 / fiction=創作。
+    kind: z.enum(['standard', 'history', 'interview', 'fiction']),
+    // AI生成後は必ず下書き。人が内容を確認した場合のみ手動でfalseへ変更する。
+    draft: z.boolean().default(true),
+    sources: z
+      .array(
+        z.object({
+          title: z.string(),
+          url: z.string().url(),
+          type: z.enum(['official', 'primary', 'secondary', 'provided']),
+        })
+      )
+      .optional(),
+    disclaimer: z.string().optional(),
+    illustration: z
+      .object({
+        src: z.string(),
+        alt: z.string(),
+      })
+      .optional(),
+    eyecatch: z
+      .object({
+        src: z.string(),
+        alt: z.string(),
+      })
+      .optional(),
+    // 画像も本文と同様に公開前の目視確認を必要とする。
+    imageStatus: z.enum(['draft', 'reviewed']).optional(),
+  }),
+});
+
+export const collections = { spots, news, columns };

@@ -12,6 +12,8 @@
     "astro": "astro",
     "generate:spot": "tsx scripts/generate-spot.ts",
     "generate:news": "tsx scripts/generate-news.ts",
+    "generate:column": "tsx scripts/generate-column.ts",
+    "generate:column-image": "tsx scripts/generate-column-image.ts",
     "match:youtube": "tsx scripts/match-youtube.ts",
     "test": "vitest run"
   },
@@ -35,6 +37,7 @@
     "@types/js-yaml": "^4.0.9",
     "dotenv": "^17.4.2",
     "js-yaml": "^5.4.1",
+    "sharp": "^0.35.4",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",
