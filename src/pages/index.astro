@@ -260,15 +260,19 @@ const structuredData = [
               ? column.data.eyecatch
               : undefined;
             return (
-              <article class="group overflow-hidden rounded-2xl border border-gold-100/15 bg-gold-100/[0.025] transition hover:border-amber-glow/35">
-                {image && <a href={`/columns/${column.id}/`} tabindex="-1" aria-hidden="true"><img src={image.src} alt="" width="1200" height="630" loading="lazy" decoding="async" class="aspect-[1200/630] w-full object-cover" /></a>}
+              <a
+                href={`/columns/${column.id}/`}
+                aria-label={`${column.data.title}を読む`}
+                class="group block overflow-hidden rounded-2xl border border-gold-100/15 bg-gold-100/[0.025] transition hover:-translate-y-0.5 hover:border-amber-glow/35 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-glow"
+              >
+                {image && <img src={image.src} alt="" width="1200" height="630" loading="lazy" decoding="async" class="aspect-[1200/630] w-full object-cover" />}
                 <div class="p-5">
                   <div class="flex items-center gap-2 text-[0.65rem]"><span class="text-amber-glow">{column.data.category}</span><time class="text-gold-100/35" datetime={column.data.pubDate.toISOString().slice(0, 10)}>{column.data.pubDate.toISOString().slice(0, 10)}</time></div>
-                  <h3 class="mt-2 font-serif text-lg font-bold leading-relaxed text-gold-100"><a href={`/columns/${column.id}/`} class="transition group-hover:text-amber-glow">{column.data.title}</a></h3>
+                  <h3 class="mt-2 font-serif text-lg font-bold leading-relaxed text-gold-100 transition group-hover:text-amber-glow">{column.data.title}</h3>
                   <p class="mt-2 line-clamp-3 text-sm leading-[1.8] text-gold-100/60">{column.data.summary}</p>
-                  <a href={`/columns/${column.id}/`} class="mt-4 inline-flex items-center gap-1 text-xs text-amber-glow hover:underline hover:underline-offset-4">続きを読む <ArrowRight size={12} aria-hidden="true" /></a>
+                  <span class="mt-4 inline-flex items-center gap-1 text-xs text-amber-glow group-hover:underline group-hover:underline-offset-4">続きを読む <ArrowRight class="transition-transform group-hover:translate-x-0.5 motion-reduce:transform-none" size={12} aria-hidden="true" /></span>
                 </div>
-              </article>
+              </a>
             );
           })}
         </div>
