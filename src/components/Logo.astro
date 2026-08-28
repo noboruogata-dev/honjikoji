@@ -9,11 +9,19 @@
 interface Props {
   size?: 'sm' | 'md' | 'lg';
   showTagline?: boolean;
+  /** モバイルヘッダー用。円形シンボルと和文サイト名だけを表示する。 */
+  compact?: boolean;
   href?: string;
   class?: string;
 }
 
-const { size = 'md', showTagline = true, href = '/', class: className = '' } = Astro.props;
+const {
+  size = 'md',
+  showTagline = true,
+  compact = false,
+  href = '/',
+  class: className = '',
+} = Astro.props;
 
 const BADGE_PX: Record<string, number> = { sm: 32, md: 40, lg: 52 };
 const badgePx = BADGE_PX[size];
@@ -47,7 +55,7 @@ const SUB_CLASS: Record<string, string> = {
 
   <span class="flex flex-col leading-none">
     {
-      showTagline && (
+      showTagline && !compact && (
         <span class={`mb-1 tracking-[0.3em] text-amber-glow/80 ${SUB_CLASS[size]}`}>
           SANJO NIGHT GUIDE
         </span>
@@ -56,16 +64,18 @@ const SUB_CLASS: Record<string, string> = {
     <span class:list={['font-serif font-bold text-gold-100 text-glow', TITLE_CLASS[size]]}>
       本寺小路
     </span>
-    <span class={`mt-1 tracking-[0.15em] text-gold-100/45 ${SUB_CLASS[size]}`}>
-      {
-        showTagline ? (
-          'HONJIKOJI'
-        ) : (
-          <>
-            HONJIKOJI <span class="text-vermilion/70">|</span> SANJO NIGHT GUIDE
-          </>
-        )
-      }
-    </span>
+    {
+      !compact && (
+        <span class={`mt-1 tracking-[0.15em] text-gold-100/45 ${SUB_CLASS[size]}`}>
+          {showTagline ? (
+            'HONJIKOJI'
+          ) : (
+            <>
+              HONJIKOJI <span class="text-vermilion/70">|</span> SANJO NIGHT GUIDE
+            </>
+          )}
+        </span>
+      )
+    }
   </span>
 </a>

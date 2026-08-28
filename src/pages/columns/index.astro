@@ -1,0 +1,49 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import { ArrowRight, BookOpenText } from '@lucide/astro';
+
+const categories = ['お酒の豆知識', '街の歴史', '店と人', '夜の作法'];
+---
+
+<Layout
+  title="本寺小路夜話｜本寺小路ガイド"
+  description="酒の豆知識、街の歴史、店と人、夜の作法。本寺小路を深く味わうためのコラム『本寺小路夜話』。"
+>
+  <Header />
+
+  <main class="mx-auto max-w-5xl px-4 py-12 sm:py-16">
+    <section class="relative overflow-hidden rounded-2xl border border-night-700 bg-night-900/60 px-6 py-12 text-center sm:px-12 sm:py-16">
+      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_65%_55%_at_50%_0%,var(--glow),transparent),radial-gradient(ellipse_35%_45%_at_100%_100%,rgba(200,65,47,0.10),transparent)]" aria-hidden="true"></div>
+      <div class="relative">
+        <span class="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-amber-glow/35 text-amber-glow shadow-[0_0_22px_var(--glow)]" aria-hidden="true">
+          <BookOpenText size={23} stroke-width={1.5} />
+        </span>
+        <p class="mt-5 text-xs tracking-[0.3em] text-amber-glow/70">HONJIKOJI YOBANASHI</p>
+        <h1 class="mt-2 font-serif text-3xl font-bold tracking-[0.04em] text-gold-100 text-glow sm:text-4xl">本寺小路夜話</h1>
+        <p class="mx-auto mt-6 max-w-[34em] whitespace-pre-line leading-[1.9] text-gold-100/70">酒のこと、街の記憶、店に立つ人、夜の歩き方。
+本寺小路をもう少し深く味わうための、夜の読みものです。</p>
+
+        <ul class="mx-auto mt-8 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">
+          {categories.map((category) => <li class="rounded-lg border border-gold-100/15 bg-gold-100/[0.025] px-3 py-3 text-sm text-gold-100/75">{category}</li>)}
+        </ul>
+
+        <p class="mt-10 font-serif text-lg text-gold-100/80">ただいま、最初の夜話を支度しています。</p>
+
+        <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <a href="/spots/" class="group inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-100/30 px-5 py-2.5 text-sm font-medium text-amber-glow transition hover:border-amber-glow/70 hover:underline hover:underline-offset-4">
+            店舗一覧を見る
+            <ArrowRight class="transition-transform duration-150 group-hover:translate-x-1 motion-reduce:transform-none" size={15} aria-hidden="true" />
+          </a>
+          <a href="/about/" class="group inline-flex min-h-11 items-center gap-2 px-4 py-2.5 text-sm font-medium text-gold-100/60 transition hover:text-amber-glow hover:underline hover:underline-offset-4">
+            本寺小路の歴史を読む
+            <ArrowRight class="transition-transform duration-150 group-hover:translate-x-1 motion-reduce:transform-none" size={15} aria-hidden="true" />
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <Footer />
+</Layout>
