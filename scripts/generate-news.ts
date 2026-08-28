@@ -35,17 +35,19 @@ import { z } from 'zod';
 import {
   analyzeArticleStructure,
   appendStepSummary,
+  buildNewsFrontmatterBlock,
   callGroundedJsonAgent,
   callPlainJsonAgent,
   checkArticleStructure,
   FatalPipelineError,
   getExistingEntries,
   logZodIssues,
+  NEWS_CATEGORIES,
+  newsFrontmatterSchema,
   normalizeText,
   parseJsonOrThrow,
   slugify,
   summarizeOutcomes,
-  toYamlString,
   uniqueSlug,
 } from './lib/gemini-agents.js';
 
@@ -63,9 +65,6 @@ const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
   success: '成功',
   error: 'エラー',
 };
-
-const CATEGORIES = ['NEW SPOT', 'EVENT', 'NOTICE'] as const;
-type Category = (typeof CATEGORIES)[number];
 
 const SEARCH_QUERIES = ['三条市 本寺小路 イベント', '三条市 歓楽街 祭り', '三条市 新規オープン 飲食店'];
 
@@ -96,16 +95,9 @@ const writerSchema = z.object({
 });
 type WriterResult = z.infer<typeof writerSchema>;
 
-// Agent 3（QA）が最終検証する、src/content.config.ts の news Frontmatterスキーマに
-// 完全準拠したスキーマ。
-const newsFrontmatterSchema = z.object({
-  title: z.string().min(1, 'title が空です'),
-  pubDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'pubDate は YYYY-MM-DD 形式である必要があります'),
-  category: z.enum(CATEGORIES),
-  summary: z.string().min(1, 'summary が空です'),
-  relatedSpotSlug: z.string().min(1).optional(),
-});
-type NewsFrontmatter = z.infer<typeof newsFrontmatterSchema>;
+// news Frontmatterスキーマ（NEWS_CATEGORIES・newsFrontmatterSchema）は
+// generate-spot.ts の公開お知らせ生成機能と共有するため、
+// scripts/lib/gemini-agents.ts に定義がある（このファイルではimportのみ）。
 
 // ============================================================
 // Gemini向け構造化出力スキーマ（Type ベース）
@@ -121,7 +113,7 @@ const researchResponseSchema = {
     headline: { type: Type.STRING, description: '話題を要約する簡潔な見出し（下書き。後で編集される）' },
     category: {
       type: Type.STRING,
-      description: `次のいずれか1つ: ${CATEGORIES.join(' / ')}（NEW SPOT=新規開店・リニューアル、EVENT=祭り・イベント、NOTICE=その他のお知らせ）`,
+      description: `次のいずれか1つ: ${NEWS_CATEGORIES.join(' / ')}（NEW SPOT=新規開店・リニューアル、EVENT=祭り・イベント、NOTICE=その他のお知らせ）`,
     },
     facts: {
       type: Type.STRING,
@@ -200,7 +192,7 @@ ${knownSpotsText}
 
 出力は厳密なJSON形式で、次の情報を可能な限り正確に埋めてください。
 - headline: 話題を要約する簡潔な見出し（下書き）
-- category: ${CATEGORIES.join(' / ')} のいずれか
+- category: ${NEWS_CATEGORIES.join(' / ')} のいずれか
 - facts: 調べて分かった事実（日時・場所・詳細など）をまとめたテキスト。分からない部分は「不明」と明記し、絶対に創作しないこと。
 - relatedSpotSlug: 上記の既知店舗リストに一致する話題であればそのslug、なければ空文字
 - slug: ファイル名用の英小文字ケバブケースslug（ローマ字/英訳）
@@ -330,7 +322,7 @@ async function runQaAgent(
     throw new Error('Agent3(QA)がFrontmatterのスキーマ違反を検出しました。');
   }
 
-  const fm: NewsFrontmatter = result.data;
+  const fm = result.data;
   const slug = uniqueSlug(slugify(research.slug), existingSlugs, 'news');
   console.log(`${label} 検証OK。保存先slug: ${slug}`);
 
@@ -342,17 +334,7 @@ async function runQaAgent(
     console.warn(`${label} [構造チェック] ${warning}`);
   }
 
-  const frontmatter = [
-    '---',
-    `title: ${toYamlString(fm.title)}`,
-    `pubDate: ${fm.pubDate}`,
-    `category: ${toYamlString(fm.category)}`,
-    `summary: ${toYamlString(fm.summary)}`,
-    ...(fm.relatedSpotSlug ? [`relatedSpotSlug: ${toYamlString(fm.relatedSpotSlug)}`] : []),
-    '---',
-    '',
-    '',
-  ].join('\n');
+  const frontmatter = buildNewsFrontmatterBlock(fm);
 
   const filePath = path.join(NEWS_DIR, `${slug}.md`);
   await writeFile(filePath, frontmatter + writer.body.trim() + '\n', 'utf-8');

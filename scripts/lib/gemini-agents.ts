@@ -19,9 +19,51 @@ import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { appendFile, mkdir, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { load as parseYaml } from 'js-yaml';
-import type { ZodError } from 'zod';
+import { z, type ZodError } from 'zod';
 
 export const GEMINI_MODEL = 'gemini-3.6-flash';
+
+// ============================================================
+// ニュース記事の共通スキーマ
+//
+// generate-news.ts（LLMが書いた記事）と generate-spot.ts（店舗公開の
+// お知らせをテンプレートから決定論的に組み立てる機能）の両方が、
+// 同じ src/content/news/[slug].md フォーマットに書き込む。定義が2箇所で
+// ズレるのを防ぐため、ここに一本化する。
+//
+// 注意: generate-news.ts 自体を import してはいけない。あのファイルは
+// モジュール末尾で main().catch(...) が無条件実行されるため、import した
+// 瞬間にニュース生成パイプライン全体が副作用として走ってしまう。
+// ============================================================
+
+export const NEWS_CATEGORIES = ['NEW SPOT', 'EVENT', 'NOTICE'] as const;
+export type NewsCategory = (typeof NEWS_CATEGORIES)[number];
+
+/** src/content.config.ts の news Frontmatterスキーマに完全準拠したスキーマ。 */
+export const newsFrontmatterSchema = z.object({
+  title: z.string().min(1, 'title が空です'),
+  pubDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'pubDate は YYYY-MM-DD 形式である必要があります'),
+  category: z.enum(NEWS_CATEGORIES),
+  summary: z.string().min(1, 'summary が空です'),
+  relatedSpotSlug: z.string().min(1).optional(),
+});
+export type NewsFrontmatter = z.infer<typeof newsFrontmatterSchema>;
+
+/** newsFrontmatterSchema 準拠のデータから、Markdownファイルに書き込む
+ *  frontmatterブロック（本文は含まない）を組み立てる。 */
+export function buildNewsFrontmatterBlock(fm: NewsFrontmatter): string {
+  return [
+    '---',
+    `title: ${toYamlString(fm.title)}`,
+    `pubDate: ${fm.pubDate}`,
+    `category: ${toYamlString(fm.category)}`,
+    `summary: ${toYamlString(fm.summary)}`,
+    ...(fm.relatedSpotSlug ? [`relatedSpotSlug: ${toYamlString(fm.relatedSpotSlug)}`] : []),
+    '---',
+    '',
+    '',
+  ].join('\n');
+}
 
 /** リトライしても解消しない致命的エラー（APIクォータ超過など）。呼び出し側は即座に処理を止めること。 */
 export class FatalPipelineError extends Error {}
@@ -136,6 +178,30 @@ export async function getExistingEntries(dir: string): Promise<ExistingEntries> 
   }
 
   return { titles, slugs };
+}
+
+/**
+ * 指定ディレクトリ内の {slug}.md を読み、frontmatter（YAML）をパースして
+ * オブジェクトとして返す。ファイルが無い・frontmatterが無い・パース失敗の
+ * 場合は null（呼び出し側で個別にスキップ判断できるよう、例外は投げない）。
+ */
+export async function readFrontmatter(dir: string, slug: string): Promise<Record<string, unknown> | null> {
+  let raw: string;
+  try {
+    raw = await readFile(path.join(dir, `${slug}.md`), 'utf-8');
+  } catch {
+    return null;
+  }
+
+  const match = raw.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return null;
+
+  try {
+    const data = parseYaml(match[1]);
+    return typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================
