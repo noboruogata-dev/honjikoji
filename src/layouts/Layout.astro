@@ -11,6 +11,8 @@ interface Props {
   ogImage?: string;
   /** ogType="article" のときのみ使用（記事の公開日時）。 */
   publishedTime?: Date;
+  /** 検索結果に出したくない準備中ページ等で true にする（例: /columns/）。 */
+  noindex?: boolean;
 }
 
 const SITE_NAME = '本寺小路ガイド | 三条の、夜のはじまり。';
@@ -23,6 +25,7 @@ const {
   ogType = 'website',
   ogImage = '/images/ogp-default.png',
   publishedTime,
+  noindex = false,
 } = Astro.props;
 
 // Astro.site（astro.config.mjs の site）を基準に絶対URLを組み立てる。
@@ -85,6 +88,7 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex" />}
     <title>{title}</title>
 
     <!-- Open Graph -->
