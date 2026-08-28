@@ -6,6 +6,10 @@ mapQuery: "もつ焼き たかはし 三条市"
 budget: "￥2,000〜￥3,000"
 openHours: "17:00〜21:30"
 regularHoliday: "日曜日"
+hours:
+  - days: [1, 2, 3, 4, 5, 6]
+    open: "17:00"
+    close: "21:30"
 vibes:
   - "1軒目におすすめ"
   - "カウンター席あり"

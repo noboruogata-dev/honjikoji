@@ -59,6 +59,7 @@ import {
   toYamlString,
   uniqueSlug,
 } from './lib/gemini-agents.js';
+import { parseOpenHoursToHours } from './lib/openHoursParser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SPOTS_DIR = path.resolve(__dirname, '../src/content/spots');
@@ -136,6 +137,18 @@ const spotFrontmatterSchema = z.object({
   regularHoliday: z.string().min(1, 'regularHoliday が空です'),
   vibes: z.array(z.string().min(1)).min(1, 'vibes が空です'),
   isNew: z.boolean().default(false),
+  // openHours/regularHolidayからscripts/lib/openHoursParser.tsで導出できた
+  // 場合のみ設定する（導出できなければ未設定のまま。誤った営業時間よりは
+  // hours欠落＝unknown表示の方が安全という方針）。
+  hours: z
+    .array(
+      z.object({
+        days: z.array(z.number().int().min(0).max(6)),
+        open: z.string().regex(/^\d{1,2}:\d{2}$/),
+        close: z.string().regex(/^\d{1,2}:\d{2}$/),
+      })
+    )
+    .optional(),
   description: z.string().min(1, 'description が空です'),
   pubDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'pubDate は YYYY-MM-DD 形式である必要があります'),
 });
@@ -473,13 +486,37 @@ async function runWriterAgent(ai: GoogleGenAI, research: ResearchResult): Promis
 // Agent 3: QA & Schema Validator Agent（LLM呼び出しなし、コードのみ）
 // ============================================================
 
+interface QaResult {
+  filePath: string;
+  hoursDerived: boolean;
+  /** hoursDerivedがfalseのときのみ設定される、導出できなかった理由。 */
+  hoursReason?: string;
+}
+
+/** SpotFrontmatterのhoursを、content.config.tsが期待するYAML行に変換する（無ければ空配列）。 */
+function buildHoursYamlLines(hours: SpotFrontmatter['hours']): string[] {
+  if (!hours) return [];
+  const lines: string[] = ['hours:'];
+  for (const rule of hours) {
+    lines.push(`  - days: [${rule.days.join(', ')}]`);
+    lines.push(`    open: ${toYamlString(rule.open)}`);
+    lines.push(`    close: ${toYamlString(rule.close)}`);
+  }
+  return lines;
+}
+
 async function runQaAgent(
   research: ResearchResult,
   writer: WriterResult,
   existingSlugs: string[]
-): Promise<string> {
+): Promise<QaResult> {
   const label = '[Agent3:QA]';
   console.log(`${label} 起動。Frontmatterスキーマ（Zod）を検証中...`);
+
+  // openHours/regularHolidayから構造化hoursを決定論的に導出する（LLM不使用）。
+  // 導出できなければhoursは未設定のまま保存する（誤った営業時間よりは
+  // hours欠落＝unknown表示の方が安全という方針。scripts/lib/openHoursParser.ts）。
+  const hoursResult = parseOpenHoursToHours(research.openHours, research.regularHoliday);
 
   const candidate: Record<string, unknown> = {
     title: research.title,
@@ -491,6 +528,7 @@ async function runQaAgent(
     regularHoliday: research.regularHoliday,
     vibes: research.vibes,
     isNew: research.isNew,
+    hours: hoursResult.hours,
     description: writer.description,
     pubDate: new Date().toISOString().slice(0, 10),
   };
@@ -505,6 +543,14 @@ async function runQaAgent(
 
   if (!GENRES.includes(fm.genre)) {
     console.warn(`${label} genre "${fm.genre}" は既定リスト外ですが、そのまま採用します。`);
+  }
+
+  if (fm.hours) {
+    console.log(`${label} 営業時間(hours)を自動導出しました: ${JSON.stringify(fm.hours)}`);
+  } else {
+    console.warn(
+      `${label} 営業時間(hours)を自動導出できませんでした（${hoursResult.reason}）。hoursは未設定（サイト上はunknown表示）のまま保存します。`
+    );
   }
 
   const slug = uniqueSlug(slugify(research.slug), existingSlugs, 'spot');
@@ -527,6 +573,7 @@ async function runQaAgent(
     `budget: ${toYamlString(fm.budget)}`,
     `openHours: ${toYamlString(fm.openHours)}`,
     `regularHoliday: ${toYamlString(fm.regularHoliday)}`,
+    ...buildHoursYamlLines(fm.hours),
     'vibes:',
     ...fm.vibes.map((vibe) => `  - ${toYamlString(vibe)}`),
     `isNew: ${fm.isNew}`,
@@ -541,7 +588,7 @@ async function runQaAgent(
   await writeFile(filePath, frontmatter + writer.body.trim() + '\n', 'utf-8');
 
   console.log(`${label} 完了。保存しました: ${path.relative(process.cwd(), filePath)}`);
-  return filePath;
+  return { filePath, hoursDerived: Boolean(fm.hours), hoursReason: hoursResult.reason };
 }
 
 // ============================================================
@@ -710,6 +757,123 @@ async function runBackfillAnnouncements(): Promise<void> {
 }
 
 // ============================================================
+// --backfill-hours: 既存の店舗記事のうち、hours（構造化営業時間）が
+// まだ無いものだけを openHours/regularHoliday から遡って導出する
+// （冪等・GEMINI_API_KEY不要）。
+//
+// 既存のhoursは絶対に上書きしない（Bar Keywest等、手動で「不定休だが
+// 便宜上毎日営業として登録」しているデータを壊さないため）。frontmatter
+// 全体をパース→再シリアライズする方式は、js-yamlの出力フォーマットが
+// 手書きの元データと微妙に異なり得て意図しない差分を生むため採らず、
+// 生のテキストに対して「regularHoliday行の直後にhours:ブロックを挿入する」
+// という最小限の文字列操作のみを行う（他のフィールド・本文には一切触れない）。
+// ============================================================
+
+type HoursBackfillStatus = 'derived' | 'skipped-existing' | 'not-derived';
+
+interface HoursBackfillResult {
+  slug: string;
+  status: HoursBackfillStatus;
+  detail?: string;
+}
+
+function hoursBackfillSummaryLine(result: HoursBackfillResult): string {
+  switch (result.status) {
+    case 'derived':
+      return `導出できました（${result.detail}）`;
+    case 'skipped-existing':
+      return '既にhoursがあるためスキップしました';
+    case 'not-derived':
+      return `導出できませんでした（${result.detail}）`;
+  }
+}
+
+async function runBackfillHours(): Promise<void> {
+  console.log('============================================================');
+  console.log(' 本寺小路ガイド 営業時間(hours) 遡及生成（--backfill-hours）');
+  console.log('============================================================');
+
+  await mkdir(SPOTS_DIR, { recursive: true });
+  const files = (await readdir(SPOTS_DIR)).filter((file) => file.endsWith('.md'));
+
+  const results: HoursBackfillResult[] = [];
+
+  for (const file of files) {
+    const slug = file.replace(/\.md$/, '');
+    const filePath = path.join(SPOTS_DIR, file);
+    const frontmatter = await readFrontmatter(SPOTS_DIR, slug);
+
+    if (!frontmatter) {
+      results.push({ slug, status: 'not-derived', detail: 'frontmatterを読み取れませんでした' });
+      continue;
+    }
+
+    if (frontmatter.hours !== undefined) {
+      results.push({ slug, status: 'skipped-existing' });
+      continue;
+    }
+
+    const openHours = typeof frontmatter.openHours === 'string' ? frontmatter.openHours : '';
+    const regularHoliday = typeof frontmatter.regularHoliday === 'string' ? frontmatter.regularHoliday : '';
+    if (!openHours || !regularHoliday) {
+      results.push({ slug, status: 'not-derived', detail: 'openHours/regularHolidayを読み取れませんでした' });
+      continue;
+    }
+
+    const { hours, reason } = parseOpenHoursToHours(openHours, regularHoliday);
+    if (!hours) {
+      results.push({ slug, status: 'not-derived', detail: reason });
+      continue;
+    }
+
+    const raw = await readFile(filePath, 'utf-8');
+    const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(raw);
+    const regularHolidayMatch = frontmatterMatch
+      ? /^regularHoliday:.*$/m.exec(frontmatterMatch[1])
+      : null;
+    if (!frontmatterMatch || !regularHolidayMatch) {
+      results.push({
+        slug,
+        status: 'not-derived',
+        detail: 'regularHoliday行が見つからず、安全に挿入できませんでした',
+      });
+      continue;
+    }
+
+    const frontmatterContentStart = frontmatterMatch.index + '---\n'.length;
+    const insertAt = frontmatterContentStart + regularHolidayMatch.index + regularHolidayMatch[0].length;
+    const hoursBlock = buildHoursYamlLines(hours).join('\n');
+    const newRaw = `${raw.slice(0, insertAt)}\n${hoursBlock}${raw.slice(insertAt)}`;
+    await writeFile(filePath, newRaw, 'utf-8');
+
+    results.push({ slug, status: 'derived', detail: JSON.stringify(hours) });
+  }
+
+  const derived = results.filter((r) => r.status === 'derived');
+  const skippedExisting = results.filter((r) => r.status === 'skipped-existing');
+  const notDerived = results.filter((r) => r.status === 'not-derived');
+
+  console.log('\n============================================================');
+  console.log(
+    ` 完了: 対象${results.length}件中、導出${derived.length}件・既存スキップ${skippedExisting.length}件・導出不可${notDerived.length}件`
+  );
+  for (const result of results) {
+    console.log(`  - ${result.slug}: ${hoursBackfillSummaryLine(result)}`);
+  }
+  console.log('============================================================');
+
+  await appendStepSummary(
+    [
+      '## 🕐 本寺小路ガイド 営業時間(hours) 遡及生成（backfill）',
+      '',
+      `対象${results.length}件中、導出${derived.length}件・既存スキップ${skippedExisting.length}件・導出不可${notDerived.length}件`,
+      '',
+      ...results.map((result) => `- ${result.slug}: ${hoursBackfillSummaryLine(result)}`),
+    ].join('\n')
+  );
+}
+
+// ============================================================
 // オーケストレーター
 // ============================================================
 
@@ -718,6 +882,14 @@ async function main() {
   // 公開お知らせが無いものだけを生成して終了する。
   if (process.argv[2] === '--backfill-announcements') {
     await runBackfillAnnouncements();
+    return;
+  }
+
+  // 遡及生成モード: LLM/GEMINI_API_KEYを使わず、既存の店舗記事のうち
+  // hoursが無いものだけを openHours/regularHoliday から導出して終了する。
+  // 既存のhoursは絶対に上書きしない。
+  if (process.argv[2] === '--backfill-hours') {
+    await runBackfillHours();
     return;
   }
 
@@ -780,7 +952,7 @@ async function main() {
       }
 
       const writer = await runWriterAgent(ai, research);
-      const filePath = await runQaAgent(research, writer, existingSlugs);
+      const { filePath, hoursDerived, hoursReason } = await runQaAgent(research, writer, existingSlugs);
       outcomes.push('success');
 
       // 店舗記事の保存が成功した直後に、対応する公開お知らせを生成する。
@@ -794,12 +966,17 @@ async function main() {
         description: writer.description,
       });
 
+      const hoursLine = hoursDerived
+        ? '営業時間(hours): 自動導出しました'
+        : `営業時間(hours): 自動導出できませんでした（${hoursReason}）`;
+
       console.log('\n============================================================');
       console.log(
         ` 完了: 「${research.title}」（${research.genre}）${research.isNew ? '[NEW] ' : ''}を保存しました。`
       );
       console.log(` -> ${path.relative(process.cwd(), filePath)}`);
       console.log(` ${announcementSummaryLine(announcement)}`);
+      console.log(` ${hoursLine}`);
       console.log('============================================================');
 
       await appendStepSummary(
@@ -810,6 +987,7 @@ async function main() {
           '',
           `- ファイル: \`${path.relative(process.cwd(), filePath)}\``,
           `- ${announcementSummaryLine(announcement)}`,
+          `- ${hoursLine}`,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
           unconfirmedHintLine(),
         ]
