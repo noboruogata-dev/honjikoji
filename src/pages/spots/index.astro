@@ -279,6 +279,18 @@ const seatTypes = [
   // 張り直す（多重登録防止）。
   let intervalId: ReturnType<typeof setInterval> | undefined;
 
+  // pushState を束ねるデバウンス。連続してフィルタを操作しても、操作が
+  // 止まってから一定時間後の最終状態だけを1件の履歴として積む
+  // （毎クリックごとに履歴が積まれるのを防ぐ）。
+  const PUSH_DEBOUNCE_MS = 300;
+  let pushDebounceId: ReturnType<typeof setTimeout> | undefined;
+
+  // window（document）はClientRouterのページ遷移をまたいで生き続けるため、
+  // popstateリスナーは他のDOM要素バインドと違い「古い方は自然に消える」が
+  // 成り立たない。intervalIdと同じ「古い登録を覚えておいて外してから
+  // 張り直す」方式で多重登録を防ぐ。
+  let popStateHandler: ((event: PopStateEvent) => void) | undefined;
+
   function init() {
     // 遷移のたびにDOMが差し替わるため、要素は毎回このスコープで取り直す。
     const groups = document.querySelectorAll<HTMLElement>('[data-filter-group]');
@@ -345,7 +357,8 @@ const seatTypes = [
       return value.toLowerCase();
     }
 
-    function syncUrl() {
+    /** 現在のボタン状態から、書き戻すべきURL文字列（path+search+hash）を組み立てる。 */
+    function buildTargetUrl(): string {
       const params: [string, string][] = [];
       const genreKey = activeKey(group('genre'));
       const sceneKey = activeKey(group('scene'));
@@ -362,45 +375,84 @@ const seatTypes = [
       const url = new URL(location.href);
       url.search = '';
       for (const [key, value] of params) url.searchParams.set(key, value);
-      history.replaceState(null, '', url.pathname + url.search + url.hash);
+      return url.pathname + url.search + url.hash;
     }
 
+    function currentUrl(): string {
+      return location.pathname + location.search + location.hash;
+    }
+
+    // ページ初回表示時のURL復元（restoreFromUrl直後）専用。履歴には積まず、
+    // 表記ゆれ（大文字小文字・パラメータ順）だけを正規化する。これは
+    // 従来の挙動を維持するための呼び出しで、以後の操作ではこちらは使わない。
+    function replaceUrl() {
+      history.replaceState(null, '', buildTargetUrl());
+    }
+
+    // フィルタ操作によるURL更新はpushStateで履歴に積むが、直接は呼ばず
+    // 必ずこのデバウンス経由にする。
+    // - 連続操作をまとめる: 呼ばれるたびに前回のタイマーを破棄して張り直す
+    //   ため、操作が止まってからPUSH_DEBOUNCE_MS後の最終状態だけが積まれる
+    // - 重複防止: タイマー発火時点で、目的のURLが現在のURLと同じなら
+    //   （＝結果的に状態が変わらなかった、または直前のpushと同じ状態に
+    //   戻ってきた）pushしない
+    // - 復元中（popstateによる巻き戻し・ページ初回表示）はisRestoringFromUrl
+    //   により呼び出し自体を無視する
+    function scheduleUrlPush() {
+      if (isRestoringFromUrl) return;
+      if (pushDebounceId !== undefined) clearTimeout(pushDebounceId);
+      pushDebounceId = setTimeout(() => {
+        pushDebounceId = undefined;
+        const target = buildTargetUrl();
+        if (target === currentUrl()) return;
+        history.pushState(null, '', target);
+      }, PUSH_DEBOUNCE_MS);
+    }
+
+    // popstate（戻る/進む）による復元中は、restoreFromUrlが呼ぶselectButtonは
+    // setAttributeの直接操作なのでclickイベントは発火せずscheduleUrlPushには
+    // 波及しない（既存の初期表示と同じ理屈）。ただしこのフラグは、将来
+    // restoreFromUrl周りにclickベースの操作が混ざっても安全なように、
+    // 復元処理中はURL書き込み系（scheduleUrlPush/replaceUrl）を明示的に
+    // 抑止するための保険として持たせておく。
+    let isRestoringFromUrl = false;
+
+    // 各グループを「URLに値があればそれを選択、無ければ"all"に戻す」で
+    // 常に完全同期する（値がある場合だけ設定して無ければ何もしない、という
+    // 片方向の実装だと、popstateでの復元時に「一度絞り込んだ後、その条件が
+    // URLから消えたのにボタン表示だけ絞り込んだままになる」問題が起きる。
+    // 初回表示時はどのグループも最初から"all"なので、この完全同期でも
+    // 従来と見た目は変わらない）。
     function restoreFromUrl() {
-      const params = new URL(location.href).searchParams;
+      isRestoringFromUrl = true;
+      try {
+        const params = new URL(location.href).searchParams;
 
-      const genreParam = params.get('genre');
-      if (genreParam) selectButton(group('genre'), genreParam);
+        selectButton(group('genre'), params.get('genre') ?? 'all');
+        selectButton(group('scene'), params.get('scene') ?? 'all');
+        selectButton(group('budget'), params.get('budget') ?? 'all');
+        selectButton(group('seat'), params.get('seat') ?? 'all');
 
-      const sceneParam = params.get('scene');
-      if (sceneParam) selectButton(group('scene'), sceneParam);
+        // openは選択肢が"now"の1つだけだが、他4項目と同様に大文字小文字を区別しない。
+        openToggle?.setAttribute('aria-pressed', String(params.get('open')?.toLowerCase() === 'now'));
 
-      const budgetParam = params.get('budget');
-      if (budgetParam) selectButton(group('budget'), budgetParam);
-
-      const seatParam = params.get('seat');
-      if (seatParam) selectButton(group('seat'), seatParam);
-
-      // openは選択肢が"now"の1つだけだが、他4項目と同様に大文字小文字を区別しない。
-      if (params.get('open')?.toLowerCase() === 'now' && openToggle) {
-        openToggle.setAttribute('aria-pressed', 'true');
-      }
-
-      // videoも同様、選択肢は"yes"の1つだけ。
-      if (params.get('video')?.toLowerCase() === 'yes' && videoToggle) {
-        videoToggle.setAttribute('aria-pressed', 'true');
+        // videoも同様、選択肢は"yes"の1つだけ。
+        videoToggle?.setAttribute('aria-pressed', String(params.get('video')?.toLowerCase() === 'yes'));
+      } finally {
+        isRestoringFromUrl = false;
       }
     }
 
     // 初期表示: URLクエリを読んでボタン状態を復元し、フィルタを適用したうえで
-    // URLを正規化された表記に書き戻す。selectButton・openToggleの操作は
-    // setAttributeによる直接操作でクリックイベントを発火させないため、
-    // ここで一度だけ実行すれば十分（多重発火や無限ループの心配は無い）。
-    // 一致しなかったパラメータはそのグループが「すべて」のまま処理されるだけで、
-    // 他のパラメータの復元・書き戻しには影響しない
-    // （syncUrlは各グループを独立に読むため）。
+    // URLを正規化された表記に書き戻す（pushStateはしない。ここは従来通り）。
+    // selectButton・openToggleの操作はsetAttributeによる直接操作でクリック
+    // イベントを発火させないため、ここで一度だけ実行すれば十分（多重発火や
+    // 無限ループの心配は無い）。一致しなかったパラメータはそのグループが
+    // 「すべて」のまま処理されるだけで、他のパラメータの復元・書き戻しには
+    // 影響しない（buildTargetUrlは各グループを独立に読むため）。
     restoreFromUrl();
     applyFilters();
-    syncUrl();
+    replaceUrl();
 
     groups.forEach((groupEl) => {
       const buttons = groupEl.querySelectorAll<HTMLButtonElement>('.filter-btn');
@@ -409,7 +461,7 @@ const seatTypes = [
           buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
           button.setAttribute('aria-pressed', 'true');
           applyFilters();
-          syncUrl();
+          scheduleUrlPush();
         });
       });
     });
@@ -418,14 +470,14 @@ const seatTypes = [
       const active = isOpenToggleActive();
       openToggle.setAttribute('aria-pressed', String(!active));
       applyFilters();
-      syncUrl();
+      scheduleUrlPush();
     });
 
     videoToggle?.addEventListener('click', () => {
       const active = isVideoToggleActive();
       videoToggle.setAttribute('aria-pressed', String(!active));
       applyFilters();
-      syncUrl();
+      scheduleUrlPush();
     });
 
     // 「今営業中」有効時は、閲覧中に営業状態が変わりうるので定期的に再評価する。
@@ -433,6 +485,20 @@ const seatTypes = [
     intervalId = setInterval(() => {
       if (isOpenToggleActive()) applyFilters();
     }, 60_000);
+
+    // 戻る/進むでの履歴移動に追従する。ClientRouter環境下ではastro:page-load
+    // だけでは同一ページ内（/spots/内でのフィルタ履歴間）の移動を拾えない
+    // ため、popstateでも明示的にrestoreFromUrl+applyFiltersを行う。
+    // ここではpushState/replaceStateを一切呼ばない
+    // （ブラウザが実際に移動した先のURLをそのまま信頼して表示を合わせる
+    // だけであり、URL側を書き戻す必要がない。呼んでしまうと不要な履歴が
+    // 積まれたり、pushStateが新しい履歴を作って「進む」を潰したりする）。
+    if (popStateHandler) window.removeEventListener('popstate', popStateHandler);
+    popStateHandler = () => {
+      restoreFromUrl();
+      applyFilters();
+    };
+    window.addEventListener('popstate', popStateHandler);
   }
 
   // astro:page-load は初回読み込み時にも発火するため、初期化はここだけに一本化する。
