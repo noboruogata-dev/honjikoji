@@ -25,6 +25,9 @@ const {
 
 const BADGE_PX: Record<string, number> = { sm: 32, md: 40, lg: 52 };
 const badgePx = BADGE_PX[size];
+// ヘッダー（md/lg）は小さな表示でも円形輪郭を識別しやすいよう、画像を
+// バッジの内周いっぱいまで使う。フッター用のsmだけ従来の余白を残す。
+const badgePaddingPx = size === 'sm' ? Math.round(badgePx * 0.12) : 0;
 
 const TITLE_CLASS: Record<string, string> = {
   sm: 'text-base',
@@ -42,7 +45,7 @@ const SUB_CLASS: Record<string, string> = {
 <a href={href} class:list={['group inline-flex items-center gap-3', className]}>
   <span
     class="inline-flex shrink-0 items-center justify-center rounded-full border border-amber-deep/40 bg-gold-100 shadow-[0_0_14px_rgba(242,181,68,0.35)] transition-transform duration-300 group-hover:scale-105"
-    style={`width:${badgePx}px;height:${badgePx}px;padding:${Math.round(badgePx * 0.12)}px;`}
+    style={`width:${badgePx}px;height:${badgePx}px;padding:${badgePaddingPx}px;`}
   >
     <img
       src="/images/logo.png"
