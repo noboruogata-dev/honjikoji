@@ -83,7 +83,7 @@ const columns = defineCollection({
     summary: z.string(),
     // standard=一般コラム / history=歴史検証 / interview=取材 / fiction=創作。
     kind: z.enum(['standard', 'history', 'interview', 'fiction']),
-    // AI生成後は必ず下書き。人が内容を確認した場合のみ手動でfalseへ変更する。
+    // 通常生成は下書き。定期自動公開では決定論的QA通過後にfalseで保存する。
     draft: z.boolean().default(true),
     sources: z
       .array(
@@ -107,8 +107,8 @@ const columns = defineCollection({
         alt: z.string(),
       })
       .optional(),
-    // 画像も本文と同様に公開前の目視確認を必要とする。
-    imageStatus: z.enum(['draft', 'reviewed']).optional(),
+    // qa-passed=決定論的画像QA通過 / reviewed=人による目視確認済み。
+    imageStatus: z.enum(['draft', 'qa-passed', 'reviewed']).optional(),
   }),
 });
 

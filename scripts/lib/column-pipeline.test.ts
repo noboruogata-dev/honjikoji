@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import {
+  columnFrontmatterSchema,
   columnResearchSchema,
   columnWriterSchema,
   resolveProfile,
   validateColumnDraft,
 } from './column-pipeline';
+
+describe('column publish schema', () => {
+  const base = {
+    title: '燗酒の楽しみ方',
+    pubDate: '2026-08-30',
+    category: 'お酒の豆知識' as const,
+    summary: '決定論的QAを通過したコラムです。',
+    kind: 'standard' as const,
+  };
+
+  it('通常の下書き状態を受け入れる', () => {
+    expect(columnFrontmatterSchema.safeParse({ ...base, draft: true, imageStatus: 'draft' }).success).toBe(true);
+  });
+
+  it('自動QA通過後の公開状態を受け入れる', () => {
+    expect(columnFrontmatterSchema.safeParse({ ...base, draft: false, imageStatus: 'qa-passed' }).success).toBe(true);
+  });
+});
 
 const verifiedResearch = columnResearchSchema.parse({
   notFound: false,
