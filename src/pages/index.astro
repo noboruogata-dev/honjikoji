@@ -5,13 +5,16 @@ import Footer from '../components/Footer.astro';
 import SpotCard from '../components/SpotCard.astro';
 import SectionHeading from '../components/SectionHeading.astro';
 import AlleyNight from '../components/illustrations/AlleyNight.astro';
+import LanternIcon from '../components/illustrations/LanternIcon.astro';
 import RuleDivider from '../components/RuleDivider.astro';
 import { getCollection } from 'astro:content';
 import { ArrowRight, Landmark, MapPin, Megaphone } from '@lucide/astro';
 
 // 新着店舗: isNewを優先し、次点でpubDate降順。先頭6件のみトップに出す
-// （全件・フィルタ付きの一覧は /spots/ へ移設済み）。
-const featuredSpots = (await getCollection('spots'))
+// （全件・フィルタ付きの一覧は /spots/ へ移設済み）。Hero内の「何軒中何軒が
+// 営業中」表示は掲載店"全件"を対象にするため、slice前の全件を別途保持する。
+const allSpots = await getCollection('spots');
+const featuredSpots = [...allSpots]
   .sort((a, b) => {
     if (a.data.isNew !== b.data.isNew) return a.data.isNew ? -1 : 1;
     return b.data.pubDate.valueOf() - a.data.pubDate.valueOf();
@@ -34,8 +37,28 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
   <Header />
 
   <main class="mx-auto max-w-5xl px-4 py-10">
+    <!--
+      営業状況ステータス。JS無効時はempty:hiddenでセクションごと非表示にする
+      （子要素をここに書いてしまうと:emptyが成立しなくなるため、背景の
+      グローも装飾divを増やさずbackground-imageとしてこの要素自身に持たせる）。
+      提灯アイコン複製用の<template>はempty:hiddenを壊さないよう兄弟要素として
+      外に置く（<template>の中身は常にDOMレンダリング対象外なのでJS無効時も
+      問題ない）。
+    -->
+    <section
+      data-hero-status
+      class="relative mb-6 overflow-hidden rounded-2xl border border-[rgba(216,203,184,0.15)] bg-[rgba(216,203,184,0.025)] bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,var(--glow),transparent)] px-6 py-8 text-center empty:hidden sm:py-10"
+      data-spots-hours={JSON.stringify(allSpots.map((s) => s.data.hours ?? null))}
+      aria-live="polite"
+    />
+    <template data-lantern-icon-template><LanternIcon /></template>
+
     <!-- Hero -->
     <section class="relative mb-14 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60">
+      <AlleyNight
+        ignite="load"
+        class="pointer-events-none absolute inset-0 h-full w-full opacity-40"
+      />
       <div
         class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_15%_0%,var(--glow),transparent),radial-gradient(ellipse_55%_55%_at_100%_5%,rgba(226,71,47,0.12),transparent)]"
       >
@@ -261,3 +284,212 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
 
   <Footer />
 </Layout>
+
+<script>
+  // Hero上部の営業状況ステータス。JS無効時は data-hero-status の要素が
+  // 空のままとなり、empty:hidden（Tailwind）でセクションごと非表示になる
+  // （誤情報を出さないため。OpenStatus.astroと同じ「空要素→JSで埋める」方針）。
+  import { getOpenStatus, type HourRule } from '../lib/hours';
+
+  interface Snapshot {
+    hh: string;
+    mm: string;
+    knownCount: number;
+    openCount: number;
+  }
+
+  function computeSnapshot(el: HTMLElement, now: Date): Snapshot {
+    let hoursList: (HourRule[] | null)[] = [];
+    try {
+      hoursList = JSON.parse(el.dataset.spotsHours ?? '[]');
+    } catch {
+      hoursList = [];
+    }
+
+    const parts = new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+    const hh = parts.find((p) => p.type === 'hour')?.value ?? '--';
+    const mm = parts.find((p) => p.type === 'minute')?.value ?? '--';
+
+    // hours不明（未掲載）の店は分母から除外する。
+    const known = hoursList.filter((h): h is HourRule[] => Array.isArray(h) && h.length > 0);
+    const openCount = known.filter((h) => {
+      const result = getOpenStatus(h, now);
+      return result.state === 'open' || result.state === 'closing-soon';
+    }).length;
+
+    return { hh, mm, knownCount: known.length, openCount };
+  }
+
+  // 提灯を並べる上限。9個以上は8個並べて末尾に "+N" を添える。
+  // 掲載店舗が増えても崩れないよう、値はここだけ変えれば追随する。
+  const LANTERN_DISPLAY_CAP = 8;
+
+  function cloneLanternIcon(): SVGElement {
+    const template = document.querySelector<HTMLTemplateElement>('template[data-lantern-icon-template]');
+    const node = template!.content.firstElementChild!.cloneNode(true) as SVGElement;
+    return node;
+  }
+
+  /** 点灯中の提灯をopenCount分（上限LANTERN_DISPLAY_CAP）並べた行を作る。 */
+  function buildLanternRow(openCount: number): HTMLElement {
+    const row = document.createElement('div');
+    row.dataset.statusLanterns = '';
+    row.setAttribute('aria-hidden', 'true');
+    row.className = 'mt-3 flex flex-wrap items-center justify-center gap-1.5';
+
+    const visibleCount = Math.min(openCount, LANTERN_DISPLAY_CAP);
+    for (let i = 0; i < visibleCount; i++) {
+      const icon = cloneLanternIcon();
+      icon.classList.add('lantern-icon-lit', 'text-amber-glow');
+      (icon as unknown as HTMLElement).style.animationDelay = `${(-i * 0.35).toFixed(2)}s`;
+      row.appendChild(icon);
+    }
+    if (openCount > LANTERN_DISPLAY_CAP) {
+      const overflow = document.createElement('span');
+      overflow.className = 'ml-0.5 text-xs font-medium text-gold-100/50';
+      overflow.textContent = `+${openCount - LANTERN_DISPLAY_CAP}`;
+      row.appendChild(overflow);
+    }
+    return row;
+  }
+
+  function buildLinkWithArrow(href: string, label: string): HTMLAnchorElement {
+    const link = document.createElement('a');
+    link.href = href;
+    link.className =
+      'group mt-4 inline-flex items-center gap-1 text-sm font-medium text-amber-glow underline-offset-4 transition hover:text-amber-glow/80 hover:underline';
+    const linkLabel = document.createElement('span');
+    linkLabel.textContent = label;
+    const arrow = document.createElement('span');
+    arrow.className = 'inline-block transition-transform duration-150 group-hover:translate-x-1';
+    arrow.textContent = '→';
+    link.append(linkLabel, arrow);
+    return link;
+  }
+
+  function buildFootnote(): HTMLElement {
+    const footnote = document.createElement('p');
+    footnote.className = 'mt-4 text-[0.65rem] text-gold-100/30';
+    footnote.textContent = '※掲載されている営業時間をもとに表示';
+    return footnote;
+  }
+
+  function buildEyebrow(): HTMLElement {
+    const eyebrow = document.createElement('p');
+    eyebrow.className = 'text-xs tracking-[0.2em] text-gold-100/50';
+    eyebrow.textContent = '今夜の本寺小路';
+    return eyebrow;
+  }
+
+  function buildCountState(snapshot: Snapshot): HTMLElement[] {
+    const label = document.createElement('p');
+    label.className = 'mt-1 text-sm text-gold-100/60';
+    label.textContent = '灯りがついている店';
+
+    const numberWrap = document.createElement('p');
+    numberWrap.dataset.statusCountWrap = '';
+    numberWrap.className = 'hero-status-number mt-3 flex items-baseline justify-center gap-1';
+    const countSpan = document.createElement('span');
+    countSpan.dataset.statusCount = '';
+    countSpan.className = 'text-[3rem] font-bold tabular-nums text-amber-glow sm:text-[3.5rem]';
+    countSpan.textContent = String(snapshot.openCount);
+    const unitSpan = document.createElement('span');
+    unitSpan.className = 'text-[1.25rem] text-gold-100/70';
+    unitSpan.textContent = '軒';
+    numberWrap.append(countSpan, unitSpan);
+
+    const lanterns = buildLanternRow(snapshot.openCount);
+
+    const time = document.createElement('p');
+    time.dataset.statusTime = '';
+    time.className = 'mt-3 text-xs text-gold-100/40';
+    time.textContent = `${snapshot.hh}:${snapshot.mm} 現在`;
+
+    const link = buildLinkWithArrow('/spots/?open=now', '今夜の店を見る');
+
+    return [buildEyebrow(), label, numberWrap, lanterns, time, link, buildFootnote()];
+  }
+
+  function buildZeroState(): HTMLElement[] {
+    const lanternWrap = document.createElement('div');
+    lanternWrap.className = 'mt-3 flex justify-center';
+    lanternWrap.setAttribute('aria-hidden', 'true');
+    const unlitLantern = cloneLanternIcon();
+    unlitLantern.classList.add('text-gold-100/25');
+    lanternWrap.appendChild(unlitLantern);
+
+    const message = document.createElement('p');
+    message.className = 'mt-3 text-base font-medium text-gold-100/70 sm:text-lg';
+    message.textContent = '今はどの灯りも消えています';
+
+    const link = buildLinkWithArrow('/spots/', '店舗一覧を見る');
+
+    return [buildEyebrow(), lanternWrap, message, link, buildFootnote()];
+  }
+
+  // 定期再評価タイマーのID自体は多重登録防止のためモジュールスコープに置く
+  // （spots/index.astro / OpenStatus.astroと同じ方針。中身のlastState等とは違い、
+  // 「前回のタイマーをclearできるか」だけが重要でページ間の値の意味は持たない）。
+  let heroStatusIntervalId: ReturnType<typeof setInterval> | undefined;
+
+  // 前回描画時の状態種別・軒数。astro:page-loadのたびにinitHeroStatusが
+  // 再実行されて作り直される関数スコープの変数なので、ページ遷移をまたいで
+  // 古い値と比較してしまう心配は無い（モジュールスコープにはしない）。
+  function initHeroStatus() {
+    const el = document.querySelector<HTMLElement>('[data-hero-status]');
+    if (!el) return; // このページにHeroステータスが無ければ何もしない
+
+    let lastState: 'count' | 'zero' | null = null;
+    let lastOpenCount: number | null = null;
+
+    function render() {
+      const snapshot = computeSnapshot(el!, new Date());
+      const nextState: 'count' | 'zero' = snapshot.openCount > 0 ? 'count' : 'zero';
+
+      if (nextState !== lastState) {
+        // 状態種別が変わった（または初回描画）: 作り直す。フェードは付けない
+        // （初期表示は即座に確定値を出す。演出で待たせない）。
+        el!.replaceChildren(...(nextState === 'count' ? buildCountState(snapshot) : buildZeroState()));
+        lastState = nextState;
+        lastOpenCount = nextState === 'count' ? snapshot.openCount : null;
+        return;
+      }
+
+      if (nextState === 'zero') return; // zero状態には動的に更新すべき要素が無い
+
+      // count状態を維持: 時刻は毎tick最新化する（数字が変わったかどうかに
+      // 関わらず常に進める）。数字・提灯行は「営業中の軒数」が変わった時だけ
+      // 作り直し、フェードは数字側にのみ付ける。
+      const timeEl = el!.querySelector<HTMLElement>('[data-status-time]');
+      if (timeEl) timeEl.textContent = `${snapshot.hh}:${snapshot.mm} 現在`;
+
+      if (snapshot.openCount !== lastOpenCount) {
+        const countSpan = el!.querySelector<HTMLElement>('[data-status-count]');
+        const wrap = el!.querySelector<HTMLElement>('[data-status-count-wrap]');
+        const lanternsEl = el!.querySelector<HTMLElement>('[data-status-lanterns]');
+        if (countSpan) countSpan.textContent = String(snapshot.openCount);
+        if (lanternsEl) lanternsEl.replaceWith(buildLanternRow(snapshot.openCount));
+        if (wrap) {
+          wrap.classList.remove('status-fade');
+          // 同じアニメーションを連続で再トリガーするための強制リフロー。
+          void wrap.offsetWidth;
+          wrap.classList.add('status-fade');
+        }
+        lastOpenCount = snapshot.openCount;
+      }
+      // 軒数が変わっていなければ数字・提灯行には触れない（時刻の更新のみ）。
+    }
+
+    render();
+
+    if (heroStatusIntervalId !== undefined) clearInterval(heroStatusIntervalId);
+    heroStatusIntervalId = setInterval(render, 60_000);
+  }
+
+  document.addEventListener('astro:page-load', initHeroStatus);
+</script>

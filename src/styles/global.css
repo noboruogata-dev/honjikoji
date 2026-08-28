@@ -177,6 +177,46 @@ body {
     drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 16px var(--glow));
 }
 
+/* Hero上部の営業軒数表示（index.astro）。--glowに連動させ、時間帯が
+   latenightに近づくほど強く光る（--glow自体が時間帯で強弱するため、
+   ここでは値を参照するだけでよい）。 */
+.hero-status-number {
+  filter: drop-shadow(0 0 8px var(--glow)) drop-shadow(0 0 22px var(--glow));
+  transition: filter 0.6s ease;
+}
+
+/* 60秒ごとの再評価で軒数が変わった時だけ入れる短いフェード。
+   opacityのみでレイアウトに影響しない。 */
+@keyframes status-fade {
+  0% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.status-fade {
+  animation: status-fade 400ms ease;
+}
+
+/* 点灯中の提灯アイコン（LanternIcon.astro、Hero上部の営業状況）。
+   .lantern-breatheと同じ「息をする」技法だが、色は固定の白ではなく
+   --glowを参照するため、時間帯が深夜に近づくほど強く光る。
+   最大8個までしか同時に使わない前提（呼び出し側でLANTERN_DISPLAY_CAPにより
+   制限）なのでアニメーション化によるペイントコストは許容する。 */
+@keyframes lantern-icon-breathe {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px var(--glow)) drop-shadow(0 0 5px var(--glow));
+  }
+  50% {
+    filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 10px var(--glow));
+  }
+}
+.lantern-icon-lit {
+  animation: lantern-icon-breathe 4s ease-in-out infinite;
+}
+
 @keyframes lantern-flicker {
   0%,
   100% {
@@ -236,6 +276,8 @@ body {
   .lantern-breathe,
   .lantern-sway,
   .street-glow,
+  .status-fade,
+  .lantern-icon-lit,
   ::view-transition-group(root),
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -249,10 +291,18 @@ body {
     opacity: 1 !important;
   }
 
-  /* Illust.astro の時間帯フィルタ切り替え(.6s)も動きを止める。
+  /* .lantern-icon-lit も同じ理由: animation:noneだけだと発光の無い状態に
+     固定されてしまうため、静的なglowを!importantで与えて
+     「止まっているが光っている」状態にする。 */
+  .lantern-icon-lit {
+    filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 8px var(--glow)) !important;
+  }
+
+  /* Illust.astro / Hero統計の時間帯フィルタ切り替え(.6s)も動きを止める。
      animationではなくtransitionなので、上のanimation:noneとは別に指定する。 */
   .ill-tint,
-  .ill-glow {
+  .ill-glow,
+  .hero-status-number {
     transition: none !important;
   }
 }

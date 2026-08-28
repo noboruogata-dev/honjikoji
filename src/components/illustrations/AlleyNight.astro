@@ -5,12 +5,18 @@
 //
 // [data-time] に応じて --sky-top/--sky-bottom/--glow（global.css定義）が変わり、
 // 空のグラデーションと街灯のグローだけがそれに追随する（建物・暖簾など他の色は不変）。
+//
+// 街灯の点灯タイミングは ignite props で2種類から選べる:
+//   'scroll'（既定） … 特集バナーで使用中。スクロール連動（animation-timeline: view()）。
+//   'load'           … Heroで使用。ページ読み込み後、奥から手前へ1.5秒以内で点灯する
+//                       （下部scriptがセッション中の初回のみ再生を制御）。
 
 interface Props {
   class?: string;
+  ignite?: 'scroll' | 'load';
 }
 
-const { class: className = 'w-full h-auto' } = Astro.props;
+const { class: className = 'w-full h-auto', ignite = 'scroll' } = Astro.props;
 const uid = Math.random().toString(36).slice(2, 9);
 
 // 建物のシルエット（連続する軒先）。x座標が隙間なく続くよう幅の合計を1200に揃えてある。
@@ -36,7 +42,14 @@ const lanterns = [
 ];
 ---
 
-<svg viewBox="0 0 1200 360" fill="none" class={className} aria-hidden="true" preserveAspectRatio="xMidYMax slice">
+<svg
+  viewBox="0 0 1200 360"
+  fill="none"
+  class={className}
+  aria-hidden="true"
+  preserveAspectRatio="xMidYMax slice"
+  data-ignite={ignite}
+>
   <defs>
     <linearGradient id={`sky-${uid}`} x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" style="stop-color: var(--sky-top)" />
@@ -146,14 +159,16 @@ const lanterns = [
     }
   }
 
-  /* スクロール連動点灯。非対応ブラウザ/実装向けの既定値は @supports の外側に
-     書き、「最初から点灯済み」を保証する（JS不使用）。 */
-  .street-glow {
+  /* スクロール連動点灯（ignite="scroll"、既定＝特集バナー用）。
+     非対応ブラウザ/実装向けの既定値は @supports の外側に書き、
+     「最初から点灯済み」を保証する（JS不使用）。
+     ignite="load"（Hero用）のインスタンスには適用しない。 */
+  svg:not([data-ignite="load"]) .street-glow {
     opacity: 1;
   }
 
   @supports (animation-timeline: view()) {
-    .street-glow {
+    svg:not([data-ignite="load"]) .street-glow {
       opacity: 0;
       animation-name: lantern-light-up;
       animation-timeline: view();
@@ -168,17 +183,74 @@ const lanterns = [
       }
     }
     /* 奥（xが小さい=index 0）から手前へ、点灯するタイミングを少しずつ遅らせる。 */
-    .street-glow[data-index="0"] {
+    svg:not([data-ignite="load"]) .street-glow[data-index="0"] {
       animation-range: entry 0% entry 40%;
     }
-    .street-glow[data-index="1"] {
+    svg:not([data-ignite="load"]) .street-glow[data-index="1"] {
       animation-range: entry 15% entry 55%;
     }
-    .street-glow[data-index="2"] {
+    svg:not([data-ignite="load"]) .street-glow[data-index="2"] {
       animation-range: entry 30% entry 70%;
     }
-    .street-glow[data-index="3"] {
+    svg:not([data-ignite="load"]) .street-glow[data-index="3"] {
       animation-range: entry 45% entry 85%;
     }
   }
+
+  /* 読み込み時点灯（ignite="load"、Hero用）。JS（下部の<script>）が
+     "is-igniting"（初回・点灯アニメーション再生）か "is-lit"（2回目以降・
+     即全点灯）のいずれかのクラスをsvg要素に付与する。
+     prefers-reduced-motionでの「最初から全点灯」はglobal.cssの既存ルール
+     （.street-glow に animation:none/opacity:1 を !important で強制）が
+     scroll/loadどちらのモードにも効くため、ここでは何もしなくてよい。 */
+  [data-ignite="load"] .street-glow {
+    opacity: 0.18; /* JS実行前・JS無効時の既定値: 暗いが真っ暗ではない */
+  }
+  [data-ignite="load"].is-lit .street-glow {
+    opacity: 1; /* 遷移なし・即座に全点灯（再生済みセッションでの再訪問時） */
+  }
+  [data-ignite="load"].is-igniting .street-glow {
+    animation: lantern-ignite 550ms ease-out forwards;
+  }
+  [data-ignite="load"].is-igniting .street-glow[data-index="0"] {
+    animation-delay: 0ms;
+  }
+  [data-ignite="load"].is-igniting .street-glow[data-index="1"] {
+    animation-delay: 250ms;
+  }
+  [data-ignite="load"].is-igniting .street-glow[data-index="2"] {
+    animation-delay: 500ms;
+  }
+  [data-ignite="load"].is-igniting .street-glow[data-index="3"] {
+    animation-delay: 750ms;
+  }
+  @keyframes lantern-ignite {
+    from {
+      opacity: 0.18;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 </style>
+
+<script>
+  // ページ読み込み後、ignite="load"のインスタンス（Hero）の街灯を
+  // 奥から手前へ点灯させる。sessionStorageは使わず、モジュールスコープの
+  // 変数で「このSPAセッション（ClientRouterでの遷移中）で再生済みか」を
+  // 判定する（フルリロードでのみリセットされる＝セッション中の初回のみ再生）。
+  // astro:page-loadは初回読み込み時にも発火するため、初期化はここに一本化する。
+  let heroIntroPlayed = false;
+
+  function initIgnite() {
+    const targets = document.querySelectorAll<SVGSVGElement>('svg[data-ignite="load"]');
+    if (targets.length === 0) return; // このページにHero版インスタンスが無ければ何もしない
+
+    targets.forEach((svg) => {
+      svg.classList.add(heroIntroPlayed ? 'is-lit' : 'is-igniting');
+    });
+    heroIntroPlayed = true;
+  }
+
+  document.addEventListener('astro:page-load', initIgnite);
+</script>
