@@ -9,6 +9,7 @@ import MapEmbed from '../../components/MapEmbed.astro';
 import OpenStatus from '../../components/OpenStatus.astro';
 import YouTubeEmbed from '../../components/YouTubeEmbed.astro';
 import StructuredData from '../../components/StructuredData.astro';
+import SocialIcon from '../../components/SocialIcon.astro';
 import { getCollection, render } from 'astro:content';
 import { ExternalLink } from '@lucide/astro';
 import { getSpotSchemaType } from '../../lib/spotSchemaType';
@@ -39,6 +40,7 @@ const {
   mapQuery,
   pubDate,
   youtubeVideos,
+  socialLinks,
 } = spot.data;
 const { Content } = await render(spot);
 
@@ -69,8 +71,16 @@ const structuredData: Record<string, unknown> = {
   priceRange: budget,
   hasMap: buildGoogleMapsUrl(mapQuery),
   image: absoluteImage,
+  ...(socialLinks?.length ? { sameAs: socialLinks.map((link) => link.url) } : {}),
   ...(openingHoursSpecification ? { openingHoursSpecification } : {}),
 };
+
+const socialPlatformLabels = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  x: 'X',
+  line: 'LINE',
+} as const;
 ---
 
 <Layout
@@ -135,6 +145,30 @@ const structuredData: Record<string, unknown> = {
           <dd class="mt-1 text-sm text-gold-100/85">{budget}</dd>
         </div>
       </dl>
+
+      {
+        socialLinks && socialLinks.length > 0 && (
+          <section class="mt-6" aria-labelledby="spot-social-heading">
+            <h2 id="spot-social-heading" class="text-xs font-medium tracking-wide text-gold-100/40">
+              公式SNS
+            </h2>
+            <div class="mt-2 flex flex-wrap gap-2">
+              {socialLinks.map((link) => (
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-night-600 bg-night-900 text-gold-100/70 transition hover:border-amber-deep/70 hover:text-amber-glow"
+                  aria-label={`${title}の公式${socialPlatformLabels[link.platform]}を開く（外部サイト）`}
+                  title={link.label ?? socialPlatformLabels[link.platform]}
+                >
+                  <SocialIcon platform={link.platform} size={18} />
+                </a>
+              ))}
+            </div>
+          </section>
+        )
+      }
 
       <Prose class="mt-10">
         <Content />

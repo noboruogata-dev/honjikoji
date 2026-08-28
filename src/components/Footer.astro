@@ -1,5 +1,6 @@
 ---
 import Logo from './Logo.astro';
+import SocialIcon from './SocialIcon.astro';
 const year = new Date().getFullYear();
 ---
 
@@ -16,12 +17,13 @@ const year = new Date().getFullYear();
       <a href="/columns/" class="text-gold-100/50 transition hover:text-amber-glow">本寺小路夜話</a>
       <a href="/news/" class="text-gold-100/50 transition hover:text-amber-glow">お知らせ</a>
       <a
-        href="https://www.youtube.com/@TsubameSanjoTV"
+        href="https://www.instagram.com/honji.koji/"
         target="_blank"
         rel="noopener noreferrer"
-        class="text-gold-100/50 transition hover:text-amber-glow"
+        class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-night-600 text-gold-100/55 transition hover:border-amber-deep/70 hover:text-amber-glow"
+        aria-label="本寺小路ガイド公式Instagramを開く（外部サイト）"
       >
-        燕三条TV
+        <SocialIcon platform="instagram" size={17} />
       </a>
     </nav>
 
