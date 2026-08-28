@@ -1,0 +1,245 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
+import { getEntry } from 'astro:content';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { Map as MapIcon, ArrowRight } from '@lucide/astro';
+import { MAP_BUILDING_TO_SPOT } from '../../lib/mapBuildings';
+import type { HourRule } from '../../lib/hours';
+
+interface BuildingSpot {
+  slug: string;
+  title: string;
+  hours: HourRule[] | null;
+}
+
+// 対応表のslugを実際の店舗記事に解決する。存在しないslugは安全に無視し、
+// その建物IDは「空き区画」として扱われる。
+const buildingSpotData: Record<string, BuildingSpot> = {};
+for (const [buildingId, slug] of Object.entries(MAP_BUILDING_TO_SPOT)) {
+  const spot = await getEntry('spots', slug);
+  if (!spot) continue;
+  buildingSpotData[buildingId] = {
+    slug,
+    title: spot.data.title,
+    hours: spot.data.hours ?? null,
+  };
+}
+const assignedSpots = Object.entries(buildingSpotData);
+
+function escapeAttr(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// RojiMap.svg（建物20区画・bldg-01〜bldg-20、テキスト無し、stroke="currentColor"）
+// をビルド時にそのまま読み込み、店舗が割り当てられた区画だけをSVGネイティブの
+// <a>でラップする。手でJSXに書き写すのではなく実ファイルを読むため、
+// 今後SVGだけを差し替えても壊れにくい。
+// パスはimport.meta.url相対ではなくprocess.cwd()基準で解決する（ビルド時に
+// このページのコンパイル済みモジュールがsrc/とは異なる場所へ再配置される
+// ため、import.meta.url相対だとビルド後にファイルが見つからなくなる）。
+const svgPath = path.resolve(process.cwd(), 'src/components/illustrations/RojiMap.svg');
+let svgMarkup = await readFile(svgPath, 'utf-8');
+
+// 装飾専用ではなくなったため、aria-hiddenを実アクセシビリティ用のaria-labelに
+// 置き換える（role="img"は維持。SVG全体を1枚絵として扱うロールのため、内部の
+// <a>が支援技術から独立要素として見えない可能性がある点は既知の注意点として
+// 実装後に報告する）。
+// class="roji-map-svg"で固定の実寸幅を持たせる（後述）。widthをCSSで
+// 明示しないと、狭い画面でも縮小されてコンテナ内に収まってしまい、
+// 横スクロールが一切発生しなくなる。
+svgMarkup = svgMarkup.replace(
+  'role="img" aria-hidden="true"',
+  'role="img" aria-label="本寺小路の路地マップ。区画をクリックすると店舗詳細に移動します。" class="roji-map-svg"'
+);
+
+svgMarkup = svgMarkup.replace(/<rect id="(bldg-\d+)"([^>]*)><\/rect>/g, (_match, id: string, attrs: string) => {
+  const spot = buildingSpotData[id];
+  if (!spot) {
+    return `<rect id="${id}"${attrs} class="roji-bldg-empty"></rect>`;
+  }
+  const hoursAttr = escapeAttr(JSON.stringify(spot.hours));
+  const titleAttr = escapeAttr(spot.title);
+  const label = escapeAttr(`${spot.title}の店舗詳細を見る`);
+  return (
+    `<a href="/spots/${spot.slug}/" class="roji-bldg-link" data-building-id="${id}" ` +
+    `data-hours="${hoursAttr}" data-title="${titleAttr}" aria-label="${label}">` +
+    `<rect id="${id}"${attrs} class="roji-bldg roji-bldg-assigned"></rect></a>`
+  );
+});
+---
+
+<Layout
+  title="路地マップ｜本寺小路ガイド"
+  description="本寺小路の路地をイラストマップで一望。営業中の店舗がひと目でわかります。"
+>
+  <Header showBackLink backHref="/" />
+
+  <main class="mx-auto max-w-5xl px-4 py-10">
+    <SectionHeading icon={MapIcon} label="MAP" accent="amber">路地マップ</SectionHeading>
+    <p class="mt-4 max-w-2xl leading-relaxed text-gold-100/70">
+      本寺小路の路地を見取り図にしました。灯りがついている区画が、いま営業中の店です。気になる建物をクリック（タップ）すると、店舗の詳細ページに移動します。
+    </p>
+
+    <div class="relative mt-6" data-map-wrapper>
+      <div class="overflow-x-auto rounded-2xl border border-night-700 bg-night-900/60 p-4" data-map-scroll>
+        <Fragment set:html={svgMarkup} />
+      </div>
+      <div
+        class="pointer-events-none absolute inset-y-4 right-4 w-12 bg-gradient-to-l from-night-900 to-transparent lg:hidden"
+        aria-hidden="true"
+      >
+      </div>
+      <div
+        data-map-tooltip
+        role="status"
+        class="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+10px)] whitespace-nowrap rounded-lg border border-night-600 bg-night-900/95 px-3 py-2 text-xs text-gold-100 opacity-0 shadow-lg shadow-black/40 transition-opacity duration-150"
+      >
+      </div>
+    </div>
+    <p class="mt-2 text-center text-xs text-gold-100/40 lg:hidden">← 横にスクロールして全体を見られます →</p>
+
+    <section class="mt-10" aria-labelledby="map-list-heading">
+      <h2 id="map-list-heading" class="font-serif text-lg font-bold text-gold-100">マップに掲載中の店舗</h2>
+      <p class="mt-1 text-xs text-gold-100/40">
+        地図の操作が難しい場合は、こちらのリストからも各店舗の詳細ページに移動できます。
+      </p>
+      {
+        assignedSpots.length > 0 ? (
+          <ul class="mt-4 divide-y divide-night-700 overflow-hidden rounded-xl border border-night-700 bg-night-900/50">
+            {assignedSpots.map(([, spot]) => (
+              <li class="flex items-center justify-between gap-3 px-4 py-3">
+                <span class="text-sm font-medium text-gold-100">{spot.title}</span>
+                <a
+                  href={`/spots/${spot.slug}/`}
+                  class="inline-flex shrink-0 items-center gap-1 rounded-full bg-night-800 px-2.5 py-1 text-[0.65rem] font-semibold text-amber-glow/90 transition hover:bg-amber-glow hover:text-night-950"
+                >
+                  詳細を見る
+                  <ArrowRight size={10} stroke-width={2.5} aria-hidden="true" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="mt-4 text-sm text-gold-100/40">現在、マップに掲載されている店舗はありません。</p>
+        )
+      }
+    </section>
+  </main>
+
+  <Footer />
+</Layout>
+
+<script>
+  // 路地マップの営業状況・ツールチップ。JS無効時は建物区画のリンクと
+  // 「ここに店がある」地色（roji-bldg-assigned、CSSのみ）だけが機能し、
+  // 営業状況の強い灯り（roji-bldg-open）とツールチップは出ない
+  // （誤情報を出さないため。OpenStatus.astroと同じ方針）。
+  import { getOpenStatus, type HourRule } from '../../lib/hours';
+
+  function parseHours(raw: string | undefined): HourRule[] | null {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // 定期再評価タイマーのID自体は多重登録防止のためモジュールスコープに置く
+  // （spots/index.astro / OpenStatus.astroと同じ方針）。
+  let mapIntervalId: ReturnType<typeof setInterval> | undefined;
+
+  function initRojiMap() {
+    const wrapper = document.querySelector<HTMLElement>('[data-map-wrapper]');
+    const tooltip = document.querySelector<HTMLElement>('[data-map-tooltip]');
+    const links = document.querySelectorAll<SVGAElement>('.roji-bldg-link');
+    if (!wrapper || !tooltip || links.length === 0) return; // このページに無ければ何もしない
+
+    function positionTooltip(target: Element) {
+      const targetRect = target.getBoundingClientRect();
+      const wrapperRect = wrapper!.getBoundingClientRect();
+      tooltip!.style.left = `${targetRect.left - wrapperRect.left + targetRect.width / 2}px`;
+      tooltip!.style.top = `${targetRect.top - wrapperRect.top}px`;
+    }
+
+    function showTooltip(link: SVGAElement) {
+      const rect = link.querySelector('rect');
+      const hours = parseHours(link.dataset.hours);
+      const result = getOpenStatus(hours ?? undefined);
+      tooltip!.textContent = `${link.dataset.title ?? ''}・${result.label}`;
+      positionTooltip(rect ?? link);
+      tooltip!.classList.remove('opacity-0');
+      tooltip!.classList.add('opacity-100');
+    }
+
+    function hideTooltip() {
+      tooltip!.classList.remove('opacity-100');
+      tooltip!.classList.add('opacity-0');
+    }
+
+    function refreshStatuses() {
+      links.forEach((link) => {
+        const rect = link.querySelector<SVGRectElement>('rect');
+        const hours = parseHours(link.dataset.hours);
+        const result = getOpenStatus(hours ?? undefined);
+        const isOpen = result.state === 'open' || result.state === 'closing-soon';
+        rect?.classList.toggle('roji-bldg-open', isOpen);
+        link.setAttribute('aria-label', `${link.dataset.title ?? ''}（${result.label}）`);
+      });
+    }
+
+    links.forEach((link) => {
+      // マウス操作: hoverで表示し、既に表示済みなので直後のクリックはそのまま遷移させる。
+      link.addEventListener('pointerenter', (event) => {
+        if (event.pointerType !== 'mouse') return;
+        showTooltip(link);
+        link.dataset.tooltipShown = 'true';
+      });
+      link.addEventListener('pointerleave', (event) => {
+        if (event.pointerType !== 'mouse') return;
+        hideTooltip();
+        link.dataset.tooltipShown = '';
+      });
+      // キーボード操作: focusでツールチップを表示し、直後のEnterで遷移させる。
+      link.addEventListener('focus', () => {
+        showTooltip(link);
+        link.dataset.tooltipShown = 'true';
+      });
+      link.addEventListener('blur', () => {
+        hideTooltip();
+        link.dataset.tooltipShown = '';
+      });
+      // タップ操作: 1回目はツールチップ表示のみ（遷移を防ぐ）、2回目で遷移させる。
+      link.addEventListener('click', (event) => {
+        if (link.dataset.tooltipShown !== 'true') {
+          event.preventDefault();
+          showTooltip(link);
+          link.dataset.tooltipShown = 'true';
+        }
+      });
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target as Node;
+      const withinAnyLink = Array.from(links).some((link) => link.contains(target));
+      if (!withinAnyLink) {
+        hideTooltip();
+        links.forEach((link) => {
+          link.dataset.tooltipShown = '';
+        });
+      }
+    });
+
+    refreshStatuses();
+
+    if (mapIntervalId !== undefined) clearInterval(mapIntervalId);
+    mapIntervalId = setInterval(refreshStatuses, 60_000);
+  }
+
+  document.addEventListener('astro:page-load', initRojiMap);
+</script>

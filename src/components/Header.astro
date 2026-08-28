@@ -1,5 +1,6 @@
 ---
 import Logo from './Logo.astro';
+import { Menu, X } from '@lucide/astro';
 
 interface Props {
   showBackLink?: boolean;
@@ -11,14 +12,21 @@ const { showBackLink = false, backHref = '/' } = Astro.props;
 const pathname = Astro.url.pathname;
 
 const navLinks = [
-  { href: '/spots/', label: '店舗一覧', active: pathname.startsWith('/spots') },
-  { href: '/news/', label: 'ニュース', active: pathname.startsWith('/news') },
-  { href: '/about/', label: '本寺小路について', active: pathname.startsWith('/about') },
+  { href: '/spots/', label: '店を探す', active: pathname.startsWith('/spots') },
+  { href: '/map/', label: '路地マップ', active: pathname.startsWith('/map') },
+  { href: '/about/', label: '本寺小路の歴史', active: pathname.startsWith('/about') },
+  {
+    href: '/columns/',
+    label: '本寺小路夜話',
+    sublabel: '酒・人・街をめぐるコラム',
+    active: pathname.startsWith('/columns'),
+  },
+  { href: '/news/', label: 'お知らせ', active: pathname.startsWith('/news') },
 ];
 ---
 
 <header
-  class="relative overflow-hidden border-b border-night-700 bg-night-900"
+  class="sticky top-0 z-50 overflow-hidden border-b border-night-700 bg-night-900/95 shadow-[0_8px_24px_rgba(8,9,15,0.22)] backdrop-blur-md lg:relative lg:z-auto lg:bg-night-900 lg:shadow-none lg:backdrop-blur-none"
   transition:persist
   transition:name="site-header"
 >
@@ -26,7 +34,7 @@ const navLinks = [
     class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_80%_at_50%_0%,rgba(242,181,68,0.12),transparent),radial-gradient(ellipse_40%_60%_at_100%_0%,rgba(226,71,47,0.08),transparent)]"
   >
   </div>
-  <div class="relative mx-auto max-w-5xl px-4 py-8 sm:py-10">
+  <div class="relative mx-auto max-w-5xl px-4 py-3 lg:py-10">
     {
       showBackLink && (
         <a
@@ -37,34 +45,256 @@ const navLinks = [
         </a>
       )
     }
-    <div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 class="inline-block">
+    <div class="flex items-center justify-between gap-4 lg:items-end">
+      <div class="min-w-0">
+        <h1 class="hidden lg:inline-block">
           <Logo size="lg" showTagline />
         </h1>
-        <p class="mt-3 max-w-xl text-sm leading-relaxed text-gold-100/60">
+        <h1 class="inline-block lg:hidden">
+          <Logo size="md" showTagline={false} compact />
+        </h1>
+        <p class="mt-3 hidden max-w-xl text-sm leading-relaxed text-gold-100/60 lg:block">
           新潟県三条市の歓楽街「本寺小路」――灯りの点る路地に集う、飲食店・店舗のご案内。
         </p>
       </div>
 
-      <nav aria-label="サイトナビゲーション" class="flex shrink-0 flex-wrap gap-2">
+      <nav aria-label="サイトナビゲーション" data-desktop-nav class="hidden shrink-0 flex-wrap justify-end gap-2 lg:flex">
         {
           navLinks.map((link) => (
             <a
               href={link.href}
               aria-current={link.active ? 'page' : undefined}
-              class:list={[
-                'rounded-full border px-3.5 py-1.5 text-xs font-medium transition',
-                link.active
-                  ? 'border-amber-deep bg-amber-glow text-night-950'
-                  : 'border-night-600 bg-night-800/60 text-gold-100/70 hover:border-amber-deep/60 hover:text-amber-glow',
-              ]}
+              data-site-nav-link
+              class="rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
             >
               {link.label}
             </a>
           ))
         }
       </nav>
+
+      <button
+        type="button"
+        class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gold-100/20 text-gold-100 transition hover:border-amber-glow/60 hover:text-amber-glow lg:hidden"
+        aria-label="メニューを開く"
+        aria-expanded="false"
+        aria-controls="mobile-noren-menu"
+        data-menu-open
+      >
+        <Menu size={22} stroke-width={1.7} aria-hidden="true" />
+      </button>
     </div>
   </div>
+
+  <dialog
+    id="mobile-noren-menu"
+    class="mobile-noren m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-0 text-gold-100 backdrop:bg-night-950/75 lg:hidden"
+    aria-label="サイトメニュー"
+    data-mobile-menu
+  >
+    <div class="mobile-noren__cloth relative flex min-h-dvh flex-col overflow-hidden bg-[#c8412f] px-6 pb-8 pt-5">
+      <div class="mobile-noren__seam pointer-events-none absolute inset-0" aria-hidden="true"></div>
+      <div class="relative z-10 flex items-center justify-between">
+        <Logo size="md" showTagline={false} compact />
+        <button
+          type="button"
+          class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-gold-100/35 text-gold-100 transition hover:bg-night-950/10"
+          aria-label="メニューを閉じる"
+          data-menu-close
+        >
+          <X size={23} stroke-width={1.7} aria-hidden="true" />
+        </button>
+      </div>
+
+      <nav aria-label="モバイルサイトナビゲーション" class="relative z-10 my-auto py-10">
+        <ul class="divide-y divide-gold-100/20 border-y border-gold-100/20">
+          {
+            navLinks.map((link, index) => (
+              <li class="mobile-noren__item" style={`--menu-index:${index}`}>
+                <a
+                  href={link.href}
+                  aria-current={link.active ? 'page' : undefined}
+                  data-site-nav-link
+                  class="group flex min-h-16 items-center gap-4 py-3 font-serif text-xl font-bold tracking-[0.04em] text-gold-100 outline-none transition hover:pl-1 focus-visible:pl-1 focus-visible:text-amber-glow"
+                >
+                  <span class="h-7 w-px shrink-0 bg-night-950/45 transition group-hover:bg-amber-glow group-focus-visible:bg-amber-glow" aria-hidden="true"></span>
+                  <span class="flex flex-col gap-1">
+                    <span>{link.label}</span>
+                    {link.sublabel && <span class="font-sans text-[0.65rem] font-medium tracking-[0.08em] text-gold-100/70">{link.sublabel}</span>}
+                  </span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+
+      <p class="relative z-10 text-center font-serif text-sm tracking-[0.06em] text-gold-100/80">
+        今夜も、路地のどこかに灯りがともる。
+      </p>
+    </div>
+  </dialog>
+
+  <noscript>
+    <nav aria-label="モバイルサイトナビゲーション" class="relative mx-auto flex max-w-5xl flex-wrap gap-2 px-4 pb-4 lg:hidden">
+      {navLinks.map((link) => <a href={link.href} class="rounded-full border border-night-600 px-3 py-1.5 text-xs text-gold-100/75">{link.label}</a>)}
+    </nav>
+  </noscript>
 </header>
+
+<script>
+  let menuController: AbortController | undefined;
+  let navigatingFromMenu = false;
+
+  function initMobileNoren() {
+    if (navigatingFromMenu) {
+      // 固定配置のdialog内リンクからClientRouterで遷移すると、ブラウザによっては
+      // 元ページのスクロール位置が残る。主要メニューはすべてページ先頭への導線。
+      window.scrollTo({ top: 0, left: 0 });
+      navigatingFromMenu = false;
+    }
+    menuController?.abort();
+    menuController = new AbortController();
+    const { signal } = menuController;
+    const dialog = document.querySelector<HTMLDialogElement>('[data-mobile-menu]');
+    const openButton = document.querySelector<HTMLButtonElement>('[data-menu-open]');
+    const closeButton = dialog?.querySelector<HTMLButtonElement>('[data-menu-close]');
+    if (!dialog || !openButton || !closeButton) return;
+
+    let closingTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const finishClose = () => {
+      if (closingTimer !== undefined) clearTimeout(closingTimer);
+      dialog.classList.remove('is-open', 'is-closing');
+      if (dialog.open) dialog.close();
+      document.body.style.overflow = '';
+      openButton.setAttribute('aria-expanded', 'false');
+    };
+
+    const closeMenu = (restoreFocus = true, immediate = false) => {
+      if (!dialog.open) return;
+      if (immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        finishClose();
+        if (restoreFocus) openButton.focus();
+        return;
+      }
+      dialog.classList.add('is-closing');
+      closingTimer = setTimeout(() => {
+        finishClose();
+        if (restoreFocus) openButton.focus();
+      }, 220);
+    };
+
+    finishClose();
+
+    openButton.addEventListener('click', () => {
+      dialog.showModal();
+      document.body.style.overflow = 'hidden';
+      openButton.setAttribute('aria-expanded', 'true');
+      requestAnimationFrame(() => dialog.classList.add('is-open'));
+      closeButton.focus();
+    }, { signal });
+
+    closeButton.addEventListener('click', () => closeMenu(), { signal });
+    dialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeMenu();
+    }, { signal });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && dialog.open) {
+        event.preventDefault();
+        closeMenu();
+      }
+    }, { signal });
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) closeMenu();
+    }, { signal });
+    dialog.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((link) => {
+      link.addEventListener('click', () => {
+        navigatingFromMenu = true;
+        closeMenu(false, true);
+      }, { signal });
+    });
+
+    const currentPath = window.location.pathname;
+    document.querySelectorAll<HTMLAnchorElement>('[data-site-nav-link]').forEach((link) => {
+      const linkPath = new URL(link.href, window.location.origin).pathname;
+      const isCurrent = linkPath === '/' ? currentPath === '/' : currentPath.startsWith(linkPath);
+      if (isCurrent) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+  }
+
+  document.addEventListener('astro:page-load', initMobileNoren);
+</script>
+
+<style>
+  .mobile-noren[open] {
+    display: block;
+  }
+
+  .mobile-noren__cloth {
+    transform: translateY(-100%);
+    opacity: 0.96;
+  }
+
+  .mobile-noren.is-open .mobile-noren__cloth {
+    transform: translateY(0);
+    opacity: 1;
+    transition: transform 240ms ease-out, opacity 180ms ease-out;
+  }
+
+  .mobile-noren.is-closing .mobile-noren__cloth {
+    transform: translateY(-100%);
+    opacity: 0.96;
+    transition: transform 220ms ease-in, opacity 180ms ease-in;
+  }
+
+  .mobile-noren__seam {
+    background:
+      linear-gradient(90deg, transparent 0 49.7%, rgba(20, 17, 15, 0.36) 49.85% 50.15%, transparent 50.3%),
+      radial-gradient(ellipse 65% 32% at 50% 0%, rgba(242, 181, 68, 0.18), transparent),
+      repeating-linear-gradient(0deg, transparent 0 5px, rgba(20, 17, 15, 0.035) 6px);
+  }
+
+  .mobile-noren__item {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  .mobile-noren.is-open .mobile-noren__item {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 160ms ease-out calc(90ms + var(--menu-index) * 24ms), transform 160ms ease-out calc(90ms + var(--menu-index) * 24ms);
+  }
+
+  [data-site-nav-link][aria-current='page'] {
+    color: var(--color-amber-glow);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.35em;
+  }
+
+  /* デスクトップnavのみ、下線ではなくpill背景で現在地を示す。headerは
+     transition:persistで遷移をまたいで同一DOMのまま残り、スクリプト側は
+     aria-currentだけを再同期する設計のため、見た目もaria-current駆動の
+     CSSにしておく（class:listをJSで書き換える必要をなくし、常に同期を保つ）。 */
+  [data-desktop-nav] [data-site-nav-link][aria-current='page'] {
+    border-color: var(--color-amber-deep);
+    background-color: var(--color-amber-glow);
+    color: var(--color-night-950);
+    text-decoration: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-noren__cloth,
+    .mobile-noren__item,
+    .mobile-noren.is-open .mobile-noren__cloth,
+    .mobile-noren.is-open .mobile-noren__item,
+    .mobile-noren.is-closing .mobile-noren__cloth {
+      transform: none;
+      opacity: 1;
+      transition: none;
+    }
+  }
+</style>

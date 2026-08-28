@@ -36,25 +36,9 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
 <Layout title="本寺小路ガイド｜三条市の歓楽街 飲食店・店舗ガイド">
   <Header />
 
-  <main class="mx-auto max-w-5xl px-4 py-10">
-    <!--
-      営業状況ステータス。JS無効時はempty:hiddenでセクションごと非表示にする
-      （子要素をここに書いてしまうと:emptyが成立しなくなるため、背景の
-      グローも装飾divを増やさずbackground-imageとしてこの要素自身に持たせる）。
-      提灯アイコン複製用の<template>はempty:hiddenを壊さないよう兄弟要素として
-      外に置く（<template>の中身は常にDOMレンダリング対象外なのでJS無効時も
-      問題ない）。
-    -->
-    <section
-      data-hero-status
-      class="relative mb-6 overflow-hidden rounded-2xl border border-[rgba(216,203,184,0.15)] bg-[rgba(216,203,184,0.025)] bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,var(--glow),transparent)] px-6 py-8 text-center empty:hidden sm:py-10"
-      data-spots-hours={JSON.stringify(allSpots.map((s) => s.data.hours ?? null))}
-      aria-live="polite"
-    />
-    <template data-lantern-icon-template><LanternIcon /></template>
-
+  <main class="mx-auto max-w-5xl px-4 py-6 sm:py-10">
     <!-- Hero -->
-    <section class="relative mb-14 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60">
+    <section class="relative mb-6 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60 sm:mb-8">
       <AlleyNight
         ignite="load"
         class="pointer-events-none absolute inset-0 h-full w-full opacity-40"
@@ -64,26 +48,26 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
       >
       </div>
 
-      <div class="relative grid grid-cols-1 items-center gap-8 px-5 py-10 sm:grid-cols-2 sm:gap-10 sm:px-10 sm:py-14">
-        <div class="order-2 text-center sm:order-1 sm:text-left">
-          <h2 class="font-serif text-2xl font-bold leading-snug text-gold-100 text-glow sm:text-3xl">
-            灯りともる路地で、今夜の一軒を。
+      <div class="relative grid grid-cols-1 items-center gap-5 px-5 py-6 sm:grid-cols-2 sm:gap-10 sm:px-10 sm:py-14">
+        <div class="text-center sm:text-left">
+          <h2 class="font-serif text-[1.65rem] font-bold leading-[1.45] text-gold-100 text-glow sm:text-3xl">
+            灯りともる路地で、<br />今夜の一軒を。
           </h2>
-          <p class="mt-3 text-sm leading-relaxed text-gold-100/65 sm:text-base">
+          <p class="mt-3 hidden text-sm leading-relaxed text-gold-100/65 sm:block sm:text-base">
             新潟県三条市の歓楽街「本寺小路」。鍛冶職人の町が育んだ、一見さんも常連も分け隔てない大人の社交街へようこそ。
           </p>
           <a
-            href="#spots"
-            class="mt-5 inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-5 py-2.5 text-sm font-semibold text-night-950 transition hover:brightness-110"
+            href="/spots/"
+            class="group mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-100/35 bg-night-950/20 px-5 py-2.5 text-sm font-semibold text-amber-glow transition hover:border-amber-glow/70 hover:underline hover:underline-offset-4"
           >
-            店舗を探す
-            <ArrowRight size={16} stroke-width={2.25} aria-hidden="true" />
+            灯りを探しに行く
+            <ArrowRight class="transition-transform duration-150 group-hover:translate-x-1 motion-reduce:transform-none" size={16} stroke-width={2.25} aria-hidden="true" />
           </a>
         </div>
 
-        <div class="order-1 sm:order-2">
+        <div>
           <div
-            class="relative overflow-hidden rounded-2xl border border-night-700/60 bg-gradient-to-br from-night-800/50 to-transparent p-4 sm:p-6"
+            class="relative overflow-hidden rounded-2xl border border-night-700/60 bg-gradient-to-br from-night-800/50 to-transparent p-2 sm:p-6"
           >
             <div
               class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_30%_20%,var(--glow),transparent)]"
@@ -94,13 +78,25 @@ const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
               width="804"
               height="702"
               alt="赤提灯と「本寺小路」ののれんが灯る路地の様子。居酒屋やスナックの看板が並び、行き交う人影が見える夜の情景。"
-              class="relative mx-auto w-full max-w-sm object-contain drop-shadow-[0_0_32px_rgba(242,181,68,0.3)] sm:max-w-none"
+              class="relative mx-auto max-h-[20rem] w-full max-w-sm object-contain drop-shadow-[0_0_32px_rgba(242,181,68,0.3)] sm:max-h-none sm:max-w-none"
               loading="eager"
             />
           </div>
         </div>
       </div>
     </section>
+
+    <!--
+      営業状況ステータス。Heroの世界観と主要CTAを先に見せ、その直後に
+      リアルタイム情報を置く。JS無効時は空要素のまま非表示。
+    -->
+    <section
+      data-hero-status
+      class="relative mb-14 overflow-hidden rounded-2xl border border-[rgba(216,203,184,0.15)] bg-[rgba(216,203,184,0.025)] bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,var(--glow),transparent)] px-6 py-8 text-center empty:hidden sm:py-10"
+      data-spots-hours={JSON.stringify(allSpots.map((s) => s.data.hours ?? null))}
+      aria-live="polite"
+    />
+    <template data-lantern-icon-template><LanternIcon /></template>
 
     <!-- News / Updates -->
     <section class="mb-14" aria-labelledby="news-heading">
