@@ -10,6 +10,7 @@
 import Layout from '../../layouts/Layout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
+import Prose from '../../components/Prose.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
 import { Compass, ArrowRight } from '@lucide/astro';
 import { GUIDES, GUIDES_HUB_INTRO } from '../../lib/guides';
@@ -24,7 +25,11 @@ import { GUIDES, GUIDES_HUB_INTRO } from '../../lib/guides';
   <main class="mx-auto max-w-5xl px-4 py-10">
     <SectionHeading icon={Compass} label="GUIDE" accent="amber" level="h1">テーマから探す</SectionHeading>
 
-    <p class="mt-4 max-w-3xl text-sm leading-relaxed text-gold-100/70">{GUIDES_HUB_INTRO}</p>
+    <Prose class="mt-4">
+      {GUIDES_HUB_INTRO.map((paragraph) => (
+        <p>{paragraph}</p>
+      ))}
+    </Prose>
 
     <div class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
       {
@@ -36,7 +41,7 @@ import { GUIDES, GUIDES_HUB_INTRO } from '../../lib/guides';
             <h2 class="font-serif text-lg font-bold text-gold-100 transition group-hover:text-amber-glow">
               {guide.shortLabel}
             </h2>
-            <p class="line-clamp-2 text-sm leading-relaxed text-gold-100/55">{guide.intro}</p>
+            <p class="line-clamp-2 text-sm leading-relaxed text-gold-100/55">{guide.intro.join('')}</p>
             <span class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-glow">
               見る
               <ArrowRight size={14} aria-hidden="true" />

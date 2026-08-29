@@ -15,6 +15,7 @@
 import Layout from '../../layouts/Layout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
+import Prose from '../../components/Prose.astro';
 import SpotCard from '../../components/SpotCard.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
 import EmptyState from '../../components/EmptyState.astro';
@@ -67,7 +68,11 @@ const HASHIGO_EMPTY_TEXT: Record<'first' | 'second' | 'shime', string> = {
   <main class="mx-auto max-w-5xl px-4 py-10">
     <SectionHeading icon={Compass} label="GUIDE" accent="amber" level="h1">{guide.title}</SectionHeading>
 
-    <p class="mt-4 max-w-3xl text-sm leading-relaxed text-gold-100/70">{guide.intro}</p>
+    <Prose class="mt-4">
+      {guide.intro.map((paragraph) => (
+        <p>{paragraph}</p>
+      ))}
+    </Prose>
 
     {
       isHashigo && hashigoGroups ? (
