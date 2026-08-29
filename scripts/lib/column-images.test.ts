@@ -3,9 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   buildColumnImageAlt,
   buildColumnImagePrompt,
+  buildColumnMidImagePrompt,
   chooseColumnMotif,
+  findMidImageInsertion,
   inspectAlpha,
+  insertMidImageMarkdown,
   hasRenderedTransparencyGrid,
+  MIN_BODY_CHARS_FOR_MID_IMAGE,
   needsBackgroundRemoval,
   removeConnectedBackground,
   removeRenderedTransparencyGrid,
@@ -32,6 +36,72 @@ describe('column image brief', () => {
     expect(prompt).toContain('no text');
     expect(prompt).toContain('#f2b544');
     expect(prompt).toContain('recognizable real person');
+  });
+});
+
+function section(heading: string, chars: number): string {
+  return `## ${heading}\n${'本'.repeat(chars)}`;
+}
+
+describe('findMidImageInsertion（2枚目挿絵の挿入位置）', () => {
+  it('見出しが1つ以下ならnull（本文が十分長くても）', () => {
+    const body = section('見出し1', 700);
+    expect([...body].length).toBeGreaterThan(MIN_BODY_CHARS_FOR_MID_IMAGE);
+    expect(findMidImageInsertion(body)).toBeNull();
+  });
+
+  it('本文がMIN_BODY_CHARS_FOR_MID_IMAGE字未満ならnull（見出しが2つあっても）', () => {
+    const body = [section('見出し1', 30), section('見出し2', 30)].join('\n\n');
+    expect([...body].length).toBeLessThan(MIN_BODY_CHARS_FOR_MID_IMAGE);
+    expect(findMidImageInsertion(body)).toBeNull();
+  });
+
+  it('見出しが3つなら2つ目の見出し（＝最後から2番目）の直前に置く', () => {
+    const body = [section('はじめに', 250), section('本論', 250), section('おわりに', 250)].join('\n\n');
+    const insertion = findMidImageInsertion(body);
+    expect(insertion).not.toBeNull();
+    expect(body.trim().slice(insertion!.offset)).toMatch(/^## 本論/);
+  });
+
+  it('見出しが2つなら1つ目の見出しの直前に置く（最後の見出しの直前にはしない）', () => {
+    const body = [section('はじめに', 350), section('おわりに', 350)].join('\n\n');
+    const insertion = findMidImageInsertion(body);
+    expect(insertion).not.toBeNull();
+    expect(body.trim().slice(insertion!.offset)).toMatch(/^## はじめに/);
+  });
+
+  it('挿入位置の前後の文脈を返す', () => {
+    const body = [section('はじめに', 250), section('本論', 250), section('おわりに', 250)].join('\n\n');
+    const insertion = findMidImageInsertion(body)!;
+    expect(insertion.contextBefore).toContain('はじめに');
+    expect(insertion.contextAfter).toContain('本論');
+  });
+});
+
+describe('insertMidImageMarkdown', () => {
+  it('挿入位置の直前に空行区切りで画像行を挿む', () => {
+    const body = [section('はじめに', 250), section('本論', 250), section('おわりに', 250)].join('\n\n');
+    const insertion = findMidImageInsertion(body)!;
+    const image = { src: '/images/columns/example-illust.webp', alt: '例の挿絵' };
+    const updated = insertMidImageMarkdown(body, insertion, image);
+    expect(updated).toContain('![例の挿絵](/images/columns/example-illust.webp)');
+    expect(updated.indexOf('![例の挿絵]')).toBeLessThan(updated.indexOf('## 本論'));
+    expect(updated.indexOf('## はじめに')).toBeLessThan(updated.indexOf('![例の挿絵]'));
+    // 元の段落テキストは失われない。
+    expect(updated).toContain(section('はじめに', 250));
+    expect(updated).toContain(section('おわりに', 250));
+  });
+});
+
+describe('buildColumnMidImagePrompt', () => {
+  it('前後の文脈と画風ロックをプロンプトへ含める', () => {
+    const body = [section('はじめに', 250), section('本論', 250), section('おわりに', 250)].join('\n\n');
+    const insertion = findMidImageInsertion(body)!;
+    const prompt = buildColumnMidImagePrompt(input, insertion);
+    expect(prompt).toContain(insertion.contextBefore);
+    expect(prompt).toContain(insertion.contextAfter);
+    expect(prompt).toContain('transparent background');
+    expect(prompt).toContain('#f2b544');
   });
 });
 

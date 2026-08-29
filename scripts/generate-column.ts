@@ -45,7 +45,12 @@ import {
   type ColumnResearch,
   type ColumnWriter,
 } from './lib/column-pipeline.js';
-import { buildColumnImagePrompt, generateColumnImages } from './lib/column-images.js';
+import {
+  buildColumnImagePrompt,
+  buildColumnMidImagePrompt,
+  findMidImageInsertion,
+  generateColumnImages,
+} from './lib/column-images.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COLUMNS_DIR = path.resolve(__dirname, '../src/content/columns');
@@ -358,15 +363,26 @@ async function runQaAgent(
   let images:
     | Awaited<ReturnType<typeof generateColumnImages>>
     | undefined;
+  // 2枚目（本文中ほどの挿絵）を挿入した場合はimages.bodyに差し替える。
+  // 生成しなかった場合はwriter.bodyのまま。
+  let finalBody = writer.body;
   if (noImage) {
     console.warn(`${label} --no-image指定のため画像生成を省略します。`);
   } else if (dryRun) {
-    console.log('\n----- 生成予定の画像プロンプト -----\n');
+    console.log('\n----- 生成予定の画像プロンプト（1枚目・アイキャッチ） -----\n');
     console.log(buildColumnImagePrompt(imageInput));
+    const insertion = findMidImageInsertion(writer.body);
+    if (insertion) {
+      console.log('\n----- 生成予定の画像プロンプト（2枚目・本文挿絵） -----\n');
+      console.log(buildColumnMidImagePrompt(imageInput, insertion));
+    } else {
+      console.log('\n本文が短い、または見出しが少ないため2枚目の挿絵は生成しません。');
+    }
   } else {
-    images = await generateColumnImages(ai, imageInput, PROJECT_ROOT);
+    images = await generateColumnImages(ai, imageInput, writer.body, PROJECT_ROOT);
     for (const warning of images.warnings) console.warn(`[Agent5:ImageQA] [WARN] ${warning}`);
     console.log(`[Agent5:ImageQA] 原画を保持しました: ${path.relative(process.cwd(), images.sourcePath)}`);
+    finalBody = images.body;
   }
   const candidate = {
     title: writer.title,
@@ -388,7 +404,7 @@ async function runQaAgent(
   }
 
   const filePath = path.join(COLUMNS_DIR, `${slug}.md`);
-  const markdown = buildFrontmatter(parsed.data) + writer.body.trim() + '\n';
+  const markdown = buildFrontmatter(parsed.data) + finalBody.trim() + '\n';
 
   if (dryRun) {
     console.log(`${label} dry-runのため保存しません。予定ファイル: ${path.relative(process.cwd(), filePath)}`);
@@ -403,7 +419,9 @@ async function runQaAgent(
       console.log(`${label} ニュース告知を保存しました: ${path.relative(process.cwd(), newsPath)}`);
     }
   }
-  return { filePath, warnings: qa.warnings };
+  // images.warningsには2枚目の挿絵生成失敗（非ブロッキング）も含まれるため、
+  // Job Summaryで見えるようqa.warningsとまとめて返す。
+  return { filePath, warnings: [...qa.warnings, ...(images?.warnings ?? [])] };
 }
 
 async function main() {
@@ -465,6 +483,9 @@ async function main() {
           `- 状態: ${options.dryRun ? 'dry-run（未保存）' : options.publish ? 'published（自動QA通過）' : 'draft（要確認）'}`,
           `- ファイル: \`${path.relative(process.cwd(), saved.filePath)}\``,
           `- QA警告: ${saved.warnings.length}件`,
+          // 2枚目（本文挿絵）の生成失敗など、非ブロッキング警告の中身が
+          // ログを開かなくてもJob Summaryだけで分かるよう本文も残す。
+          ...saved.warnings.map((warning) => `  - ${warning}`),
         ].join('\n')
       );
       return;

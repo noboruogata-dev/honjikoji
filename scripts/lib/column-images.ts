@@ -8,6 +8,12 @@ export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image';
 export const MAX_IMAGE_ATTEMPTS = 2;
 export const MAX_PUBLIC_IMAGE_BYTES = 200 * 1024;
 
+/** 本文中ほどに2枚目の挿絵を入れるための最小要件。見出しが少ない、または
+ *  本文が短い記事に無理に挿絵を挟むと窮屈になるため、どちらかを下回る記事は
+ *  2枚目を生成せず、1枚目（アイキャッチ）だけで公開を続行する。 */
+export const MIN_HEADING_COUNT_FOR_MID_IMAGE = 2;
+export const MIN_BODY_CHARS_FOR_MID_IMAGE = 600;
+
 export interface ColumnImageInput {
   slug: string;
   title: string;
@@ -17,16 +23,16 @@ export interface ColumnImageInput {
 }
 
 export interface ColumnImageResult {
-  illustration: { src: string; alt: string };
   eyecatch: { src: string; alt: string };
+  /** 本文中ほどの2枚目挿絵。findMidImageInsertionの条件を満たさない場合や、
+   *  2枚目の生成自体に失敗した場合はundefined（1枚目だけで公開を続行する）。 */
+  illustration?: { src: string; alt: string };
+  /** 2枚目を挿入済みのMarkdown本文。挿入していない場合は入力のbodyのまま。 */
+  body: string;
   imageStatus: 'draft';
   sourcePath: string;
+  midSourcePath?: string;
   warnings: string[];
-}
-
-export interface ColumnImageDerivatives {
-  illustration: Buffer;
-  eyecatch: Buffer;
 }
 
 const CATEGORY_MOTIFS: Record<ColumnCategory, string> = {
@@ -49,15 +55,9 @@ export function chooseColumnMotif(input: ColumnImageInput): string {
   return CATEGORY_MOTIFS[input.category];
 }
 
-export function buildColumnImagePrompt(input: ColumnImageInput): string {
-  const motif = chooseColumnMotif(input);
-  return `Create one editorial illustration for a Japanese nightlife culture column.
-
-Subject: ${motif}
-Article context: ${input.title} — ${input.summary}
-Content kind: ${input.kind}
-
-Locked art direction:
+/** 1枚目・2枚目共通の画風ロック。挿絵の見た目をサイト全体で統一するため、
+ *  プロンプトを分けても必ずこの一文を含める。 */
+const LOCKED_ART_DIRECTION = `Locked art direction:
 - completely transparent background with a real alpha channel
 - transparency must be encoded in the alpha channel; never draw a checkerboard, transparency grid, gray-and-white squares, or placeholder background
 - exactly one central subject or one compact still-life group
@@ -68,13 +68,102 @@ Locked art direction:
 - use only these colors: sumi black #14110f, warm off-white #d8cbb8, lantern amber #f2b544, vermilion #c8412f
 - no text, no letters, no numbers, no labels, no logos, no signatures, no border, no frame
 - do not depict a recognizable real person or reproduce a real storefront
-- for historical themes, create a symbolic scene rather than claiming an exact historical reconstruction
+- for historical themes, create a symbolic scene rather than claiming an exact historical reconstruction`;
+
+export function buildColumnImagePrompt(input: ColumnImageInput): string {
+  const motif = chooseColumnMotif(input);
+  return `Create one editorial illustration for a Japanese nightlife culture column.
+
+Subject: ${motif}
+Article context: ${input.title} — ${input.summary}
+Content kind: ${input.kind}
+
+${LOCKED_ART_DIRECTION}
 
 Return only the illustration image.`;
 }
 
 export function buildColumnImageAlt(input: ColumnImageInput): string {
   return `${input.title}を象徴する${chooseColumnMotif(input)}の和モダンな挿絵`;
+}
+
+export interface MidImageInsertion {
+  /** body.trim() した文字列内でのオフセット。この直前に画像行を挿む。 */
+  offset: number;
+  /** 挿入位置の直前の段落（2枚目プロンプトの文脈に使う）。 */
+  contextBefore: string;
+  /** 挿入位置の見出しと、その直後の段落（2枚目プロンプトの文脈に使う）。 */
+  contextAfter: string;
+}
+
+/**
+ * 本文中ほどに2枚目の挿絵を挿入する位置を決定論的に決める。
+ *
+ * ルール: 見出し（## 等）がMIN_HEADING_COUNT_FOR_MID_IMAGE個以上あれば、
+ * 「最後から2番目の見出し」の直前に挿入する。
+ *   - 見出しが3つなら2つ目の見出しの直前
+ *   - 見出しが2つなら1つ目の見出しの直前
+ * 一番最後の見出しの直前には置かない。まとめ・結論のセクション直前に挟むと
+ * 唐突になるため、常に「最後の見出しより1つ手前」を選ぶ。
+ *
+ * 見出しがMIN_HEADING_COUNT_FOR_MID_IMAGE未満、または本文が
+ * MIN_BODY_CHARS_FOR_MID_IMAGE字未満の記事はnullを返す（2枚目を作らない）。
+ */
+export function findMidImageInsertion(body: string): MidImageInsertion | null {
+  const trimmed = body.trim();
+  if ([...trimmed].length < MIN_BODY_CHARS_FOR_MID_IMAGE) return null;
+
+  const headingOffsets: number[] = [];
+  const headingRegex = /^#{1,6}\s.+$/gm;
+  let match: RegExpExecArray | null;
+  while ((match = headingRegex.exec(trimmed)) !== null) {
+    headingOffsets.push(match.index);
+  }
+  if (headingOffsets.length < MIN_HEADING_COUNT_FOR_MID_IMAGE) return null;
+
+  const offset = headingOffsets[headingOffsets.length - 2];
+  const before = trimmed.slice(0, offset).trimEnd();
+  const after = trimmed.slice(offset).trimStart();
+  // 前後それぞれ直近のブロック（空行区切り）だけを文脈として渡す。
+  // 記事全体ではなく、挿入位置の具体的な内容にプロンプトを絞るため。
+  const contextBefore = before.split(/\n{2,}/).pop()?.trim() ?? before;
+  const contextAfter = after.split(/\n{2,}/)[0]?.trim() ?? after;
+
+  return { offset, contextBefore, contextAfter };
+}
+
+/** findMidImageInsertionが決めた位置へ、Markdown画像行を空行区切りで挿入する。 */
+export function insertMidImageMarkdown(
+  body: string,
+  insertion: MidImageInsertion,
+  image: { src: string; alt: string }
+): string {
+  const trimmed = body.trim();
+  const before = trimmed.slice(0, insertion.offset).trimEnd();
+  const after = trimmed.slice(insertion.offset);
+  return `${before}\n\n![${image.alt}](${image.src})\n\n${after}`;
+}
+
+export function buildColumnMidImagePrompt(input: ColumnImageInput, insertion: MidImageInsertion): string {
+  return `Create one editorial illustration for a Japanese nightlife culture column. It will be inserted midway through the article body, between the two Japanese passages quoted below.
+
+Depict one concrete object or small scene that is actually described in these passages — not a summary of the whole article, and not a generic restatement of the article's overall topic.
+
+--- Passage immediately before the illustration ---
+${insertion.contextBefore}
+
+--- Passage immediately after the illustration ---
+${insertion.contextAfter}
+
+Article title (tone reference only — do not illustrate the title itself): ${input.title}
+
+${LOCKED_ART_DIRECTION}
+
+Return only the illustration image.`;
+}
+
+export function buildColumnMidImageAlt(input: ColumnImageInput): string {
+  return `${input.title}の本文中盤で語られる情景を描いた和モダンな挿絵`;
 }
 
 interface AlphaStats {
@@ -232,14 +321,17 @@ function extractImage(response: Awaited<ReturnType<GoogleGenAI['models']['genera
   return Buffer.from(data, 'base64');
 }
 
-async function generateTransparentSource(ai: GoogleGenAI, input: ColumnImageInput): Promise<Buffer> {
+/** 指定プロンプトから透過PNGを生成し、透過QA（背景除去・チェッカー柄検出・
+ *  透明率検証）を通過するまで最大MAX_IMAGE_ATTEMPTS回試みる。1枚目・2枚目の
+ *  どちらもこの関数を通す（プロンプトが違うだけで検証ロジックは共通）。 */
+async function generateTransparentSource(ai: GoogleGenAI, prompt: string): Promise<Buffer> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_IMAGE_ATTEMPTS; attempt += 1) {
     try {
       console.log(`[Agent4:Image] 画像生成 ${attempt}/${MAX_IMAGE_ATTEMPTS}...`);
       const response = await ai.models.generateContent({
         model: process.env.GEMINI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
-        contents: buildColumnImagePrompt(input),
+        contents: prompt,
         config: {
           responseModalities: ['IMAGE'],
           // personGeneration はGemini Enterprise Agent Platform専用で、
@@ -278,52 +370,8 @@ async function generateTransparentSource(ai: GoogleGenAI, input: ColumnImageInpu
   throw new Error(`画像生成が${MAX_IMAGE_ATTEMPTS}回ともQAを通過しませんでした: ${lastError}`);
 }
 
-export async function generateColumnImages(
-  ai: GoogleGenAI,
-  input: ColumnImageInput,
-  projectRoot: string
-): Promise<ColumnImageResult> {
-  const sourceDir = path.join(projectRoot, 'assets-src/columns');
-  const publicDir = path.join(projectRoot, 'public/images/columns');
-  await mkdir(sourceDir, { recursive: true });
-  await mkdir(publicDir, { recursive: true });
-
-  const sourcePath = path.join(sourceDir, `${input.slug}-source.png`);
-  const illustrationPath = path.join(publicDir, `${input.slug}-illust.webp`);
-  const eyecatchPath = path.join(publicDir, `${input.slug}-eyecatch.webp`);
-  await Promise.all([sourcePath, illustrationPath, eyecatchPath].map(ensureDoesNotExist));
-
-  const source = await generateTransparentSource(ai, input);
-  const { illustration, eyecatch } = await createColumnImageDerivatives(source);
-
-  const warnings: string[] = [];
-  if (illustration.length > MAX_PUBLIC_IMAGE_BYTES) warnings.push(`本文挿絵が200KBを超えています（${Math.ceil(illustration.length / 1024)}KB）。`);
-  if (eyecatch.length > MAX_PUBLIC_IMAGE_BYTES) warnings.push(`アイキャッチが200KBを超えています（${Math.ceil(eyecatch.length / 1024)}KB）。`);
-
-  // すべての検証・派生が完了してから一括保存し、途中生成物を残しにくくする。
-  await Promise.all([
-    writeFile(sourcePath, source),
-    writeFile(illustrationPath, illustration),
-    writeFile(eyecatchPath, eyecatch),
-  ]);
-
-  const alt = buildColumnImageAlt(input);
-  return {
-    illustration: { src: `/images/columns/${input.slug}-illust.webp`, alt },
-    eyecatch: { src: `/images/columns/${input.slug}-eyecatch.webp`, alt },
-    imageStatus: 'draft',
-    sourcePath,
-    warnings,
-  };
-}
-
-/** QA済み透過PNGから、本文挿絵とOG用アイキャッチを決定論的に作る。 */
-export async function createColumnImageDerivatives(source: Buffer): Promise<ColumnImageDerivatives> {
-  const illustration = await sharp(source)
-    .resize(900, 900, { fit: 'contain', withoutEnlargement: true })
-    .webp({ quality: 80, alphaQuality: 92 })
-    .toBuffer();
-
+/** QA済み透過PNGから、OGP・記事冒頭用のアイキャッチ（1200x630、装飾背景に合成）を作る。 */
+async function createEyecatchImage(source: Buffer): Promise<Buffer> {
   const foreground = await sharp(source)
     .resize(570, 570, { fit: 'contain', withoutEnlargement: true })
     .png()
@@ -334,10 +382,93 @@ export async function createColumnImageDerivatives(source: Buffer): Promise<Colu
     <path d="M80 78 H1120 M80 552 H1120" stroke="#d8cbb8" stroke-opacity="0.12"/>
     <circle cx="108" cy="104" r="5" fill="#c8412f"/><circle cx="1092" cy="526" r="5" fill="#f2b544"/>
   </svg>`);
-  const eyecatch = await sharp(background)
+  return sharp(background)
     .composite([{ input: foreground, gravity: 'center' }])
     .webp({ quality: 84, alphaQuality: 95 })
     .toBuffer();
+}
 
-  return { illustration, eyecatch };
+/** QA済み透過PNGから、本文中ほどに挿し込む挿絵（900x900、透過のまま）を作る。 */
+async function createIllustrationImage(source: Buffer): Promise<Buffer> {
+  return sharp(source)
+    .resize(900, 900, { fit: 'contain', withoutEnlargement: true })
+    .webp({ quality: 80, alphaQuality: 92 })
+    .toBuffer();
+}
+
+/**
+ * コラム記事の挿絵一式を生成する。
+ *
+ * 1枚目（アイキャッチ）: 既存どおり必須。生成に失敗すれば例外を投げ、
+ * 呼び出し元（generate-column.tsの試行ループ）に委ねる（挙動は変更していない）。
+ *
+ * 2枚目（本文中ほどの挿絵、illustrationフィールドを転用）: findMidImageInsertion
+ * の条件を満たす場合だけ試みる。画像生成APIの消費が2倍になるため、2枚目の
+ * 失敗は例外にせずwarningsに積み、1枚目だけで公開を続行できるようにする。
+ * 成功した場合だけ、返り値のbodyへ`![alt](src)`を直接挿入して返す
+ * （挿入しなかった場合は入力のbodyをそのまま返す）。
+ */
+export async function generateColumnImages(
+  ai: GoogleGenAI,
+  input: ColumnImageInput,
+  body: string,
+  projectRoot: string
+): Promise<ColumnImageResult> {
+  const sourceDir = path.join(projectRoot, 'assets-src/columns');
+  const publicDir = path.join(projectRoot, 'public/images/columns');
+  await mkdir(sourceDir, { recursive: true });
+  await mkdir(publicDir, { recursive: true });
+
+  const sourcePath = path.join(sourceDir, `${input.slug}-source.png`);
+  const eyecatchPath = path.join(publicDir, `${input.slug}-eyecatch.webp`);
+  await Promise.all([sourcePath, eyecatchPath].map(ensureDoesNotExist));
+
+  const source = await generateTransparentSource(ai, buildColumnImagePrompt(input));
+  const eyecatch = await createEyecatchImage(source);
+
+  const warnings: string[] = [];
+  if (eyecatch.length > MAX_PUBLIC_IMAGE_BYTES) {
+    warnings.push(`アイキャッチが200KBを超えています（${Math.ceil(eyecatch.length / 1024)}KB）。`);
+  }
+
+  await Promise.all([writeFile(sourcePath, source), writeFile(eyecatchPath, eyecatch)]);
+
+  const result: ColumnImageResult = {
+    eyecatch: { src: `/images/columns/${input.slug}-eyecatch.webp`, alt: buildColumnImageAlt(input) },
+    body,
+    imageStatus: 'draft',
+    sourcePath,
+    warnings,
+  };
+
+  const insertion = findMidImageInsertion(body);
+  if (!insertion) {
+    warnings.push('本文が短い、または見出しが少ないため2枚目の挿絵は生成していません。');
+    return result;
+  }
+
+  const illustrationPath = path.join(publicDir, `${input.slug}-illust.webp`);
+  const midSourcePath = path.join(sourceDir, `${input.slug}-illust-source.png`);
+  try {
+    await Promise.all([illustrationPath, midSourcePath].map(ensureDoesNotExist));
+    const midSource = await generateTransparentSource(ai, buildColumnMidImagePrompt(input, insertion));
+    const illustrationBuffer = await createIllustrationImage(midSource);
+    if (illustrationBuffer.length > MAX_PUBLIC_IMAGE_BYTES) {
+      warnings.push(`本文挿絵が200KBを超えています（${Math.ceil(illustrationBuffer.length / 1024)}KB）。`);
+    }
+    await Promise.all([writeFile(midSourcePath, midSource), writeFile(illustrationPath, illustrationBuffer)]);
+
+    const illustration = { src: `/images/columns/${input.slug}-illust.webp`, alt: buildColumnMidImageAlt(input) };
+    result.illustration = illustration;
+    result.midSourcePath = midSourcePath;
+    result.body = insertMidImageMarkdown(body, insertion, illustration);
+  } catch (error) {
+    // 2枚目はAPI消費が倍になる追加コストなので、失敗しても1枚目だけで
+    // 公開を継続できるよう例外を投げない（呼び出し元の試行ループを回さない）。
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[Agent4:Image] 2枚目（本文挿絵）の生成に失敗したため、1枚目のみで続行します: ${message}`);
+    warnings.push(`2枚目（本文挿絵）の生成に失敗したため、1枚目のみで続行しました: ${message}`);
+  }
+
+  return result;
 }
