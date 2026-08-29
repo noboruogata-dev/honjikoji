@@ -18,7 +18,7 @@ import { X } from '@lucide/astro';
 
 <div transition:persist transition:name="omikuji-widget">
   <div
-    class="fixed right-4 z-40 flex items-center gap-2"
+    class="fixed right-4 z-40 flex flex-col items-center gap-2"
     style="bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));"
   >
     <div
@@ -29,16 +29,22 @@ import { X } from '@lucide/astro';
       運試し
     </div>
 
+    <!--
+      丸い背景・枠線は持たせず、提灯そのものをボタンにする。視覚要素
+      （.omikuji-fab-lanternでモバイル60px/デスクトップ76pxに拡大、下記
+      global.css参照）より広いタップ領域を確保するため、透明な余白
+      （p-2）を足す。これだけで最小サイズでも44pxを大きく上回る。
+    -->
     <button
       type="button"
       data-omikuji-open
       aria-haspopup="dialog"
       aria-controls="omikuji-dialog"
       aria-label="今夜のおみくじを引く"
-      class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-amber-deep/50 bg-night-900/90 text-amber-glow shadow-[0_4px_20px_rgba(8,9,15,0.45)] backdrop-blur-sm transition hover:border-amber-glow/70 hover:bg-night-800"
+      class="omikuji-fab-button inline-flex shrink-0 items-center justify-center rounded-full p-2 text-amber-glow transition hover:opacity-85"
     >
       <span data-omikuji-fab-icon class="inline-flex">
-        <LanternIcon size={28} lit={true} />
+        <LanternIcon size={60} lit={true} class="omikuji-fab-lantern" />
       </span>
       <span class="sr-only">今夜のおみくじを引く</span>
     </button>
@@ -85,16 +91,10 @@ import { X } from '@lucide/astro';
 
   const STORAGE_KEY = 'honjikoji-omikuji';
 
-  // 「運試し」吹き出しの表示方針。A/Bどちらも実装済みで、ここを書き換える
-  // だけで切り替えられる。
-  //   'auto-hide' : ページ読み込み後に数秒表示して自動で引っ込む（既定・推奨）。
-  //                 タップ可能であることだけ伝え、閲覧の邪魔をしない。
-  //                 astro:page-loadのたびに再表示されるため、初見の説明としての
-  //                 役割は毎回保たれる。
-  //   'always'    : 常時表示（引くまでずっと出したままにする）。
-  // どちらのモードでも、実際に引いた後は即座に隠す（A/B共通の要件）。
-  const HINT_DISPLAY_MODE: 'auto-hide' | 'always' = 'auto-hide';
-  const HINT_AUTO_HIDE_MS = 4500;
+  // 「運試し」吹き出しは常時表示（引くまでは出したまま）。ただしスクロール中は
+  // 読みにくく・指の動線の邪魔になるため、スクロールが止まってから
+  // SCROLL_IDLE_MS後に再表示する。
+  const SCROLL_IDLE_MS = 150;
 
   const LANTERN_STAGGER_MS = 150;
   // .omikuji-lanternのtransition-duration（下のstyle参照）と合わせてある。
@@ -175,36 +175,62 @@ import { X } from '@lucide/astro';
 
     const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    let hintHideTimer: ReturnType<typeof setTimeout> | undefined;
+    // 「引いていない」＝吹き出しを出してよい、という条件。スクロール中は
+    // これとは別にisScrollingでも一時的に隠す（掛け算で最終的な表示可否が決まる）。
+    let hintEligible = false;
+    let isScrolling = false;
+    let scrollIdleTimer: ReturnType<typeof setTimeout> | undefined;
+
+    function updateHintVisibility() {
+      if (hintEligible && !isScrolling) {
+        // is-visibleを同じフレームで付けると、初回はopacity:0の初期状態と
+        // 同時にコミットされてtransitionが発火しないことがあるため、
+        // 1フレーム挟む。非表示側は即座でよい。
+        requestAnimationFrame(() => hintEl!.classList.add('is-visible'));
+      } else {
+        hintEl!.classList.remove('is-visible');
+      }
+    }
 
     // 「今日まだ引いていない」間だけFABが目を引く演出をする
     // （.is-inviting＝強めの呼吸＋微かな揺れ＋稀な一瞬の風のような揺らぎ。
     // 点滅はしない。詳細はsrc/styles/global.css参照）。FAB自体は常に
     // lit={true}（点灯した見た目）で、このクラスの有無だけを切り替える。
-    // 「運試し」の吹き出しも同じ条件で出す。表示方針はHINT_DISPLAY_MODEで
-    // 切り替える。すでに引いた後は、A/Bどちらのモードでも
-    // （auto-hideのフェード待ち中であっても）即座に隠す。
+    // 「運試し」の吹き出しも同じ条件を土台にする（スクロール中の抑制は
+    // updateHintVisibility側で別途考慮）。
     function syncFabState() {
       const today = readStoredDraw();
       const hasDrawnToday = today?.dateKey === getOmikujiDayKey();
       fabLantern!.classList.toggle('is-inviting', !hasDrawnToday);
-
-      if (hintHideTimer !== undefined) {
-        clearTimeout(hintHideTimer);
-        hintHideTimer = undefined;
-      }
-      if (hasDrawnToday) {
-        hintEl!.classList.remove('is-visible');
-        return;
-      }
-
-      requestAnimationFrame(() => hintEl!.classList.add('is-visible'));
-      if (HINT_DISPLAY_MODE === 'auto-hide') {
-        hintHideTimer = setTimeout(() => hintEl!.classList.remove('is-visible'), HINT_AUTO_HIDE_MS);
-      }
-      // 'always' モードでは何もタイマーを仕掛けない＝引くまで表示され続ける。
+      hintEligible = !hasDrawnToday;
+      updateHintVisibility();
     }
     syncFabState();
+
+    // スクロール中は吹き出しを隠し、止まったら再表示する。passiveリスナー＋
+    // クラスのトグルとタイマーの張り直しだけなので、スクロール毎の処理は
+    // 軽量（レイアウト計測や毎フレーム処理は行わない）。
+    window.addEventListener(
+      'scroll',
+      () => {
+        if (!hintEligible) return; // 既に引いている日は何もしなくてよい
+        isScrolling = true;
+        updateHintVisibility();
+        if (scrollIdleTimer !== undefined) clearTimeout(scrollIdleTimer);
+        scrollIdleTimer = setTimeout(() => {
+          isScrolling = false;
+          updateHintVisibility();
+        }, SCROLL_IDLE_MS);
+      },
+      { passive: true, signal }
+    );
+    // astro:page-load時にcontroller.abort()されてもscrollIdleTimer自体は
+    // 残ってしまう（abortはイベントリスナーを外すだけ）ため、遷移後に
+    // 古いクロージャのタイマーが発火して古い状態でDOMを触らないよう、
+    // abort時に明示的にクリアしておく。
+    signal.addEventListener('abort', () => {
+      if (scrollIdleTimer !== undefined) clearTimeout(scrollIdleTimer);
+    });
 
     function cloneLantern(): SVGElement {
       return lanternTemplate!.content.firstElementChild!.cloneNode(true) as SVGElement;
@@ -357,28 +383,29 @@ import { X } from '@lucide/astro';
     display: block;
   }
 
-  /* 「運試し」の吹き出し。ボタンの左に付く右向きの三角をborderトリックで
-     作る（吹き出しの背景色bg-night-800と同じ色をborder-leftに使う）。
-     transform/opacityのみでフェード（制約どおり）。 */
+  /* 「運試し」の吹き出し。提灯の真上に置き、下向きの三角（しっぽ）で
+     提灯を指す形にする。borderトリックで作る（吹き出しの背景色
+     bg-night-800と同じ色をborder-topに使う）。transform/opacityのみで
+     フェード（制約どおり）。 */
   .omikuji-hint {
     position: relative;
     opacity: 0;
-    transform: translateX(6px);
+    transform: translateY(6px);
     transition: opacity 240ms ease, transform 240ms ease;
   }
   .omikuji-hint.is-visible {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
   .omikuji-hint::after {
     content: '';
     position: absolute;
-    top: 50%;
-    right: -6px;
-    transform: translateY(-50%);
+    left: 50%;
+    bottom: -6px;
+    transform: translateX(-50%);
     border-style: solid;
-    border-width: 6px 0 6px 7px;
-    border-color: transparent transparent transparent var(--color-night-800);
+    border-width: 7px 6px 0 6px;
+    border-color: var(--color-night-800) transparent transparent transparent;
   }
 
   @media (prefers-reduced-motion: reduce) {

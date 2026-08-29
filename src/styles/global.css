@@ -273,6 +273,18 @@ body {
   filter: drop-shadow(0 0 8px var(--color-vermilion)) drop-shadow(0 0 18px var(--color-vermilion));
 }
 
+/* おみくじFABの提灯（.omikuji-fab-lantern、60〜76px）は、Hero・おみくじ
+   結果画面など他の提灯インスタンス（20〜30px）よりずっと大きいため、
+   is-lit/is-rareのグロー半径をこのFABに限り一回り強める。複合セレクタ
+   （.lantern-iconとの詳細度は同じだが、後方に書くことでこちらが勝つ）
+   で上書きするだけなので、他インスタンスの見た目には一切影響しない。 */
+.omikuji-fab-lantern.is-lit {
+  filter: drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 15px var(--glow));
+}
+.omikuji-fab-lantern.is-rare {
+  filter: drop-shadow(0 0 11px var(--color-vermilion)) drop-shadow(0 0 24px var(--color-vermilion));
+}
+
 /* 呼吸グロー（Hero上部の営業状況、複数の提灯が同時に灯る場面向け）。
    点灯/消灯とは独立したクラスで、--glowを参照するため時間帯が深夜に
    近づくほど強く光る。最大8個までしか同時に使わない前提（呼び出し側で
@@ -299,14 +311,16 @@ body {
    往復する」「稀にゆらぐ」のはあくまで連続的な変化であり、点滅とは
    別物という判断。1インスタンスのみ（FAB）にしか使わないためペイント
    コストは無視できる。Hero側の.is-breathingには影響しない、FAB専用の
-   強調表現として独立させてある。 */
+   強調表現として独立させてある。グロー半径はFABが60〜76pxに拡大された
+   ことに合わせて（is-lit/is-rareの.omikuji-fab-lantern上書きと同様の
+   考え方で）大きめに調整してある。 */
 @keyframes lantern-icon-breathe-strong {
   0%,
   100% {
-    filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 7px var(--glow));
+    filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 10px var(--glow));
   }
   50% {
-    filter: drop-shadow(0 0 7px var(--glow)) drop-shadow(0 0 16px var(--glow));
+    filter: drop-shadow(0 0 9px var(--glow)) drop-shadow(0 0 20px var(--glow));
   }
 }
 @keyframes lantern-icon-sway-gust {
@@ -336,6 +350,22 @@ body {
   animation:
     lantern-icon-breathe-strong 5s ease-in-out infinite,
     lantern-icon-sway-gust 10s ease-in-out infinite;
+}
+
+/* おみくじFAB本体。丸背景・枠線は持たせず提灯自体をボタンにするため、
+   width/heightをここで直接指定してLanternIcon側のsize属性
+   （プレゼンテーション属性なので、このクラスのCSSが常に優先される）を
+   上書きする。モバイル60px、デスクトップ76px。60pxはCOMPACT_THRESHOLD
+   (24px)を超えているので蛇腹は5本のまま省略されない。 */
+.omikuji-fab-lantern {
+  width: 60px;
+  height: 60px;
+}
+@media (min-width: 768px) {
+  .omikuji-fab-lantern {
+    width: 76px;
+    height: 76px;
+  }
 }
 
 /* /map/ の路地マップ（src/pages/map/index.astro）。
@@ -470,7 +500,7 @@ body {
     filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 8px var(--glow)) !important;
   }
   .lantern-icon.is-inviting {
-    filter: drop-shadow(0 0 5px var(--glow)) drop-shadow(0 0 11px var(--glow)) !important;
+    filter: drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 14px var(--glow)) !important;
     transform: rotate(0deg) !important;
   }
 
