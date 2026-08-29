@@ -427,7 +427,7 @@ const structuredData = [
     const visibleCount = Math.min(openCount, LANTERN_DISPLAY_CAP);
     for (let i = 0; i < visibleCount; i++) {
       const icon = cloneLanternIcon();
-      icon.classList.add('lantern-icon-lit', 'text-amber-glow');
+      icon.classList.add('is-lit', 'is-breathing');
       (icon as unknown as HTMLElement).style.animationDelay = `${(-i * 0.35).toFixed(2)}s`;
       row.appendChild(icon);
     }
@@ -502,7 +502,7 @@ const structuredData = [
     lanternWrap.className = 'mt-3 flex justify-center';
     lanternWrap.setAttribute('aria-hidden', 'true');
     const unlitLantern = cloneLanternIcon();
-    unlitLantern.classList.add('text-gold-100/25');
+    unlitLantern.classList.add('is-unlit');
     lanternWrap.appendChild(unlitLantern);
 
     const message = document.createElement('p');

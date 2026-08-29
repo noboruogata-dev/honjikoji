@@ -1,33 +1,85 @@
 ---
-// 小さな提灯の線画アイコン。AlleyNight.astroの提灯（バレル形状＋横リブ線）を
-// 20px前後で潰れないよう簡略化したもの。色はcurrentColor任せにし、
-// 「点灯/消灯」の区別はこのコンポーネントでは作らない（呼び出し側が
-// text-*色・opacity・.lantern-icon-lit（グロー）クラスで表現する）。
-//
-// クライアントJSから複製して使う想定のため、index.astroでは<template>に
-// 包んで1つだけレンダーし、script側でcloneNode(true)して個数分並べる
-// （Astroコンポーネントはビルド時にしか展開できないため）。
+/**
+ * src/components/illustrations/LanternIcon.astro
+ *
+ * 提灯アイコン。点灯・消灯の2状態を1つのSVGで表現する（別ファイルに
+ * 分けない）。色は3つの役割にCSS変数化してある:
+ *   --lantern-band  胴の朱帯。既定はサイトの --color-vermilion。
+ *   --lantern-fill  灯り（本体の塗り）。既定はサイトの --color-amber-glow。
+ *   （主線・蛇腹・吊り紐・口輪の輪郭は currentColor。呼び出し側が
+ *    text-*クラスでそのまま制御できる、従来のLanternIconと同じ挙動）
+ *
+ * Astroコンポーネントはビルド時にしか展開できないため、点灯/消灯・
+ * 「主」演出の動的な切り替えは、呼び出し側がクラスをトグルして行う:
+ *   is-lit        点灯。本体・口輪が塗られ、--glow連動のdrop-shadow
+ *   is-unlit      消灯。塗りなし、朱帯はopacity 0.4、グロー無し
+ *   is-rare       「主」演出。is-litと併用し、塗り・グローの色を朱に上書き
+ *   is-breathing  呼吸グロー（FABの「未抽選」表示等）。点灯/消灯とは独立
+ * fill/stroke-width/filterはtransitionが掛かっているため、is-lit⇄is-unlit
+ * の切り替えは自動的に滑らかになる（呼び出し側で別途アニメーションを
+ * 組む必要はない）。
+ *
+ * サイズについて: viewBox 500x500の蛇腹（横線）は元素材だと5本あるが、
+ * 20px前後の小サイズで5本とも描画すると線同士が潰れて見える。
+ * size <= 24px のときは自動的に蛇腹を2本に間引き、線もわずかに太くする
+ * （呼び出し側でsizeを渡すだけで切り替わる。挙動を選ぶ必要はない）。
+ */
 interface Props {
   size?: number;
   class?: string;
+  /** 初期状態を静的に確定したい場合のみ使う（is-lit/is-unlitを最初から
+   *  付与する）。省略時はどちらのクラスも付けず、呼び出し側のJSに委ねる。 */
+  lit?: boolean;
 }
 
-const { size = 20, class: className = '' } = Astro.props;
+const { size = 20, class: className = '', lit } = Astro.props;
+
+const COMPACT_THRESHOLD = 24;
+const isCompact = size <= COMPACT_THRESHOLD;
+
+// 元素材の5本の蛇腹の座標。間引く場合も新しい曲線は作らず、この中から
+// 均等に分布する2本（206・286）だけを残す。
+const ALL_RIBS = [
+  'M 155 166 Q 250 180 345 166',
+  'M 155 206 Q 250 220 345 206',
+  'M 155 246 Q 250 260 345 246',
+  'M 155 286 Q 250 300 345 286',
+  'M 155 326 Q 250 340 345 326',
+];
+const visibleRibs = isCompact ? [ALL_RIBS[1], ALL_RIBS[3]] : ALL_RIBS;
+const ribStrokeWidth = isCompact ? 7 : 5;
+
+const stateClass = lit === true ? 'is-lit' : lit === false ? 'is-unlit' : '';
 ---
 
 <svg
-  viewBox="0 0 20 28"
+  viewBox="0 0 500 500"
   width={size}
   height={size}
   fill="none"
-  stroke="currentColor"
-  stroke-width="1.6"
-  stroke-linecap="round"
-  class={className}
+  class:list={['lantern-icon', stateClass, className]}
   aria-hidden="true"
 >
-  <line x1="6" y1="2" x2="14" y2="2" />
-  <path d="M6 2C3.5 6 3.5 20 6 24h8c2.5-4 2.5-18 0-22" />
-  <line x1="6" y1="24" x2="14" y2="24" />
-  <line x1="4" y1="13" x2="16" y2="13" />
+  <path class="lantern-cord" d="M 250 50 L 250 95" stroke-linecap="round" />
+  <ellipse class="lantern-ring" cx="250" cy="95" rx="14" ry="7" />
+  <rect class="lantern-collar" x="180" y="102" width="140" height="24" rx="4" stroke-linejoin="round" />
+  <rect class="lantern-body" x="155" y="126" width="190" height="240" rx="30" stroke-linejoin="round" />
+  <path class="lantern-band" d="M 157 165 C 180 172, 320 172, 343 165 L 343 145 C 330 130, 310 126, 250 126 C 190 126, 170 130, 157 145 Z" />
+  <path class="lantern-band" d="M 157 327 C 180 334, 320 334, 343 327 L 343 347 C 330 362, 310 366, 250 366 C 190 366, 170 362, 157 347 Z" />
+  {visibleRibs.map((d) => <path class="lantern-rib" d={d} stroke-linecap="round" style={`--lantern-rib-width:${ribStrokeWidth}`} />)}
+  <rect class="lantern-collar" x="180" y="366" width="140" height="24" rx="4" stroke-linejoin="round" />
+  <ellipse class="lantern-ring" cx="250" cy="397" rx="12" ry="6" />
+  <path class="lantern-cord" d="M 250 403 L 250 425" stroke-linecap="round" />
 </svg>
+
+<!--
+  スタイルはあえてこのファイルのscoped <style> ではなく src/styles/global.css
+  側に置く（このファイルには持たせない）。index.astro / OmikujiButton.astro は
+  <template>内でこのコンポーネントを1回だけ描画し、client script側で
+  cloneNode(true)して複製するため、Astroのscoped style（data-astro-cid-*
+  属性でのスコープ）に依存すると、複製先でも属性自体は複製されるため
+  動作はするはずだが、他の提灯関連クラス（.lantern-flicker等、既存の
+  global.css側）と実装場所が分かれて把握しづらくなる。一貫性を優先し、
+  同じglobal.cssに置く。
+-->
+

@@ -38,7 +38,7 @@ import { X } from '@lucide/astro';
       class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-amber-deep/50 bg-night-900/90 text-amber-glow shadow-[0_4px_20px_rgba(8,9,15,0.45)] backdrop-blur-sm transition hover:border-amber-glow/70 hover:bg-night-800"
     >
       <span data-omikuji-fab-icon class="inline-flex">
-        <LanternIcon size={28} />
+        <LanternIcon size={28} lit={true} />
       </span>
       <span class="sr-only">今夜のおみくじを引く</span>
     </button>
@@ -85,8 +85,10 @@ import { X } from '@lucide/astro';
 
   const STORAGE_KEY = 'honjikoji-omikuji';
   const LANTERN_STAGGER_MS = 150;
-  const LANTERN_ENTER_MS = 260;
-  const RARE_ENTER_MS = 560;
+  // .omikuji-lanternのtransition-duration（下のstyle参照）と合わせてある。
+  const LANTERN_ENTER_MS = 280;
+  // 「主」は一斉に・より速く灯す（.omikuji-lantern.is-rareだけ短いdurationにしてある）。
+  const RARE_ENTER_MS = 200;
   const RESULT_BUFFER_MS = 150;
 
   interface StoredDraw {
@@ -136,7 +138,8 @@ import { X } from '@lucide/astro';
     const { signal } = controller;
 
     const openButton = document.querySelector<HTMLButtonElement>('[data-omikuji-open]');
-    const fabIcon = document.querySelector<HTMLElement>('[data-omikuji-fab-icon]');
+    const fabIconWrapper = document.querySelector<HTMLElement>('[data-omikuji-fab-icon]');
+    const fabLantern = fabIconWrapper?.querySelector<SVGElement>('.lantern-icon');
     const hintEl = document.querySelector<HTMLElement>('[data-omikuji-hint]');
     const dialog = document.querySelector<HTMLDialogElement>('[data-omikuji-dialog]');
     const closeButton = dialog?.querySelector<HTMLButtonElement>('[data-omikuji-close]');
@@ -146,7 +149,7 @@ import { X } from '@lucide/astro';
     const lanternTemplate = document.querySelector<HTMLTemplateElement>('[data-omikuji-lantern-template]');
     if (
       !openButton ||
-      !fabIcon ||
+      !fabLantern ||
       !hintEl ||
       !dialog ||
       !closeButton ||
@@ -164,7 +167,8 @@ import { X } from '@lucide/astro';
     const HINT_AUTO_HIDE_MS = 4500;
 
     // 「今日まだ引いていない」間だけFABが呼吸する（毎日来る動機になるよう、
-    // 既存の.lantern-icon-lit＝4秒周期のグローをそのまま流用する）。
+    // 既存の.is-breathing＝4秒周期のグローをそのまま流用する）。FAB自体は
+    // 常にlit={true}（点灯した見た目）で、呼吸するかどうかだけを切り替える。
     // 「運試し」の吹き出しも同じ条件で出し、数秒後に自動で引っ込める
     // （常時表示にすると、既に引いた日も含めて毎回幅を取ってしまうため。
     // ページ遷移のたびにastro:page-loadで再表示されるので、初見の説明としての
@@ -173,7 +177,7 @@ import { X } from '@lucide/astro';
     function syncFabState() {
       const today = readStoredDraw();
       const hasDrawnToday = today?.dateKey === getOmikujiDayKey();
-      fabIcon!.classList.toggle('lantern-icon-lit', !hasDrawnToday);
+      fabLantern!.classList.toggle('is-breathing', !hasDrawnToday);
 
       if (hintHideTimer !== undefined) {
         clearTimeout(hintHideTimer);
@@ -223,12 +227,19 @@ import { X } from '@lucide/astro';
       const slots = buildLanternSlots();
       const litCount = result.rank.rare ? 7 : result.rank.lanternCount;
       slots.forEach((slot, i) => {
-        slot.classList.add(result.rank.rare ? 'is-rare' : i < litCount ? 'is-lit' : 'is-unlit');
+        if (result.rank.rare) {
+          slot.classList.add('is-lit', 'is-rare');
+        } else {
+          slot.classList.add(i < litCount ? 'is-lit' : 'is-unlit');
+        }
       });
       renderResult(result);
     }
 
-    /** 「提灯が奥から手前へ順に灯る」演出。全体で1.5秒以内。 */
+    /** 「提灯が奥から手前へ順に灯る」演出。全体で1.5秒以内。
+     *  is-lit/is-unlit/is-rareを付けるだけで、出現（.omikuji-lantern側）と
+     *  点灯・消灯の色（LanternIcon側、src/styles/global.css）の両方が
+     *  自動的にtransitionする。 */
     function playReveal(result: OmikujiResult) {
       const slots = buildLanternSlots();
       resultEl!.innerHTML = '';
@@ -236,7 +247,7 @@ import { X } from '@lucide/astro';
       if (result.rank.rare) {
         // 「主」だけ演出を変える: 順番にではなく一斉に、朱色で強く。
         slots.forEach((slot) => {
-          slot.classList.add('is-entering', 'is-rare');
+          slot.classList.add('is-lit', 'is-rare');
         });
         window.setTimeout(() => renderResult(result), RARE_ENTER_MS + RESULT_BUFFER_MS);
         return;
@@ -245,7 +256,7 @@ import { X } from '@lucide/astro';
       const litCount = result.rank.lanternCount;
       slots.forEach((slot, i) => {
         window.setTimeout(() => {
-          slot.classList.add('is-entering', i < litCount ? 'is-lit' : 'is-unlit');
+          slot.classList.add(i < litCount ? 'is-lit' : 'is-unlit');
         }, i * LANTERN_STAGGER_MS);
       });
       const totalMs = (slots.length - 1) * LANTERN_STAGGER_MS + LANTERN_ENTER_MS + RESULT_BUFFER_MS;
@@ -362,82 +373,33 @@ import { X } from '@lucide/astro';
     }
   }
 
-  /* 提灯スロット: JSがis-entering/is-lit/is-unlit/is-rareを付与する。
-     このクラス自体は「まだ何も確定していない」初期の不可視状態。 */
+  /* 提灯スロット: 点灯/消灯・「主」の色やグローはLanternIcon側
+     （src/styles/global.css の .lantern-icon.is-lit 等）が担当する。
+     ここでは「出現」だけを扱う: JSがis-lit/is-unlit/is-rareのいずれかを
+     付けるまでは不可視で、付いた瞬間にtransform/opacityがフェードインする
+     （LanternIcon側のfill/filterのtransitionと同時に走るため、
+     「灯る」演出として一体に見える）。「主」だけ短いdurationにして
+     一斉点灯を素早く見せる。 */
   :global(.omikuji-lantern) {
     opacity: 0;
+    transform: scale(0.7);
+    transition: opacity 280ms ease-out, transform 280ms ease-out;
   }
-  :global(.omikuji-lantern.is-lit) {
-    opacity: 1;
-    color: var(--color-amber-glow);
-    filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 10px var(--glow));
-  }
-  :global(.omikuji-lantern.is-unlit) {
-    opacity: 0.3;
-    color: var(--color-gold-100);
-  }
+  :global(.omikuji-lantern.is-lit),
+  :global(.omikuji-lantern.is-unlit),
   :global(.omikuji-lantern.is-rare) {
     opacity: 1;
-    color: var(--color-vermilion);
-    filter: drop-shadow(0 0 8px var(--color-vermilion)) drop-shadow(0 0 18px var(--color-vermilion));
+    transform: scale(1);
   }
-
-  @keyframes omikuji-enter-lit {
-    from {
-      opacity: 0;
-      transform: scale(0.7);
-      filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-      filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 10px var(--glow));
-    }
-  }
-  @keyframes omikuji-enter-unlit {
-    from {
-      opacity: 0;
-      transform: scale(0.7);
-    }
-    to {
-      opacity: 0.3;
-      transform: scale(1);
-    }
-  }
-  @keyframes omikuji-enter-rare {
-    0% {
-      opacity: 0;
-      transform: scale(0.6);
-      filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
-    }
-    60% {
-      opacity: 1;
-      transform: scale(1.2);
-      filter: drop-shadow(0 0 12px var(--color-vermilion)) drop-shadow(0 0 26px var(--color-vermilion));
-    }
-    100% {
-      opacity: 1;
-      transform: scale(1);
-      filter: drop-shadow(0 0 8px var(--color-vermilion)) drop-shadow(0 0 18px var(--color-vermilion));
-    }
-  }
-  :global(.omikuji-lantern.is-entering.is-lit) {
-    animation: omikuji-enter-lit 260ms ease-out;
-  }
-  :global(.omikuji-lantern.is-entering.is-unlit) {
-    animation: omikuji-enter-unlit 260ms ease-out;
-  }
-  :global(.omikuji-lantern.is-entering.is-rare) {
-    animation: omikuji-enter-rare 560ms ease-out;
+  :global(.omikuji-lantern.is-rare) {
+    transition-duration: 200ms;
   }
 
   @media (prefers-reduced-motion: reduce) {
     /* JS側もprefers-reduced-motionを見てplayRevealを呼ばない設計だが、
        CSSレイヤーでも二重に無効化しておく（他の演出と同じ防御的な方針）。 */
-    :global(.omikuji-lantern.is-entering.is-lit),
-    :global(.omikuji-lantern.is-entering.is-unlit),
-    :global(.omikuji-lantern.is-entering.is-rare) {
-      animation: none !important;
+    :global(.omikuji-lantern) {
+      transition: none;
     }
   }
 </style>

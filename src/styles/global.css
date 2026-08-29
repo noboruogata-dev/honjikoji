@@ -199,9 +199,82 @@ body {
   animation: status-fade 400ms ease;
 }
 
-/* 点灯中の提灯アイコン（LanternIcon.astro、Hero上部の営業状況）。
-   .lantern-breatheと同じ「息をする」技法だが、色は固定の白ではなく
-   --glowを参照するため、時間帯が深夜に近づくほど強く光る。
+/* 提灯アイコン（LanternIcon.astro）。点灯・消灯・「主」演出・呼吸グローの
+   4状態をクラスで切り替える。色は3役割にCSS変数化してある:
+   --lantern-band（胴の朱帯）・--lantern-fill（灯り＝本体の塗り）。
+   主線・蛇腹・吊り紐・口輪の輪郭はcurrentColor（呼び出し側のtext-*で
+   制御できる、従来のLanternIconと同じ挙動）。詳しい説明は
+   LanternIcon.astro側のコメントを参照。 */
+.lantern-icon {
+  --lantern-band: var(--color-vermilion);
+  --lantern-fill: var(--color-amber-glow);
+  transition: filter 300ms ease;
+}
+
+.lantern-icon .lantern-cord,
+.lantern-icon .lantern-ring,
+.lantern-icon .lantern-rib {
+  stroke: currentColor;
+  fill: none;
+}
+.lantern-icon .lantern-cord {
+  stroke-width: 6;
+}
+.lantern-icon .lantern-ring {
+  stroke-width: 5;
+}
+.lantern-icon .lantern-rib {
+  stroke-width: var(--lantern-rib-width, 5);
+}
+
+.lantern-icon .lantern-collar,
+.lantern-icon .lantern-body {
+  stroke: currentColor;
+  fill: none;
+  transition: fill 300ms ease, stroke-width 300ms ease;
+}
+.lantern-icon .lantern-body {
+  stroke-width: 6;
+}
+.lantern-icon .lantern-collar {
+  stroke-width: 5;
+}
+
+.lantern-icon .lantern-band {
+  fill: var(--lantern-band);
+  opacity: 0.4;
+  transition: opacity 300ms ease, fill 300ms ease;
+}
+
+.lantern-icon.is-lit .lantern-collar {
+  fill: currentColor;
+  stroke-width: 4;
+}
+.lantern-icon.is-lit .lantern-body {
+  fill: var(--lantern-fill);
+}
+.lantern-icon.is-lit .lantern-band {
+  opacity: 1;
+}
+.lantern-icon.is-lit {
+  filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 10px var(--glow));
+}
+
+/* 「主」演出: is-litと併用し、塗り・グローの色を朱に上書きする。 */
+.lantern-icon.is-rare .lantern-body,
+.lantern-icon.is-rare .lantern-collar {
+  fill: var(--color-vermilion);
+}
+.lantern-icon.is-rare .lantern-band {
+  fill: var(--color-vermilion);
+  opacity: 1;
+}
+.lantern-icon.is-rare {
+  filter: drop-shadow(0 0 8px var(--color-vermilion)) drop-shadow(0 0 18px var(--color-vermilion));
+}
+
+/* 呼吸グロー（FABの「未抽選」表示・Hero上部の営業状況等）。点灯/消灯とは
+   独立したクラスで、--glowを参照するため時間帯が深夜に近づくほど強く光る。
    最大8個までしか同時に使わない前提（呼び出し側でLANTERN_DISPLAY_CAPにより
    制限）なのでアニメーション化によるペイントコストは許容する。 */
 @keyframes lantern-icon-breathe {
@@ -213,7 +286,7 @@ body {
     filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 10px var(--glow));
   }
 }
-.lantern-icon-lit {
+.lantern-icon.is-breathing {
   animation: lantern-icon-breathe 4s ease-in-out infinite;
 }
 
@@ -326,7 +399,7 @@ body {
   .lantern-sway,
   .street-glow,
   .status-fade,
-  .lantern-icon-lit,
+  .lantern-icon.is-breathing,
   ::view-transition-group(root),
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -340,11 +413,20 @@ body {
     opacity: 1 !important;
   }
 
-  /* .lantern-icon-lit も同じ理由: animation:noneだけだと発光の無い状態に
-     固定されてしまうため、静的なglowを!importantで与えて
+  /* .lantern-icon.is-breathing も同じ理由: animation:noneだけだと発光の
+     無い状態に固定されてしまうため、静的なglowを!importantで与えて
      「止まっているが光っている」状態にする。 */
-  .lantern-icon-lit {
+  .lantern-icon.is-breathing {
     filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 8px var(--glow)) !important;
+  }
+
+  /* 提灯アイコンのfill/stroke-width/filterのtransition（is-lit⇄is-unlit
+     の切り替え）も止める。 */
+  .lantern-icon,
+  .lantern-icon .lantern-collar,
+  .lantern-icon .lantern-body,
+  .lantern-icon .lantern-band {
+    transition: none !important;
   }
 
   /* Illust.astro / Hero統計 / 路地マップの時間帯フィルタ切り替え(.6s)も
