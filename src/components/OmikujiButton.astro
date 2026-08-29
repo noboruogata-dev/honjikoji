@@ -24,7 +24,7 @@ import { X } from '@lucide/astro';
     <div
       data-omikuji-hint
       aria-hidden="true"
-      class="omikuji-hint pointer-events-none whitespace-nowrap rounded-full bg-night-800 px-3 py-1.5 text-xs font-medium text-gold-100 shadow-[0_4px_14px_rgba(8,9,15,0.4)]"
+      class="omikuji-hint pointer-events-none whitespace-nowrap rounded-full bg-night-600 px-3 py-1.5 text-xs font-medium text-gold-100 shadow-[0_4px_14px_rgba(8,9,15,0.4)]"
     >
       運試し
     </div>
@@ -385,7 +385,7 @@ import { X } from '@lucide/astro';
 
   /* 「運試し」の吹き出し。提灯の真上に置き、下向きの三角（しっぽ）で
      提灯を指す形にする。borderトリックで作る（吹き出しの背景色
-     bg-night-800と同じ色をborder-topに使う）。transform/opacityのみで
+     bg-night-600と同じ色をborder-topに使う）。transform/opacityのみで
      フェード（制約どおり）。 */
   .omikuji-hint {
     position: relative;
@@ -405,7 +405,7 @@ import { X } from '@lucide/astro';
     transform: translateX(-50%);
     border-style: solid;
     border-width: 7px 6px 0 6px;
-    border-color: var(--color-night-800) transparent transparent transparent;
+    border-color: var(--color-night-600) transparent transparent transparent;
   }
 
   @media (prefers-reduced-motion: reduce) {
