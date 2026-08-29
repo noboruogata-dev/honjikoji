@@ -2,15 +2,20 @@
 /**
  * src/components/OmikujiButton.astro
  *
- * 全ページ共通の「本寺小路おみくじ」フローティングボタン＋モーダル。
+ * 全ページ共通の「本寺小路おみくじ」フローティングボタン＋全画面演出。
  * Layout.astro に1箇所だけ配置する（transition:persistでページ遷移を
  * またいで同一DOMを保つ）。
  *
- * モーダルの開閉・Escape・背景クリック・スクロールロック・
- * astro:page-load再初期化は、Header.astroのモバイルメニュー
- * （ネイティブ<dialog>＋showModal()）と同じ実績あるパターンを踏襲する。
- * showModal()はブラウザが自動でトップレイヤー描画とフォーカストラップを
- * 提供するため、フォーカストラップを自前実装する必要はない。
+ * モーダルの開閉・Escape・スクロールロック・astro:page-load再初期化は、
+ * Header.astroのモバイルメニュー（ネイティブ<dialog>＋showModal()）と
+ * 同じ実績あるパターンを踏襲する。showModal()はブラウザが自動で
+ * トップレイヤー描画とフォーカストラップを提供するため、フォーカス
+ * トラップを自前実装する必要はない。
+ *
+ * 演出は「暗い路地を奥へ進み、灯りに近づく」体験を表現する4段階
+ * （暗転→接近→到着→結果）。詳細はscript内のSTAGE定数・FLY定数と
+ * コメントを参照。背景タップでの閉じるは誤タップを招くため意図的に
+ * 用意しない（×ボタン・下部の閉じるボタン・Escapeの3経路のみ）。
  */
 import LanternIcon from './illustrations/LanternIcon.astro';
 import { X } from '@lucide/astro';
@@ -50,30 +55,74 @@ import { X } from '@lucide/astro';
     </button>
   </div>
 
+  <!--
+    全画面ダイアログ。dialog自体の背景は透明にし、中の.omikuji-veilだけを
+    フェードさせることで「画面が暗転する」演出を作る（dialogの背景を
+    最初から不透明にすると、開いた瞬間に一瞬で真っ暗になり、暗転の
+    トランジションが見えない）。backdrop擬似要素も透明にしておく
+    （暗転はveil側だけが担当する）。
+  -->
   <dialog
     id="omikuji-dialog"
     data-omikuji-dialog
     aria-label="今夜のおみくじ"
-    class="omikuji-dialog m-auto max-h-[90dvh] w-[min(92vw,26rem)] overflow-y-auto border-0 bg-transparent p-0 backdrop:bg-night-950/80"
+    class="omikuji-dialog fixed inset-0 m-0 h-[100dvh] max-h-none w-screen max-w-none overflow-x-hidden overflow-y-auto border-0 bg-transparent p-0 backdrop:bg-transparent"
   >
-    <div class="omikuji-panel relative rounded-2xl border border-night-700 bg-night-900 px-6 py-8 text-center shadow-[0_20px_60px_rgba(8,9,15,0.6)]">
-      <button
-        type="button"
-        data-omikuji-close
-        aria-label="閉じる"
-        class="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full text-gold-100/60 transition hover:bg-night-800 hover:text-amber-glow"
-      >
-        <X size={19} stroke-width={1.7} aria-hidden="true" />
-      </button>
+    <div data-omikuji-veil class="omikuji-veil pointer-events-none fixed inset-0 bg-[#14110f]" aria-hidden="true">
+    </div>
 
+    <!-- 路地を流れる提灯のレイヤー。画面全体に固定し、個々の提灯は
+         script側が動的に生成・削除する（アイコンはlantern-templateを
+         流用、新規SVGは作らない）。 -->
+    <div data-omikuji-fly-layer class="omikuji-fly-layer" aria-hidden="true"></div>
+
+    <!-- 中央の「近づいてくる灯り」。画面いっぱいにズームさせるため、
+         狭いコンテンツ列（.omikuji-content、max-w-xl）の内側ではなく
+         ビューポート全体に固定した層に置く。 -->
+    <div
+      data-omikuji-approach-light
+      class="omikuji-approach-light pointer-events-none fixed inset-0 flex items-center justify-center"
+      aria-hidden="true"
+    >
+    </div>
+
+    <!-- 到着の瞬間だけ光る全画面フラッシュ。「正面の灯りが大きく灯る」→
+         「確定した並びに切り替わる」の間をただのクロスフェードにせず、
+         一度画面全体が灯りに包まれてから結果へ移る、という一拍を挟む。 -->
+    <div data-omikuji-flash class="omikuji-flash pointer-events-none fixed inset-0" aria-hidden="true"></div>
+
+    <button
+      type="button"
+      data-omikuji-close
+      aria-label="閉じる"
+      class="omikuji-close-btn fixed z-10 inline-flex h-12 w-12 items-center justify-center rounded-full text-gold-100/70 transition hover:bg-night-800/70 hover:text-amber-glow"
+      style="top: calc(0.75rem + env(safe-area-inset-top, 0px)); right: calc(0.75rem + env(safe-area-inset-right, 0px));"
+    >
+      <X size={22} stroke-width={1.8} aria-hidden="true" />
+    </button>
+
+    <div
+      class="omikuji-content relative z-0 mx-auto flex min-h-[100dvh] w-full max-w-xl flex-col items-center justify-center px-6 text-center"
+      style="padding-top: calc(4.5rem + env(safe-area-inset-top, 0px)); padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));"
+    >
       <p class="text-xs tracking-[0.3em] text-amber-glow/70">本寺小路おみくじ</p>
 
-      <div data-omikuji-lanterns class="mt-5 flex flex-wrap items-center justify-center gap-1.5" aria-hidden="true">
+      <div data-omikuji-lanterns class="mt-8 flex flex-wrap items-center justify-center gap-2" aria-hidden="true">
       </div>
 
-      <div data-omikuji-result class="mt-2" aria-live="polite"></div>
+      <div data-omikuji-result class="mt-2 w-full" aria-live="polite"></div>
 
-      <p data-omikuji-note class="mt-5 text-xs leading-relaxed text-gold-100/45"></p>
+      <p data-omikuji-note class="mt-6 text-xs leading-relaxed text-gold-100/45"></p>
+
+      <!-- 結果表示後にだけ現れる下部の閉じるボタン。全画面化で生じる
+           閉塞感を避けるため、×ボタンとは別に用意する。 -->
+      <button
+        type="button"
+        data-omikuji-close-bottom
+        class="omikuji-close-bottom mt-8 hidden min-h-12 items-center gap-1.5 rounded-full border border-night-600 px-5 text-sm font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+      >
+        閉じる
+      </button>
     </div>
   </dialog>
 
@@ -96,12 +145,46 @@ import { X } from '@lucide/astro';
   // SCROLL_IDLE_MS後に再表示する。
   const SCROLL_IDLE_MS = 150;
 
-  const LANTERN_STAGGER_MS = 150;
-  // .omikuji-lanternのtransition-duration（下のstyle参照）と合わせてある。
-  const LANTERN_ENTER_MS = 280;
-  // 「主」は一斉に・より速く灯す（.omikuji-lantern.is-rareだけ短いdurationにしてある）。
-  const RARE_ENTER_MS = 200;
-  const RESULT_BUFFER_MS = 150;
+  // --- 全画面演出（路地を奥へ進み、灯りに近づく）の4段階。
+  // 1日1回しか見ないため、多少ゆっくりでも許容する方針（合計は約4.1〜4.2秒）。
+  // 画面いっぱいにズームするぶん個々の動きに間を持たせるため、前回より
+  // 各ステージを延ばしてある（特に接近・到着）。
+  // 「主」はSTAGE_APPROACH_RARE_MS・FLY_DURATION_RARE_MS・FLY_COUNT_RAREにより
+  // 明確に速く・少なめの提灯で駆け抜ける（別扱いの特別演出）。 ---
+
+  /** 1. 暗転。墨色に沈み、途中で遠くにごく小さな灯りが1点だけ現れる。 */
+  const STAGE_DARKEN_MS = 450;
+  /** 2. 路地を進む。中央の灯りが徐々に大きくなり（近づく表現）、
+   *  両脇を提灯が奥から手前へ流れて画面外に消えていく。 */
+  const STAGE_APPROACH_MS = 2600;
+  const STAGE_APPROACH_RARE_MS = 1400;
+  /** 3. 到着。正面の灯りが画面いっぱいにブルームし、
+   *  流れていた提灯は止まって確定した点灯数の並びに切り替わる。 */
+  const STAGE_ARRIVE_MS = 700;
+  // 4. 格付けとお告げが浮かび上がる（400ms、.omikuji-result-enterの
+  // transition-duration。追加のタイマーを必要としないためJS側の定数は持たない）。
+
+  /** 路地を流れる提灯1個ぶんの飛行時間（.omikuji-fly-lanternの
+   *  animation-duration）。画面いっぱいに拡大する分を見せられるよう、
+   *  前回より長めにしてある。「主」はより短く速い。 */
+  const FLY_DURATION_MS = 1200;
+  const FLY_DURATION_RARE_MS = 780;
+  /** 同時に流す提灯の数（指定の「最大6〜8個程度」に収める）。 */
+  const FLY_COUNT = 7;
+  const FLY_COUNT_RARE = 6;
+  /** 到着後、確定した提灯を並び順（中央→左右）に灯していく間隔。
+   *  一斉表示ではなく「灯りが少しずつ収まっていく」手触りを出す。 */
+  const SETTLE_STAGGER_MS = 26;
+
+  /**
+   * 7提灯の中央（index 3）を起点に、左右交互に外側へ広がっていく並び順。
+   * litCount（1〜7）ぶんをこの順で「点灯」とみなせば、常に中央を軸にした
+   * 連続ブロックになる（例: litCount=1→{3}、litCount=3→{2,3,4}、
+   * litCount=5→{1,2,3,4,5}）。到着後は全提灯を同時に表示するため演出の
+   * 順序としては使わないが、「どの位置を点灯として見せるか」の決定には
+   * 引き続きこれを使う（同日再表示・reduced-motionとも見た目を一致させる）。
+   */
+  const LANTERN_EXPANSION_ORDER = [3, 4, 2, 5, 1, 6, 0];
 
   interface StoredDraw {
     dateKey: string;
@@ -142,6 +225,13 @@ import { X } from '@lucide/astro';
     return OMIKUJI_RANKS.find((r) => r.key === rankKey);
   }
 
+  /** litCount個ぶん、LANTERN_EXPANSION_ORDERの先頭からを「点灯」とみなす
+   *  index集合。演出（playReveal）・即時表示（showStatic）の両方で使い、
+   *  アニメーションの有無にかかわらず最終的な見た目を一致させる。 */
+  function litIndexSet(litCount: number): Set<number> {
+    return new Set(LANTERN_EXPANSION_ORDER.slice(0, litCount));
+  }
+
   let controller: AbortController | undefined;
 
   function initOmikuji() {
@@ -154,7 +244,12 @@ import { X } from '@lucide/astro';
     const fabLantern = fabIconWrapper?.querySelector<SVGElement>('.lantern-icon');
     const hintEl = document.querySelector<HTMLElement>('[data-omikuji-hint]');
     const dialog = document.querySelector<HTMLDialogElement>('[data-omikuji-dialog]');
+    const veilEl = document.querySelector<HTMLElement>('[data-omikuji-veil]');
+    const flyLayerEl = document.querySelector<HTMLElement>('[data-omikuji-fly-layer]');
+    const approachLightEl = document.querySelector<HTMLElement>('[data-omikuji-approach-light]');
+    const flashEl = document.querySelector<HTMLElement>('[data-omikuji-flash]');
     const closeButton = dialog?.querySelector<HTMLButtonElement>('[data-omikuji-close]');
+    const closeButtonBottom = dialog?.querySelector<HTMLButtonElement>('[data-omikuji-close-bottom]');
     const lanternsEl = document.querySelector<HTMLElement>('[data-omikuji-lanterns]');
     const resultEl = document.querySelector<HTMLElement>('[data-omikuji-result]');
     const noteEl = document.querySelector<HTMLElement>('[data-omikuji-note]');
@@ -164,7 +259,12 @@ import { X } from '@lucide/astro';
       !fabLantern ||
       !hintEl ||
       !dialog ||
+      !veilEl ||
+      !flyLayerEl ||
+      !approachLightEl ||
+      !flashEl ||
       !closeButton ||
+      !closeButtonBottom ||
       !lanternsEl ||
       !resultEl ||
       !noteEl ||
@@ -174,6 +274,21 @@ import { X } from '@lucide/astro';
     }
 
     const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // 演出中に発火予定のsetTimeoutを一括管理する。×ボタン・Escape等で
+    // 途中で閉じたとき（「途中でスキップ」）に全部キャンセルし、
+    // 閉じたあとに古いタイマーがDOMを触らないようにする。
+    let activeTimers: ReturnType<typeof setTimeout>[] = [];
+    function scheduleTimer(fn: () => void, delayMs: number) {
+      const id = setTimeout(fn, delayMs);
+      activeTimers.push(id);
+      return id;
+    }
+    function clearActiveTimers() {
+      for (const id of activeTimers) clearTimeout(id);
+      activeTimers = [];
+    }
+    signal.addEventListener('abort', clearActiveTimers);
 
     // 「引いていない」＝吹き出しを出してよい、という条件。スクロール中は
     // これとは別にisScrollingでも一時的に隠す（掛け算で最終的な表示可否が決まる）。
@@ -249,58 +364,231 @@ import { X } from '@lucide/astro';
 
     // お告げ本文が主役、格付け名・出現率は補助情報という序列にする:
     // 格付け名は小さく落ち着いた色に、本文は専用の面（night-800）に載せて
-    // 余白を広く取り、そこだけが浮かび上がるようにする。
-    function renderResult(result: OmikujiResult) {
+    // 余白を広く取り、そこだけが浮かび上がるようにする。animate=trueのときは
+    // .omikuji-result-enterを不可視スタートにし、次フレームでis-visibleを
+    // 付けてフェード＋浮き上がりを発火させる（4. 格付けとお告げが浮かび上がる）。
+    function renderResult(result: OmikujiResult, animate: boolean) {
       const { rank, text } = result;
       resultEl!.innerHTML = `
-        <p class="font-serif text-base font-bold text-gold-100/75">${rank.name}</p>
-        <p class="mt-0.5 text-[0.65rem] tracking-[0.15em] text-gold-100/40">${rank.reading}</p>
-        <div class="mx-auto mt-5 max-w-[24em] rounded-xl border border-gold-100/10 bg-night-800 px-5 py-7">
-          <p class="font-serif text-xl font-semibold leading-[2] text-gold-100">${text}</p>
+        <div class="omikuji-result-enter${animate ? '' : ' is-visible'}" data-omikuji-result-enter>
+          <p class="font-serif text-base font-bold text-gold-100/75">${rank.name}</p>
+          <p class="mt-0.5 text-[0.65rem] tracking-[0.15em] text-gold-100/40">${rank.reading}</p>
+          <div class="mx-auto mt-5 max-w-[24em] rounded-xl border border-gold-100/10 bg-night-800 px-5 py-7">
+            <p class="font-serif text-xl font-semibold leading-[2] text-gold-100">${text}</p>
+          </div>
+          <p class="mt-4 text-xs text-gold-100/60">${rank.phrase}（出現率：約${rank.weight}%）</p>
         </div>
-        <p class="mt-4 text-xs text-gold-100/60">${rank.phrase}（出現率：約${rank.weight}%）</p>
       `;
+      if (animate) {
+        const enterEl = resultEl!.querySelector<HTMLElement>('[data-omikuji-result-enter]');
+        requestAnimationFrame(() => enterEl?.classList.add('is-visible'));
+      }
+    }
+
+    function showBottomClose() {
+      closeButtonBottom!.classList.remove('hidden');
+      closeButtonBottom!.classList.add('inline-flex');
+    }
+    function hideBottomClose() {
+      closeButtonBottom!.classList.add('hidden');
+      closeButtonBottom!.classList.remove('inline-flex');
+    }
+
+    function showVeilAnimated() {
+      veilEl!.classList.remove('is-visible');
+      // .omikuji-hintと同じ手当て: 1フレーム後に付けてtransitionを発火させる。
+      requestAnimationFrame(() => veilEl!.classList.add('is-visible'));
+    }
+    function showVeilStatic() {
+      veilEl!.classList.add('is-visible');
+    }
+
+    // 提灯アイコンを.omikuji-lantern-glow（光彩用の::beforeを持つ薄いラッパー）
+    // で包む。ズームで大きく表示すると平面的なイラストの2D感が目立つため、
+    // 柔らかい光の輪を後ろに敷いて「発光している」質感を補う（CSS参照）。
+    // ラッパーはtransformを持たない静的な要素で、拡大・移動は外側
+    // （.omikuji-fly-lantern・.omikuji-approach-light）が担う。
+    function createGlowWrapper(icon: SVGElement): HTMLElement {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'omikuji-lantern-glow';
+      wrapper.appendChild(icon);
+      return wrapper;
+    }
+
+    // --- 「路地を流れる」提灯（演出専用・一時的なDOM要素） ---
+    // 生成のたびにlantern-templateを流用して作り、CSSアニメーション終了
+    // （animationend）で自ら取り除く。要素ごと消えるため、will-change
+    // （.omikuji-fly-lantern側で付与）も演出中だけの寿命になる。
+    let flyingElements: HTMLElement[] = [];
+
+    function clearFlyingLanterns() {
+      for (const el of flyingElements) el.remove();
+      flyingElements = [];
+    }
+
+    function spawnFlyingLanterns(rare: boolean) {
+      const count = rare ? FLY_COUNT_RARE : FLY_COUNT;
+      const flightMs = rare ? FLY_DURATION_RARE_MS : FLY_DURATION_MS;
+      const windowMs = rare ? STAGE_APPROACH_RARE_MS : STAGE_APPROACH_MS;
+      // 最後の1個の出現がちょうど接近ステージの終わりに収まるよう、
+      // 生成間隔を均等割りする（「奥から手前へ、連続して通り過ぎる」ため
+      // 時間差で複数を流す）。
+      const spawnGap = count > 1 ? (windowMs - flightMs) / (count - 1) : 0;
+      for (let i = 0; i < count; i += 1) {
+        scheduleTimer(() => {
+          const icon = cloneLantern();
+          icon.classList.add('is-lit');
+          if (rare) icon.classList.add('is-rare');
+          const wrapper = createGlowWrapper(icon);
+          wrapper.classList.add('omikuji-fly-lantern');
+          if (rare) wrapper.classList.add('is-rare');
+          // 左右交互に。lane は上下方向のごく僅かなばらつき（-1〜1程度）で、
+          // 全部が一直線に流れる不自然さを避ける（乱数ではなく決定論的な値）。
+          const dir = i % 2 === 0 ? 1 : -1;
+          const lane = (((i * 5) % count) / Math.max(count - 1, 1)) * 2 - 1;
+          wrapper.style.setProperty('--fly-dir', String(dir));
+          wrapper.style.setProperty('--fly-lane', lane.toFixed(2));
+          wrapper.style.setProperty('--fly-duration', `${flightMs}ms`);
+          flyLayerEl!.appendChild(wrapper);
+          flyingElements.push(wrapper);
+          wrapper.addEventListener(
+            'animationend',
+            () => {
+              wrapper.remove();
+              flyingElements = flyingElements.filter((e) => e !== wrapper);
+            },
+            { once: true }
+          );
+        }, Math.round(spawnGap * i));
+      }
+    }
+
+    // --- 中央の「近づいてくる灯り」 ---
+    function resetApproachLight() {
+      approachLightEl!.innerHTML = '';
+      const icon = cloneLantern();
+      icon.classList.add('is-lit');
+      approachLightEl!.appendChild(createGlowWrapper(icon));
+      approachLightEl!.classList.remove('is-appearing', 'is-approaching', 'is-arrived', 'is-handoff', 'is-rare');
+      approachLightEl!.style.removeProperty('--approach-duration');
+    }
+
+    /** 「主」判定時に呼ぶ。approachLightEl自身・光彩ラッパー・アイコン本体の
+     *  3つ全てにis-rareを付けないと色が変わらない（アイコンの朱色は
+     *  .lantern-icon.is-rareという複合セレクタで、光彩の朱色は
+     *  .omikuji-lantern-glow.is-rareでそれぞれ別要素に効くため）。 */
+    function markApproachLightRare() {
+      approachLightEl!.classList.add('is-rare');
+      approachLightEl!.querySelector<HTMLElement>('.omikuji-lantern-glow')?.classList.add('is-rare');
+      approachLightEl!.querySelector<SVGElement>('.lantern-icon')?.classList.add('is-rare');
+    }
+
+    /** 到着の瞬間だけ光る全画面フラッシュ。CSS animationなので、
+     *  .omikuji-hintのtransitionと同じ理由で1フレーム空けてから
+     *  is-flashingを付け、毎回確実に再生させる。 */
+    function resetFlash() {
+      flashEl!.classList.remove('is-flashing', 'is-rare');
+    }
+    function triggerFlash(rare: boolean) {
+      resetFlash();
+      if (rare) flashEl!.classList.add('is-rare');
+      requestAnimationFrame(() => flashEl!.classList.add('is-flashing'));
     }
 
     /** アニメーション無し・最終状態を即座に反映する（同日再表示・reduced-motion用）。 */
     function showStatic(result: OmikujiResult) {
+      showVeilStatic();
+      clearFlyingLanterns();
+      resetApproachLight(); // is-*を何も付けない＝非表示のまま
+      resetFlash();
       const slots = buildLanternSlots();
-      const litCount = result.rank.rare ? 7 : result.rank.lanternCount;
-      slots.forEach((slot, i) => {
-        if (result.rank.rare) {
-          slot.classList.add('is-lit', 'is-rare');
-        } else {
-          slot.classList.add(i < litCount ? 'is-lit' : 'is-unlit');
-        }
-      });
-      renderResult(result);
+      if (result.rank.rare) {
+        slots.forEach((slot) => slot.classList.add('is-lit', 'is-rare'));
+      } else {
+        const lit = litIndexSet(result.rank.lanternCount);
+        slots.forEach((slot, i) => slot.classList.add(lit.has(i) ? 'is-lit' : 'is-unlit'));
+      }
+      renderResult(result, false);
+      showBottomClose();
     }
 
-    /** 「提灯が奥から手前へ順に灯る」演出。全体で1.5秒以内。
-     *  is-lit/is-unlit/is-rareを付けるだけで、出現（.omikuji-lantern側）と
-     *  点灯・消灯の色（LanternIcon側、src/styles/global.css）の両方が
-     *  自動的にtransitionする。 */
+    /**
+     * 全画面演出（路地を奥へ進み、灯りに近づく）。
+     * 1. 暗転（STAGE_DARKEN_MS）。途中で遠くの小さな灯りが現れる。
+     * 2. 接近（STAGE_APPROACH_MS、「主」はSTAGE_APPROACH_RARE_MS）。
+     *    中央の灯りが徐々に拡大しつつ、両脇を提灯が奥から手前へ流れて
+     *    画面外に消えていく（spawnFlyingLanterns。手前に来るほど大きく・
+     *    速く動くのは.omikuji-fly-lanternの非線形キーフレーム1本で表現する）。
+     * 3. 到着（STAGE_ARRIVE_MS）。正面の灯りが大きくブルームし、
+     *    triggerFlashで画面全体が一度灯りに包まれたのち、流れていた提灯を
+     *    片付け、確定した点灯数の並びへ中央から短い間隔（SETTLE_STAGGER_MS）
+     *    で切り替える。
+     * 4. 結果が浮かび上がる。
+     * 「主」は接近を大幅に速め、灯り・提灯・フラッシュの色を朱にすることで
+     * 別扱いを維持する。
+     */
     function playReveal(result: OmikujiResult) {
       const slots = buildLanternSlots();
       resultEl!.innerHTML = '';
+      hideBottomClose();
+      clearFlyingLanterns();
+      resetApproachLight();
+      resetFlash();
+      showVeilAnimated();
 
-      if (result.rank.rare) {
-        // 「主」だけ演出を変える: 順番にではなく一斉に、朱色で強く。
-        slots.forEach((slot) => {
-          slot.classList.add('is-lit', 'is-rare');
-        });
-        window.setTimeout(() => renderResult(result), RARE_ENTER_MS + RESULT_BUFFER_MS);
-        return;
-      }
+      const rare = Boolean(result.rank.rare);
+      const approachMs = rare ? STAGE_APPROACH_RARE_MS : STAGE_APPROACH_MS;
 
-      const litCount = result.rank.lanternCount;
-      slots.forEach((slot, i) => {
-        window.setTimeout(() => {
-          slot.classList.add(i < litCount ? 'is-lit' : 'is-unlit');
-        }, i * LANTERN_STAGGER_MS);
+      // 1. 暗転の途中で、遠くの小さな灯りがふっと現れる。
+      scheduleTimer(
+        () => {
+          if (rare) markApproachLightRare();
+          approachLightEl!.classList.add('is-appearing');
+        },
+        Math.round(STAGE_DARKEN_MS * 0.35)
+      );
+
+      // 2. 路地を進む: 中央の灯りが拡大し続け、両脇を提灯が流れる。
+      const approachStart = STAGE_DARKEN_MS;
+      scheduleTimer(() => {
+        approachLightEl!.style.setProperty('--approach-duration', `${approachMs}ms`);
+        approachLightEl!.classList.add('is-approaching');
+        spawnFlyingLanterns(rare);
+      }, approachStart);
+
+      // 3. 到着: 正面の灯りが大きくブルームし、画面全体が一度灯りに包まれた
+      //    のち（triggerFlash）、確定した並びへクロスフェードする。
+      const arriveStart = approachStart + approachMs;
+      scheduleTimer(() => {
+        clearFlyingLanterns();
+        approachLightEl!.classList.add('is-arrived');
+        triggerFlash(rare);
+      }, arriveStart);
+
+      // 確定した並びは、中央（index3）を起点に左右へLANTERN_EXPANSION_ORDER
+      // の順でごく短い間隔（SETTLE_STAGGER_MS）で灯し、静かに「収まる」
+      // 手触りを出す（一斉ではなく、灯りが少しずつ落ち着いていく見え方）。
+      const handoffStart = arriveStart + Math.round(STAGE_ARRIVE_MS * 0.4);
+      const lit = rare ? null : litIndexSet(result.rank.lanternCount);
+      LANTERN_EXPANSION_ORDER.forEach((idx, step) => {
+        scheduleTimer(
+          () => {
+            if (rare) slots[idx].classList.add('is-lit', 'is-rare');
+            else slots[idx].classList.add(lit!.has(idx) ? 'is-lit' : 'is-unlit');
+          },
+          handoffStart + step * SETTLE_STAGGER_MS
+        );
       });
-      const totalMs = (slots.length - 1) * LANTERN_STAGGER_MS + LANTERN_ENTER_MS + RESULT_BUFFER_MS;
-      window.setTimeout(() => renderResult(result), totalMs);
+      scheduleTimer(() => {
+        approachLightEl!.classList.add('is-handoff');
+      }, handoffStart);
+
+      // 4. 結果が浮かび上がる。
+      const resultStart = arriveStart + STAGE_ARRIVE_MS;
+      scheduleTimer(() => {
+        renderResult(result, true);
+        showBottomClose();
+      }, resultStart);
     }
 
     function showAlreadyDrawn(stored: StoredDraw) {
@@ -325,6 +613,7 @@ import { X } from '@lucide/astro';
     openButton.addEventListener(
       'click',
       () => {
+        clearActiveTimers();
         dialog.showModal();
         document.body.style.overflow = 'hidden';
         closeButton.focus();
@@ -340,14 +629,19 @@ import { X } from '@lucide/astro';
       { signal }
     );
 
+    // ×ボタン・下部の「閉じる」・Escapeのどれで閉じても、演出の途中なら
+    // 残りのタイマーと流れている提灯を破棄する（「途中でスキップできる」）。
     function closeDialog() {
       if (!dialog!.open) return;
+      clearActiveTimers();
+      clearFlyingLanterns();
       dialog!.close();
       document.body.style.overflow = '';
       openButton!.focus();
     }
 
     closeButton.addEventListener('click', closeDialog, { signal });
+    closeButtonBottom.addEventListener('click', closeDialog, { signal });
     dialog.addEventListener(
       'cancel',
       (event) => {
@@ -366,13 +660,7 @@ import { X } from '@lucide/astro';
       },
       { signal }
     );
-    dialog.addEventListener(
-      'click',
-      (event) => {
-        if (event.target === dialog) closeDialog();
-      },
-      { signal }
-    );
+    // 背景タップでの close はここでは実装しない（誤タップを招くため）。
   }
 
   document.addEventListener('astro:page-load', initOmikuji);
@@ -381,6 +669,164 @@ import { X } from '@lucide/astro';
 <style>
   .omikuji-dialog[open] {
     display: block;
+  }
+
+  /* 全画面演出の「暗転」を担う層。dialog自体の背景は透明にしてあり
+     （script側のコメント参照）、このopacityだけをtransitionさせることで
+     「画面が暗転する」動きを作る。 */
+  .omikuji-veil {
+    opacity: 0;
+    transition: opacity 450ms ease;
+  }
+  .omikuji-veil.is-visible {
+    opacity: 1;
+  }
+
+  /* 路地を流れる提灯のレイヤー。要素自体はscript側が動的に生成・削除する。 */
+  .omikuji-fly-layer {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /* 光彩（グロー）レイヤー。飛ぶ提灯・接近する灯りはtransform:scale()で
+     大きくズームさせるため、平面塗りのイラストがそのまま拡大されると
+     2D感（ステッカーのような平べったさ）が目立ってしまう。::beforeに
+     柔らかい光の輪を敷いて「発光している」質感を補う。グロー自体は
+     静的なbackground（アニメーションさせるプロパティではない）で、
+     提灯本体と同じ親要素のtransformに追従して一緒に拡大・移動する
+     （＝transform/opacityのみで動かす、という制約はここでも守られている）。 */
+  .omikuji-lantern-glow {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .omikuji-lantern-glow::before {
+    content: '';
+    position: absolute;
+    inset: -55%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(242, 181, 68, 0.55) 0%, rgba(242, 181, 68, 0.22) 40%, rgba(242, 181, 68, 0) 72%);
+  }
+  .omikuji-lantern-glow.is-rare::before {
+    background: radial-gradient(circle, rgba(226, 71, 47, 0.6) 0%, rgba(226, 71, 47, 0.24) 40%, rgba(226, 71, 47, 0) 72%);
+  }
+
+  /*
+   * 1個の提灯が「奥から手前へ流れて画面外に消える」動き。中央(--fly-dir=±1で
+   * 左右)を起点に、42%までは小さく中央付近をゆっくり、42%〜75%で画面の
+   * かなりの面積を占めるほど一気に拡大（＝ここが「画面いっぱいにズーム
+   * イン」する山場）、75%〜100%でさらに拡大しながら画面外へ抜ける非線形
+   * カーブにすることで、「手前に来るほど大きく、速く動く」遠近感を
+   * 1本のkeyframesだけで表現する。transform（translate/scale）とopacity
+   * のみ、width/height/top/leftは使わない。要素はposition:fixedで中央に
+   * 置き、実際の移動量はtranslateの引数（vw/vh単位）で与える。
+   */
+  @keyframes omikuji-fly {
+    0% {
+      transform: translate(-50%, -50%) translate(0, 0) scale(0.08);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    42% {
+      transform: translate(-50%, -50%) translate(calc(var(--fly-dir, 1) * 9vw), calc(var(--fly-lane, 0) * 4vh)) scale(1.1);
+      opacity: 1;
+    }
+    75% {
+      transform: translate(-50%, -50%) translate(calc(var(--fly-dir, 1) * 42vw), calc(var(--fly-lane, 0) * 16vh)) scale(7.5);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(-50%, -50%) translate(calc(var(--fly-dir, 1) * 155vw), calc(var(--fly-lane, 0) * 32vh)) scale(13);
+      opacity: 0;
+    }
+  }
+  /* 動的に生成される提灯（lantern-templateの複製）に付与するクラスのため
+     :global()にする（.omikuji-lanternと同じ理由）。演出中（DOM上に存在する
+     間）だけwill-changeを持ち、animationendで要素ごと取り除かれる。 */
+  :global(.omikuji-fly-lantern) {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    opacity: 0;
+    will-change: transform, opacity;
+    animation-name: omikuji-fly;
+    animation-duration: var(--fly-duration, 1000ms);
+    animation-timing-function: cubic-bezier(0.25, 0, 0.7, 1);
+    animation-fill-mode: forwards;
+  }
+
+  /* 中央の「近づいてくる灯り」。1個のLanternIconをtransform:scaleだけで
+     遠近を表現する（width/height/top/leftは使わない）。ビューポート全体に
+     固定した層（.omikuji-approach-light自体がfixed inset-0、Astro側参照）
+     に置いてあるので、狭いコンテンツ列に縛られず画面いっぱいまで拡大できる。
+       is-appearing   遠くにごく小さく現れる
+       is-approaching 徐々に拡大しながら近づく（durationは--approach-durationで可変）
+       is-arrived     正面で画面を覆うほど大きくブルームする
+       is-handoff     確定した提灯の並びにフェードで譲る
+     演出中（is-appearing〜is-arrived）だけwill-changeを付与し、
+     is-handoffで通常状態に戻す（要素はDOM上に残るが、次回playReveal/
+     showStaticのresetApproachLight()で必ずクラスがリセットされる）。 */
+  .omikuji-approach-light {
+    opacity: 0;
+    transform: scale(0.05);
+    transition: opacity 350ms ease, transform 350ms ease;
+  }
+  .omikuji-approach-light.is-appearing,
+  .omikuji-approach-light.is-approaching,
+  .omikuji-approach-light.is-arrived {
+    will-change: transform, opacity;
+  }
+  .omikuji-approach-light.is-appearing {
+    opacity: 1;
+    transform: scale(0.4);
+  }
+  .omikuji-approach-light.is-approaching {
+    opacity: 1;
+    transform: scale(9);
+    transition-duration: var(--approach-duration, 2600ms);
+    transition-timing-function: cubic-bezier(0.3, 0, 0.75, 1);
+  }
+  .omikuji-approach-light.is-arrived {
+    transform: scale(13);
+    transition-duration: 420ms;
+    transition-timing-function: ease-out;
+  }
+  .omikuji-approach-light.is-handoff {
+    opacity: 0;
+    transition-duration: 320ms;
+    transition-timing-function: ease-in;
+  }
+
+  /* 到着の瞬間だけ光る全画面フラッシュ。opacityのみで一度明滅させ、
+     「正面の灯りが大きく灯る」→「確定した並びへ切り替わる」の間に
+     一拍を挟む（ただのクロスフェードで終わらせない）。is-flashingが
+     外れている間はwill-changeを持たない＝演出中だけの寿命。 */
+  @keyframes omikuji-flash {
+    0% {
+      opacity: 0;
+    }
+    35% {
+      opacity: 0.8;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  .omikuji-flash {
+    opacity: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(242, 181, 68, 0.9) 0%, rgba(242, 181, 68, 0.28) 35%, rgba(242, 181, 68, 0) 68%);
+  }
+  .omikuji-flash.is-rare {
+    background: radial-gradient(circle at 50% 50%, rgba(226, 71, 47, 0.9) 0%, rgba(226, 71, 47, 0.28) 35%, rgba(226, 71, 47, 0) 68%);
+  }
+  .omikuji-flash.is-flashing {
+    animation: omikuji-flash 420ms ease-out 1;
+    will-change: opacity;
   }
 
   /* 「運試し」の吹き出し。提灯の真上に置き、下向きの三角（しっぽ）で
@@ -408,19 +854,41 @@ import { X } from '@lucide/astro';
     border-color: var(--color-night-600) transparent transparent transparent;
   }
 
+  /* 結果（格付け・お告げ）の浮かび上がり演出（4. 格付けとお告げが浮かび上がる）。
+     transform/opacityのみ（制約どおり）。 */
+  .omikuji-result-enter {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 400ms ease, transform 400ms ease;
+  }
+  .omikuji-result-enter.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .omikuji-hint {
+    .omikuji-hint,
+    .omikuji-veil,
+    .omikuji-result-enter,
+    .omikuji-approach-light {
       transition: none;
+    }
+    :global(.omikuji-fly-lantern) {
+      animation: none;
+      opacity: 0;
+    }
+    .omikuji-flash.is-flashing {
+      animation: none;
+      opacity: 0;
     }
   }
 
-  /* 提灯スロット: 点灯/消灯・「主」の色やグローはLanternIcon側
-     （src/styles/global.css の .lantern-icon.is-lit 等）が担当する。
-     ここでは「出現」だけを扱う: JSがis-lit/is-unlit/is-rareのいずれかを
-     付けるまでは不可視で、付いた瞬間にtransform/opacityがフェードインする
-     （LanternIcon側のfill/filterのtransitionと同時に走るため、
-     「灯る」演出として一体に見える）。「主」だけ短いdurationにして
-     一斉点灯を素早く見せる。 */
+  /* 提灯スロット（確定した結果の並び）: 点灯/消灯・「主」の色やグローは
+     LanternIcon側（src/styles/global.css の .lantern-icon.is-lit 等）が
+     担当する。ここでは「出現」だけを扱う: JSがis-lit/is-unlit/is-rareの
+     いずれかを付けるまでは不可視で、付いた瞬間にtransform/opacityが
+     フェードインする（LanternIcon側のfill/filterのtransitionと同時に
+     走るため、「灯る」演出として一体に見える）。 */
   :global(.omikuji-lantern) {
     opacity: 0;
     transform: scale(0.7);
