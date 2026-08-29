@@ -273,10 +273,11 @@ body {
   filter: drop-shadow(0 0 8px var(--color-vermilion)) drop-shadow(0 0 18px var(--color-vermilion));
 }
 
-/* 呼吸グロー（FABの「未抽選」表示・Hero上部の営業状況等）。点灯/消灯とは
-   独立したクラスで、--glowを参照するため時間帯が深夜に近づくほど強く光る。
-   最大8個までしか同時に使わない前提（呼び出し側でLANTERN_DISPLAY_CAPにより
-   制限）なのでアニメーション化によるペイントコストは許容する。 */
+/* 呼吸グロー（Hero上部の営業状況、複数の提灯が同時に灯る場面向け）。
+   点灯/消灯とは独立したクラスで、--glowを参照するため時間帯が深夜に
+   近づくほど強く光る。最大8個までしか同時に使わない前提（呼び出し側で
+   LANTERN_DISPLAY_CAPにより制限）なのでアニメーション化による
+   ペイントコストは許容する。 */
 @keyframes lantern-icon-breathe {
   0%,
   100% {
@@ -288,6 +289,53 @@ body {
 }
 .lantern-icon.is-breathing {
   animation: lantern-icon-breathe 4s ease-in-out infinite;
+}
+
+/* おみくじFABの「未抽選」時の目立たせ方。is-breathingより強めの呼吸に、
+   吊り下げ式の提灯らしい微かな揺れ（AlleyNight.astroの.lantern-swayと
+   同じtransform: rotate往復の技法）を常時加え、さらに10秒に1回程度、
+   風が吹いたような一瞬だけ大きめの揺れを混ぜる。点滅（opacity/表示の
+   on-offやfilterの急な明滅）は使わない——「灯りの強弱がゆっくり
+   往復する」「稀にゆらぐ」のはあくまで連続的な変化であり、点滅とは
+   別物という判断。1インスタンスのみ（FAB）にしか使わないためペイント
+   コストは無視できる。Hero側の.is-breathingには影響しない、FAB専用の
+   強調表現として独立させてある。 */
+@keyframes lantern-icon-breathe-strong {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 7px var(--glow));
+  }
+  50% {
+    filter: drop-shadow(0 0 7px var(--glow)) drop-shadow(0 0 16px var(--glow));
+  }
+}
+@keyframes lantern-icon-sway-gust {
+  0%,
+  38%,
+  100% {
+    transform: rotate(0deg);
+  }
+  19% {
+    transform: rotate(-1.5deg);
+  }
+  /* 62〜74%のあたりだけ、通常より大きく素早く1往復させる
+     （10秒周期のうち約1.2秒だけの「ひと揺れ」）。 */
+  62% {
+    transform: rotate(-3.5deg);
+  }
+  68% {
+    transform: rotate(3deg);
+  }
+  74% {
+    transform: rotate(0deg);
+  }
+}
+.lantern-icon.is-inviting {
+  transform-box: fill-box;
+  transform-origin: top center;
+  animation:
+    lantern-icon-breathe-strong 5s ease-in-out infinite,
+    lantern-icon-sway-gust 10s ease-in-out infinite;
 }
 
 /* /map/ の路地マップ（src/pages/map/index.astro）。
@@ -400,6 +448,7 @@ body {
   .street-glow,
   .status-fade,
   .lantern-icon.is-breathing,
+  .lantern-icon.is-inviting,
   ::view-transition-group(root),
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -413,11 +462,16 @@ body {
     opacity: 1 !important;
   }
 
-  /* .lantern-icon.is-breathing も同じ理由: animation:noneだけだと発光の
-     無い状態に固定されてしまうため、静的なglowを!importantで与えて
-     「止まっているが光っている」状態にする。 */
+  /* .lantern-icon.is-breathing / .is-inviting も同じ理由: animation:none
+     だけだと発光の無い状態に固定されてしまうため、静的なglowを
+     !importantで与えて「止まっているが光っている」状態にする。
+     is-invitingは揺れ（transform）も止まるため、rotateも0degに固定する。 */
   .lantern-icon.is-breathing {
     filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 8px var(--glow)) !important;
+  }
+  .lantern-icon.is-inviting {
+    filter: drop-shadow(0 0 5px var(--glow)) drop-shadow(0 0 11px var(--glow)) !important;
+    transform: rotate(0deg) !important;
   }
 
   /* 提灯アイコンのfill/stroke-width/filterのtransition（is-lit⇄is-unlit

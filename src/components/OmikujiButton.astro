@@ -24,7 +24,7 @@ import { X } from '@lucide/astro';
     <div
       data-omikuji-hint
       aria-hidden="true"
-      class="omikuji-hint pointer-events-none whitespace-nowrap rounded-full bg-night-800 px-3 py-1.5 text-xs font-medium text-amber-glow shadow-[0_4px_14px_rgba(8,9,15,0.4)]"
+      class="omikuji-hint pointer-events-none whitespace-nowrap rounded-full bg-night-800 px-3 py-1.5 text-xs font-medium text-gold-100 shadow-[0_4px_14px_rgba(8,9,15,0.4)]"
     >
       運試し
     </div>
@@ -84,6 +84,18 @@ import { X } from '@lucide/astro';
   } from '../lib/omikuji';
 
   const STORAGE_KEY = 'honjikoji-omikuji';
+
+  // 「運試し」吹き出しの表示方針。A/Bどちらも実装済みで、ここを書き換える
+  // だけで切り替えられる。
+  //   'auto-hide' : ページ読み込み後に数秒表示して自動で引っ込む（既定・推奨）。
+  //                 タップ可能であることだけ伝え、閲覧の邪魔をしない。
+  //                 astro:page-loadのたびに再表示されるため、初見の説明としての
+  //                 役割は毎回保たれる。
+  //   'always'    : 常時表示（引くまでずっと出したままにする）。
+  // どちらのモードでも、実際に引いた後は即座に隠す（A/B共通の要件）。
+  const HINT_DISPLAY_MODE: 'auto-hide' | 'always' = 'auto-hide';
+  const HINT_AUTO_HIDE_MS = 4500;
+
   const LANTERN_STAGGER_MS = 150;
   // .omikuji-lanternのtransition-duration（下のstyle参照）と合わせてある。
   const LANTERN_ENTER_MS = 280;
@@ -164,20 +176,18 @@ import { X } from '@lucide/astro';
     const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     let hintHideTimer: ReturnType<typeof setTimeout> | undefined;
-    const HINT_AUTO_HIDE_MS = 4500;
 
-    // 「今日まだ引いていない」間だけFABが呼吸する（毎日来る動機になるよう、
-    // 既存の.is-breathing＝4秒周期のグローをそのまま流用する）。FAB自体は
-    // 常にlit={true}（点灯した見た目）で、呼吸するかどうかだけを切り替える。
-    // 「運試し」の吹き出しも同じ条件で出し、数秒後に自動で引っ込める
-    // （常時表示にすると、既に引いた日も含めて毎回幅を取ってしまうため。
-    // ページ遷移のたびにastro:page-loadで再表示されるので、初見の説明としての
-    // 役割は保ちつつ、閲覧の邪魔にはならない）。すでに引いた後は、途中で
-    // フェード中でも即座に隠す。
+    // 「今日まだ引いていない」間だけFABが目を引く演出をする
+    // （.is-inviting＝強めの呼吸＋微かな揺れ＋稀な一瞬の風のような揺らぎ。
+    // 点滅はしない。詳細はsrc/styles/global.css参照）。FAB自体は常に
+    // lit={true}（点灯した見た目）で、このクラスの有無だけを切り替える。
+    // 「運試し」の吹き出しも同じ条件で出す。表示方針はHINT_DISPLAY_MODEで
+    // 切り替える。すでに引いた後は、A/Bどちらのモードでも
+    // （auto-hideのフェード待ち中であっても）即座に隠す。
     function syncFabState() {
       const today = readStoredDraw();
       const hasDrawnToday = today?.dateKey === getOmikujiDayKey();
-      fabLantern!.classList.toggle('is-breathing', !hasDrawnToday);
+      fabLantern!.classList.toggle('is-inviting', !hasDrawnToday);
 
       if (hintHideTimer !== undefined) {
         clearTimeout(hintHideTimer);
@@ -185,10 +195,14 @@ import { X } from '@lucide/astro';
       }
       if (hasDrawnToday) {
         hintEl!.classList.remove('is-visible');
-      } else {
-        requestAnimationFrame(() => hintEl!.classList.add('is-visible'));
+        return;
+      }
+
+      requestAnimationFrame(() => hintEl!.classList.add('is-visible'));
+      if (HINT_DISPLAY_MODE === 'auto-hide') {
         hintHideTimer = setTimeout(() => hintEl!.classList.remove('is-visible'), HINT_AUTO_HIDE_MS);
       }
+      // 'always' モードでは何もタイマーを仕掛けない＝引くまで表示され続ける。
     }
     syncFabState();
 
