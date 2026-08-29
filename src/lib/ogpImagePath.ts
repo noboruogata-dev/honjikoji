@@ -19,7 +19,7 @@ import path from 'node:path';
 // src/pages/map/index.astro と同じ理由・同じ対策）。
 const OGP_DIR = path.resolve(process.cwd(), 'public/images/ogp');
 
-export type OgpContentType = 'spot' | 'news' | 'column';
+export type OgpContentType = 'spot' | 'news' | 'column' | 'guide';
 
 /** 生成済みOGP画像のルート相対パスを返す。無ければundefined。 */
 export function resolveOgpImage(type: OgpContentType, slug: string): string | undefined {

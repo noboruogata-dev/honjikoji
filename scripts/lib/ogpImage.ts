@@ -25,7 +25,7 @@ const RULES_DIR = path.resolve(__dirname, '../../public/images/rules');
 const WIDTH = 1200;
 const HEIGHT = 630;
 
-export type OgpContentType = 'spot' | 'news' | 'column';
+export type OgpContentType = 'spot' | 'news' | 'column' | 'guide';
 
 export interface OgpImageInput {
   /** レイアウトの微調整に使う程度で、現状は全タイプほぼ共通デザイン。 */

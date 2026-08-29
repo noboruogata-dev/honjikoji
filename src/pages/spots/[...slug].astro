@@ -16,6 +16,7 @@ import { ExternalLink, Map as MapIcon } from '@lucide/astro';
 import { getSpotSchemaType } from '../../lib/spotSchemaType';
 import { buildGoogleMapsUrl, buildOpeningHoursSpecification, buildSpotAddress } from '../../lib/structuredData';
 import { resolveOgpImage } from '../../lib/ogpImagePath';
+import { guidesForSpot } from '../../lib/guides';
 
 export async function getStaticPaths() {
   const spots = await getCollection('spots');
@@ -44,6 +45,9 @@ const {
   socialLinks,
 } = spot.data;
 const { Content } = await render(spot);
+// hashigo（1軒目/2軒目/〆）は全店が該当し差別化情報にならないため、
+// guidesForSpot側で意図的に除外している。
+const matchingGuides = guidesForSpot(spot.data);
 const publishedDateLabel = new Intl.DateTimeFormat('ja-JP', {
   year: 'numeric',
   month: 'long',
@@ -220,6 +224,24 @@ const socialPlatformLabels = {
       }
 
       <MapEmbed title={title} query={mapQuery} />
+
+      {
+        matchingGuides.length > 0 && (
+          <div class="mt-8 border-t border-night-700 pt-6">
+            <p class="text-xs font-medium tracking-wide text-gold-100/40">このお店が載っているガイド</p>
+            <div class="mt-3 flex flex-wrap gap-2">
+              {matchingGuides.map((guide) => (
+                <a
+                  href={`/guides/${guide.slug}/`}
+                  class="rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+                >
+                  {guide.shortLabel}
+                </a>
+              ))}
+            </div>
+          </div>
+        )
+      }
 
       <nav class="mt-12 flex flex-col gap-3 border-t border-night-700 pt-6 sm:flex-row sm:items-center sm:justify-between" aria-label="店舗ページの次の行き先">
         <a

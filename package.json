@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "prebuild": "tsx scripts/generate-ogp-images.ts",
+    "prebuild": "tsx scripts/generate-guides-manifest.ts && tsx scripts/generate-ogp-images.ts",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
@@ -16,6 +16,7 @@
     "generate:column": "tsx scripts/generate-column.ts",
     "generate:column-image": "tsx scripts/generate-column-image.ts",
     "generate:ogp-images": "tsx scripts/generate-ogp-images.ts",
+    "generate:guides-manifest": "tsx scripts/generate-guides-manifest.ts",
     "match:youtube": "tsx scripts/match-youtube.ts",
     "test": "vitest run"
   },

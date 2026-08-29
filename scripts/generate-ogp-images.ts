@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { appendStepSummary, readFrontmatter } from './lib/gemini-agents.js';
 import { renderOgpImage, type OgpContentType } from './lib/ogpImage.js';
+import { GUIDES } from '../src/lib/guides.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -96,6 +97,12 @@ async function collectColumns(): Promise<ContentItem[]> {
   return items;
 }
 
+// テーマ別まとめページ（/guides/<slug>/）はmarkdownファイルを持たず、
+// src/lib/guides.tsのコード上の定義がそのまま情報源になる。frontmatter読み込みは不要。
+function collectGuides(): ContentItem[] {
+  return GUIDES.map((guide) => ({ type: 'guide', slug: guide.slug, title: guide.title, label: 'テーマガイド' }));
+}
+
 function cacheKey(item: ContentItem): string {
   return `${item.type}-${item.slug}`;
 }
@@ -141,7 +148,7 @@ async function main() {
     }
   }
 
-  const items = [...(await collectSpots()), ...(await collectNews()), ...(await collectColumns())];
+  const items = [...(await collectSpots()), ...(await collectNews()), ...(await collectColumns()), ...collectGuides()];
   console.log(`[generate-ogp-images] 対象: 店舗/コラム/ニュース 計${items.length}件`);
 
   const results: ItemResult[] = [];

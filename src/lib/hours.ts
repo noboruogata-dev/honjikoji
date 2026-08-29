@@ -54,8 +54,11 @@ function unknown(): OpenStatusResult {
   return { state: 'unknown', label: UNKNOWN_LABEL };
 }
 
-/** "H:MM" / "HH:MM" 形式（24を超える値も可）を分単位の整数に変換する。不正な値は null。 */
-function parseTimeToMinutes(value: string): number | null {
+/**
+ * "H:MM" / "HH:MM" 形式（24を超える値も可）を分単位の整数に変換する。不正な値は null。
+ * src/lib/guides.ts（深夜営業ガイドの「閉店が24:00以降」判定）でも再利用するためexportする。
+ */
+export function parseTimeToMinutes(value: string): number | null {
   const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
   if (!match) return null;
   const hour = Number(match[1]);

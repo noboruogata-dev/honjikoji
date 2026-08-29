@@ -13,6 +13,11 @@ yarn-error.log*
 pnpm-debug.log*
 
 
+# prebuildで毎回再計算される軽量な派生データ（scripts/generate-guides-manifest.ts）。
+# ogp-image-cache.jsonと違い高コストな生成物のスキップ判定用ではないため、
+# コミット不要（build時に常に最新化される）。
+guides-manifest.json
+
 # environment variables
 .env
 .env.production

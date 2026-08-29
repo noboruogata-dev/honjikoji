@@ -9,6 +9,7 @@ import GenreIcon from '../../components/GenreIcon.astro';
 import StructuredData from '../../components/StructuredData.astro';
 import { getCollection } from 'astro:content';
 import { MapPin } from '@lucide/astro';
+import { GUIDES } from '../../lib/guides';
 
 const spots = (await getCollection('spots')).sort(
   (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
@@ -57,6 +58,22 @@ const seatTypes = [
 
   <main class="mx-auto max-w-5xl px-4 py-10">
     <SectionHeading icon={MapPin} label="SPOTS" accent="amber" level="h1">店舗一覧</SectionHeading>
+
+    <div class="mt-6">
+      <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/40">テーマから探す</p>
+      <div class="flex flex-wrap gap-2">
+        {
+          GUIDES.map((guide) => (
+            <a
+              href={`/guides/${guide.slug}/`}
+              class="rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+            >
+              {guide.shortLabel}
+            </a>
+          ))
+        }
+      </div>
+    </div>
 
     <div class="mt-6 space-y-3">
       <div>

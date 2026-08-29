@@ -1,0 +1,138 @@
+---
+/**
+ * src/pages/guides/[slug].astro
+ *
+ * テーマ別まとめページ（/guides/<slug>/）。検索エンジンにインデックスされない
+ * /spots/?scene=late のようなクエリの代わりに、複合語検索の受け皿となる
+ * 静的ページを用意する。抽出条件・導入文は src/lib/guides.ts 側のデータ。
+ *
+ * 該当店舗数が GUIDE_MIN_SPOTS_FOR_INDEX 未満のページは、検索結果に出すと
+ * 逆効果なため noindex にする（店舗が増えて閾値を超えれば自動的に外れる）。
+ * サイトマップからの除外は astro.config.mjs 側（scripts/generate-guides-manifest.ts
+ * が書き出す guides-manifest.json を読む）で行うため、このページ自体は
+ * Layoutのnoindex propを立てるだけでよい。
+ */
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import SpotCard from '../../components/SpotCard.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import StructuredData from '../../components/StructuredData.astro';
+import { getCollection } from 'astro:content';
+import { Compass } from '@lucide/astro';
+import { GUIDES, GUIDE_MIN_SPOTS_FOR_INDEX, classifyHashigo, getGuide, type GuideDefinition } from '../../lib/guides';
+import { resolveOgpImage } from '../../lib/ogpImagePath';
+
+export async function getStaticPaths() {
+  return GUIDES.map((guide) => ({ params: { slug: guide.slug }, props: { guide } }));
+}
+
+const { guide } = Astro.props as { guide: GuideDefinition };
+const isHashigo = guide.slug === 'hashigo';
+
+const spots = (await getCollection('spots')).sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+const matched = spots.filter((spot) => guide.matches(spot.data));
+const hashigoGroups = isHashigo ? classifyHashigo(matched, (spot) => spot.data) : null;
+
+// hashigoはフィルタせず全店を並べ替えて見せるページなので、薄さの判定も
+// 「全店で何件あるか」で行う（他のガイドと同じmatched.lengthを使う）。
+const noindex = matched.length < GUIDE_MIN_SPOTS_FOR_INDEX;
+
+const relatedGuides = guide.relatedSlugs.map((slug) => getGuide(slug)).filter((g): g is GuideDefinition => Boolean(g));
+
+const ogImagePath = resolveOgpImage('guide', guide.slug);
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  itemListElement: matched.map((spot, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    url: new URL(`/spots/${spot.id}/`, Astro.site ?? Astro.url).toString(),
+  })),
+};
+
+const HASHIGO_EMPTY_TEXT: Record<'first' | 'second' | 'shime', string> = {
+  first: '1軒目に合う店は、これから記録していきます。',
+  second: '2軒目に寄る店は、これから記録していきます。',
+  shime: '〆に合う店は、これから記録していきます。',
+};
+---
+
+<Layout title={`${guide.title}｜本寺小路ガイド`} description={guide.description} noindex={noindex} ogImage={ogImagePath}>
+  <StructuredData data={structuredData} />
+  <Header />
+
+  <main class="mx-auto max-w-5xl px-4 py-10">
+    <SectionHeading icon={Compass} label="GUIDE" accent="amber" level="h1">{guide.title}</SectionHeading>
+
+    <p class="mt-4 max-w-3xl text-sm leading-relaxed text-gold-100/70">{guide.intro}</p>
+
+    {
+      isHashigo && hashigoGroups ? (
+        <div class="mt-8 space-y-10">
+          {(['first', 'second', 'shime'] as const).map((key) => {
+            const label = key === 'first' ? '1軒目' : key === 'second' ? '2軒目' : '〆';
+            const group = hashigoGroups[key];
+            return (
+              <section>
+                <h2 class="font-serif text-lg font-bold text-amber-glow">{label}</h2>
+                {group.length === 0 ? (
+                  <p class="mt-3 text-sm text-gold-100/40">{HASHIGO_EMPTY_TEXT[key]}</p>
+                ) : (
+                  <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {group.map((spot) => (
+                      <SpotCard spot={spot} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <div class="mt-8">
+          {matched.length === 0 ? (
+            <EmptyState message={`「${guide.title}」に該当する店舗は、現在準備中です。`} />
+          ) : (
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {matched.map((spot) => (
+                <SpotCard spot={spot} />
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    {
+      relatedGuides.length > 0 && (
+        <div class="mt-12 border-t border-night-700 pt-8">
+          <p class="text-xs font-medium tracking-wide text-gold-100/40">関連するガイド</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            {relatedGuides.map((related) => (
+              <a
+                href={`/guides/${related.slug}/`}
+                class="rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                {related.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    <div class="mt-8">
+      <a
+        href={guide.spotsQuery ?? '/spots/'}
+        class="inline-flex items-center gap-1.5 text-sm font-medium text-amber-glow transition hover:text-amber-deep"
+      >
+        他の条件でも探す →
+      </a>
+    </div>
+  </main>
+
+  <Footer />
+</Layout>
