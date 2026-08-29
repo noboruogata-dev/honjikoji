@@ -1,0 +1,368 @@
+---
+/**
+ * src/components/OmikujiButton.astro
+ *
+ * 全ページ共通の「本寺小路おみくじ」フローティングボタン＋モーダル。
+ * Layout.astro に1箇所だけ配置する（transition:persistでページ遷移を
+ * またいで同一DOMを保つ）。
+ *
+ * モーダルの開閉・Escape・背景クリック・スクロールロック・
+ * astro:page-load再初期化は、Header.astroのモバイルメニュー
+ * （ネイティブ<dialog>＋showModal()）と同じ実績あるパターンを踏襲する。
+ * showModal()はブラウザが自動でトップレイヤー描画とフォーカストラップを
+ * 提供するため、フォーカストラップを自前実装する必要はない。
+ */
+import LanternIcon from './illustrations/LanternIcon.astro';
+import { X } from '@lucide/astro';
+---
+
+<div transition:persist transition:name="omikuji-widget">
+  <button
+    type="button"
+    data-omikuji-open
+    aria-haspopup="dialog"
+    aria-controls="omikuji-dialog"
+    aria-label="今夜のおみくじを引く"
+    class="fixed right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full border border-amber-deep/50 bg-night-900/90 text-amber-glow shadow-[0_4px_20px_rgba(8,9,15,0.45)] backdrop-blur-sm transition hover:border-amber-glow/70 hover:bg-night-800"
+    style="bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));"
+  >
+    <span data-omikuji-fab-icon class="inline-flex">
+      <LanternIcon size={28} />
+    </span>
+    <span class="sr-only">今夜のおみくじを引く</span>
+  </button>
+
+  <dialog
+    id="omikuji-dialog"
+    data-omikuji-dialog
+    aria-label="今夜のおみくじ"
+    class="omikuji-dialog m-auto max-h-[90dvh] w-[min(92vw,26rem)] overflow-y-auto border-0 bg-transparent p-0 backdrop:bg-night-950/80"
+  >
+    <div class="omikuji-panel relative rounded-2xl border border-night-700 bg-night-900 px-6 py-8 text-center shadow-[0_20px_60px_rgba(8,9,15,0.6)]">
+      <button
+        type="button"
+        data-omikuji-close
+        aria-label="閉じる"
+        class="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full text-gold-100/60 transition hover:bg-night-800 hover:text-amber-glow"
+      >
+        <X size={19} stroke-width={1.7} aria-hidden="true" />
+      </button>
+
+      <p class="text-xs tracking-[0.3em] text-amber-glow/70">本寺小路おみくじ</p>
+
+      <div data-omikuji-lanterns class="mt-5 flex flex-wrap items-center justify-center gap-1.5" aria-hidden="true">
+      </div>
+
+      <div data-omikuji-result class="mt-2" aria-live="polite"></div>
+
+      <p data-omikuji-note class="mt-5 text-xs leading-relaxed text-gold-100/45"></p>
+    </div>
+  </dialog>
+
+  <template data-omikuji-lantern-template><LanternIcon size={30} class="omikuji-lantern" /></template>
+</div>
+
+<script>
+  import {
+    draw,
+    getOmikujiDayKey,
+    OMIKUJI_RANKS,
+    type OmikujiRank,
+    type OmikujiResult,
+  } from '../lib/omikuji';
+
+  const STORAGE_KEY = 'honjikoji-omikuji';
+  const LANTERN_STAGGER_MS = 150;
+  const LANTERN_ENTER_MS = 260;
+  const RARE_ENTER_MS = 560;
+  const RESULT_BUFFER_MS = 150;
+
+  interface StoredDraw {
+    dateKey: string;
+    rankKey: string;
+    text: string;
+  }
+
+  /** localStorageが使えない環境（プライベートブラウジング等）でも
+   *  機能自体は止めない。読み書き失敗時はnull/no-opにフォールバックする。 */
+  function readStoredDraw(): StoredDraw | null {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (
+        parsed &&
+        typeof parsed.dateKey === 'string' &&
+        typeof parsed.rankKey === 'string' &&
+        typeof parsed.text === 'string'
+      ) {
+        return parsed as StoredDraw;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeStoredDraw(value: StoredDraw) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+    } catch {
+      // 保存できなくても、今回の結果はこのセッション内で表示できていれば十分。
+    }
+  }
+
+  function findRank(rankKey: string): OmikujiRank | undefined {
+    return OMIKUJI_RANKS.find((r) => r.key === rankKey);
+  }
+
+  let controller: AbortController | undefined;
+
+  function initOmikuji() {
+    controller?.abort();
+    controller = new AbortController();
+    const { signal } = controller;
+
+    const openButton = document.querySelector<HTMLButtonElement>('[data-omikuji-open]');
+    const fabIcon = document.querySelector<HTMLElement>('[data-omikuji-fab-icon]');
+    const dialog = document.querySelector<HTMLDialogElement>('[data-omikuji-dialog]');
+    const closeButton = dialog?.querySelector<HTMLButtonElement>('[data-omikuji-close]');
+    const lanternsEl = document.querySelector<HTMLElement>('[data-omikuji-lanterns]');
+    const resultEl = document.querySelector<HTMLElement>('[data-omikuji-result]');
+    const noteEl = document.querySelector<HTMLElement>('[data-omikuji-note]');
+    const lanternTemplate = document.querySelector<HTMLTemplateElement>('[data-omikuji-lantern-template]');
+    if (!openButton || !fabIcon || !dialog || !closeButton || !lanternsEl || !resultEl || !noteEl || !lanternTemplate) {
+      return;
+    }
+
+    const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // 「今日まだ引いていない」間だけFABが呼吸する（毎日来る動機になるよう、
+    // 既存の.lantern-icon-lit＝4秒周期のグローをそのまま流用する）。
+    function syncFabState() {
+      const today = readStoredDraw();
+      const hasDrawnToday = today?.dateKey === getOmikujiDayKey();
+      fabIcon!.classList.toggle('lantern-icon-lit', !hasDrawnToday);
+    }
+    syncFabState();
+
+    function cloneLantern(): SVGElement {
+      return lanternTemplate!.content.firstElementChild!.cloneNode(true) as SVGElement;
+    }
+
+    function buildLanternSlots(): SVGElement[] {
+      lanternsEl!.innerHTML = '';
+      const slots: SVGElement[] = [];
+      for (let i = 0; i < 7; i++) {
+        const el = cloneLantern();
+        lanternsEl!.appendChild(el);
+        slots.push(el);
+      }
+      return slots;
+    }
+
+    function renderResult(result: OmikujiResult) {
+      const { rank, text } = result;
+      resultEl!.innerHTML = `
+        <p class="font-serif text-2xl font-bold text-gold-100 text-glow">${rank.name}</p>
+        <p class="mt-0.5 text-xs tracking-[0.15em] text-gold-100/50">${rank.reading}</p>
+        <div class="mx-auto mt-4 h-px w-16 bg-gold-100/15"></div>
+        <p class="mx-auto mt-4 max-w-[22em] font-serif text-lg leading-[1.9] text-gold-100">${text}</p>
+        <div class="mx-auto mt-4 h-px w-16 bg-gold-100/15"></div>
+        <p class="mt-4 text-[0.7rem] text-gold-100/40">${rank.phrase}（出現率：約${rank.weight}%）</p>
+      `;
+    }
+
+    /** アニメーション無し・最終状態を即座に反映する（同日再表示・reduced-motion用）。 */
+    function showStatic(result: OmikujiResult) {
+      const slots = buildLanternSlots();
+      const litCount = result.rank.rare ? 7 : result.rank.lanternCount;
+      slots.forEach((slot, i) => {
+        slot.classList.add(result.rank.rare ? 'is-rare' : i < litCount ? 'is-lit' : 'is-unlit');
+      });
+      renderResult(result);
+    }
+
+    /** 「提灯が奥から手前へ順に灯る」演出。全体で1.5秒以内。 */
+    function playReveal(result: OmikujiResult) {
+      const slots = buildLanternSlots();
+      resultEl!.innerHTML = '';
+
+      if (result.rank.rare) {
+        // 「主」だけ演出を変える: 順番にではなく一斉に、朱色で強く。
+        slots.forEach((slot) => {
+          slot.classList.add('is-entering', 'is-rare');
+        });
+        window.setTimeout(() => renderResult(result), RARE_ENTER_MS + RESULT_BUFFER_MS);
+        return;
+      }
+
+      const litCount = result.rank.lanternCount;
+      slots.forEach((slot, i) => {
+        window.setTimeout(() => {
+          slot.classList.add('is-entering', i < litCount ? 'is-lit' : 'is-unlit');
+        }, i * LANTERN_STAGGER_MS);
+      });
+      const totalMs = (slots.length - 1) * LANTERN_STAGGER_MS + LANTERN_ENTER_MS + RESULT_BUFFER_MS;
+      window.setTimeout(() => renderResult(result), totalMs);
+    }
+
+    function showAlreadyDrawn(stored: StoredDraw) {
+      const rank = findRank(stored.rankKey);
+      if (!rank) return; // 万一データが壊れていたら何もしない（安全側）。
+      showStatic({ rank, text: stored.text });
+      noteEl!.textContent = '今日のお告げは、もう出ています。次の灯りは明朝六時に。';
+    }
+
+    function drawAndShow() {
+      const result = draw();
+      writeStoredDraw({ dateKey: getOmikujiDayKey(), rankKey: result.rank.key, text: result.text });
+      noteEl!.textContent = '';
+      if (prefersReducedMotion()) {
+        showStatic(result);
+      } else {
+        playReveal(result);
+      }
+      syncFabState();
+    }
+
+    openButton.addEventListener(
+      'click',
+      () => {
+        dialog.showModal();
+        document.body.style.overflow = 'hidden';
+        closeButton.focus();
+
+        const today = readStoredDraw();
+        if (today?.dateKey === getOmikujiDayKey()) {
+          showAlreadyDrawn(today);
+        } else {
+          noteEl!.textContent = '';
+          drawAndShow();
+        }
+      },
+      { signal }
+    );
+
+    function closeDialog() {
+      if (!dialog!.open) return;
+      dialog!.close();
+      document.body.style.overflow = '';
+      openButton!.focus();
+    }
+
+    closeButton.addEventListener('click', closeDialog, { signal });
+    dialog.addEventListener(
+      'cancel',
+      (event) => {
+        event.preventDefault();
+        closeDialog();
+      },
+      { signal }
+    );
+    document.addEventListener(
+      'keydown',
+      (event) => {
+        if (event.key === 'Escape' && dialog.open) {
+          event.preventDefault();
+          closeDialog();
+        }
+      },
+      { signal }
+    );
+    dialog.addEventListener(
+      'click',
+      (event) => {
+        if (event.target === dialog) closeDialog();
+      },
+      { signal }
+    );
+  }
+
+  document.addEventListener('astro:page-load', initOmikuji);
+</script>
+
+<style>
+  .omikuji-dialog[open] {
+    display: block;
+  }
+
+  /* 提灯スロット: JSがis-entering/is-lit/is-unlit/is-rareを付与する。
+     このクラス自体は「まだ何も確定していない」初期の不可視状態。 */
+  :global(.omikuji-lantern) {
+    opacity: 0;
+  }
+  :global(.omikuji-lantern.is-lit) {
+    opacity: 1;
+    color: var(--color-amber-glow);
+    filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 10px var(--glow));
+  }
+  :global(.omikuji-lantern.is-unlit) {
+    opacity: 0.3;
+    color: var(--color-gold-100);
+  }
+  :global(.omikuji-lantern.is-rare) {
+    opacity: 1;
+    color: var(--color-vermilion);
+    filter: drop-shadow(0 0 8px var(--color-vermilion)) drop-shadow(0 0 18px var(--color-vermilion));
+  }
+
+  @keyframes omikuji-enter-lit {
+    from {
+      opacity: 0;
+      transform: scale(0.7);
+      filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+      filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 10px var(--glow));
+    }
+  }
+  @keyframes omikuji-enter-unlit {
+    from {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+    to {
+      opacity: 0.3;
+      transform: scale(1);
+    }
+  }
+  @keyframes omikuji-enter-rare {
+    0% {
+      opacity: 0;
+      transform: scale(0.6);
+      filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.2);
+      filter: drop-shadow(0 0 12px var(--color-vermilion)) drop-shadow(0 0 26px var(--color-vermilion));
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+      filter: drop-shadow(0 0 8px var(--color-vermilion)) drop-shadow(0 0 18px var(--color-vermilion));
+    }
+  }
+  :global(.omikuji-lantern.is-entering.is-lit) {
+    animation: omikuji-enter-lit 260ms ease-out;
+  }
+  :global(.omikuji-lantern.is-entering.is-unlit) {
+    animation: omikuji-enter-unlit 260ms ease-out;
+  }
+  :global(.omikuji-lantern.is-entering.is-rare) {
+    animation: omikuji-enter-rare 560ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* JS側もprefers-reduced-motionを見てplayRevealを呼ばない設計だが、
+       CSSレイヤーでも二重に無効化しておく（他の演出と同じ防御的な方針）。 */
+    :global(.omikuji-lantern.is-entering.is-lit),
+    :global(.omikuji-lantern.is-entering.is-unlit),
+    :global(.omikuji-lantern.is-entering.is-rare) {
+      animation: none !important;
+    }
+  }
+</style>

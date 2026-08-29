@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { ClientRouter } from 'astro:transitions';
+import OmikujiButton from '../components/OmikujiButton.astro';
 
 interface Props {
   title: string;
@@ -124,5 +125,6 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
   </head>
   <body class="min-h-screen antialiased">
     <slot />
+    <OmikujiButton />
   </body>
 </html>
