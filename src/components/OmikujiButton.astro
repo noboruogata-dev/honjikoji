@@ -17,20 +17,32 @@ import { X } from '@lucide/astro';
 ---
 
 <div transition:persist transition:name="omikuji-widget">
-  <button
-    type="button"
-    data-omikuji-open
-    aria-haspopup="dialog"
-    aria-controls="omikuji-dialog"
-    aria-label="今夜のおみくじを引く"
-    class="fixed right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full border border-amber-deep/50 bg-night-900/90 text-amber-glow shadow-[0_4px_20px_rgba(8,9,15,0.45)] backdrop-blur-sm transition hover:border-amber-glow/70 hover:bg-night-800"
+  <div
+    class="fixed right-4 z-40 flex items-center gap-2"
     style="bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));"
   >
-    <span data-omikuji-fab-icon class="inline-flex">
-      <LanternIcon size={28} />
-    </span>
-    <span class="sr-only">今夜のおみくじを引く</span>
-  </button>
+    <div
+      data-omikuji-hint
+      aria-hidden="true"
+      class="omikuji-hint pointer-events-none whitespace-nowrap rounded-full bg-night-800 px-3 py-1.5 text-xs font-medium text-amber-glow shadow-[0_4px_14px_rgba(8,9,15,0.4)]"
+    >
+      運試し
+    </div>
+
+    <button
+      type="button"
+      data-omikuji-open
+      aria-haspopup="dialog"
+      aria-controls="omikuji-dialog"
+      aria-label="今夜のおみくじを引く"
+      class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-amber-deep/50 bg-night-900/90 text-amber-glow shadow-[0_4px_20px_rgba(8,9,15,0.45)] backdrop-blur-sm transition hover:border-amber-glow/70 hover:bg-night-800"
+    >
+      <span data-omikuji-fab-icon class="inline-flex">
+        <LanternIcon size={28} />
+      </span>
+      <span class="sr-only">今夜のおみくじを引く</span>
+    </button>
+  </div>
 
   <dialog
     id="omikuji-dialog"
@@ -125,24 +137,54 @@ import { X } from '@lucide/astro';
 
     const openButton = document.querySelector<HTMLButtonElement>('[data-omikuji-open]');
     const fabIcon = document.querySelector<HTMLElement>('[data-omikuji-fab-icon]');
+    const hintEl = document.querySelector<HTMLElement>('[data-omikuji-hint]');
     const dialog = document.querySelector<HTMLDialogElement>('[data-omikuji-dialog]');
     const closeButton = dialog?.querySelector<HTMLButtonElement>('[data-omikuji-close]');
     const lanternsEl = document.querySelector<HTMLElement>('[data-omikuji-lanterns]');
     const resultEl = document.querySelector<HTMLElement>('[data-omikuji-result]');
     const noteEl = document.querySelector<HTMLElement>('[data-omikuji-note]');
     const lanternTemplate = document.querySelector<HTMLTemplateElement>('[data-omikuji-lantern-template]');
-    if (!openButton || !fabIcon || !dialog || !closeButton || !lanternsEl || !resultEl || !noteEl || !lanternTemplate) {
+    if (
+      !openButton ||
+      !fabIcon ||
+      !hintEl ||
+      !dialog ||
+      !closeButton ||
+      !lanternsEl ||
+      !resultEl ||
+      !noteEl ||
+      !lanternTemplate
+    ) {
       return;
     }
 
     const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+    let hintHideTimer: ReturnType<typeof setTimeout> | undefined;
+    const HINT_AUTO_HIDE_MS = 4500;
+
     // 「今日まだ引いていない」間だけFABが呼吸する（毎日来る動機になるよう、
     // 既存の.lantern-icon-lit＝4秒周期のグローをそのまま流用する）。
+    // 「運試し」の吹き出しも同じ条件で出し、数秒後に自動で引っ込める
+    // （常時表示にすると、既に引いた日も含めて毎回幅を取ってしまうため。
+    // ページ遷移のたびにastro:page-loadで再表示されるので、初見の説明としての
+    // 役割は保ちつつ、閲覧の邪魔にはならない）。すでに引いた後は、途中で
+    // フェード中でも即座に隠す。
     function syncFabState() {
       const today = readStoredDraw();
       const hasDrawnToday = today?.dateKey === getOmikujiDayKey();
       fabIcon!.classList.toggle('lantern-icon-lit', !hasDrawnToday);
+
+      if (hintHideTimer !== undefined) {
+        clearTimeout(hintHideTimer);
+        hintHideTimer = undefined;
+      }
+      if (hasDrawnToday) {
+        hintEl!.classList.remove('is-visible');
+      } else {
+        requestAnimationFrame(() => hintEl!.classList.add('is-visible'));
+        hintHideTimer = setTimeout(() => hintEl!.classList.remove('is-visible'), HINT_AUTO_HIDE_MS);
+      }
     }
     syncFabState();
 
@@ -161,15 +203,18 @@ import { X } from '@lucide/astro';
       return slots;
     }
 
+    // お告げ本文が主役、格付け名・出現率は補助情報という序列にする:
+    // 格付け名は小さく落ち着いた色に、本文は専用の面（night-800）に載せて
+    // 余白を広く取り、そこだけが浮かび上がるようにする。
     function renderResult(result: OmikujiResult) {
       const { rank, text } = result;
       resultEl!.innerHTML = `
-        <p class="font-serif text-2xl font-bold text-gold-100 text-glow">${rank.name}</p>
-        <p class="mt-0.5 text-xs tracking-[0.15em] text-gold-100/50">${rank.reading}</p>
-        <div class="mx-auto mt-4 h-px w-16 bg-gold-100/15"></div>
-        <p class="mx-auto mt-4 max-w-[22em] font-serif text-lg leading-[1.9] text-gold-100">${text}</p>
-        <div class="mx-auto mt-4 h-px w-16 bg-gold-100/15"></div>
-        <p class="mt-4 text-[0.7rem] text-gold-100/40">${rank.phrase}（出現率：約${rank.weight}%）</p>
+        <p class="font-serif text-base font-bold text-gold-100/75">${rank.name}</p>
+        <p class="mt-0.5 text-[0.65rem] tracking-[0.15em] text-gold-100/40">${rank.reading}</p>
+        <div class="mx-auto mt-5 max-w-[24em] rounded-xl border border-gold-100/10 bg-night-800 px-5 py-7">
+          <p class="font-serif text-xl font-semibold leading-[2] text-gold-100">${text}</p>
+        </div>
+        <p class="mt-4 text-[0.65rem] text-gold-100/35">${rank.phrase}（出現率：約${rank.weight}%）</p>
       `;
     }
 
@@ -285,6 +330,36 @@ import { X } from '@lucide/astro';
 <style>
   .omikuji-dialog[open] {
     display: block;
+  }
+
+  /* 「運試し」の吹き出し。ボタンの左に付く右向きの三角をborderトリックで
+     作る（吹き出しの背景色bg-night-800と同じ色をborder-leftに使う）。
+     transform/opacityのみでフェード（制約どおり）。 */
+  .omikuji-hint {
+    position: relative;
+    opacity: 0;
+    transform: translateX(6px);
+    transition: opacity 240ms ease, transform 240ms ease;
+  }
+  .omikuji-hint.is-visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .omikuji-hint::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -6px;
+    transform: translateY(-50%);
+    border-style: solid;
+    border-width: 6px 0 6px 7px;
+    border-color: transparent transparent transparent var(--color-night-800);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .omikuji-hint {
+      transition: none;
+    }
   }
 
   /* 提灯スロット: JSがis-entering/is-lit/is-unlit/is-rareを付与する。
