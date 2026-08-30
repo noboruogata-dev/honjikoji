@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-27T23:56:05.704Z",
+  "generatedAt": "2026-08-30T23:02:39.382Z",
   "channel": "@TsubameSanjoTV",
   "candidates": [
     {
@@ -10,6 +10,24 @@
       "publishedAt": "2022-07-15T09:05:23Z",
       "confidence": "low",
       "reason": "店名のごく一部（連続3文字、店名の43%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "motsuyaki-takahashi",
+      "spotTitle": "もつ焼き たかはし",
+      "videoId": "HyHOlLnEE0Q",
+      "videoTitle": "もつ焼き道場 #グルメ #居酒屋 #燕三条 #飲み歩き",
+      "publishedAt": "2026-02-24T00:56:31Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続4文字、店名の50%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "motsuyaki-takahashi",
+      "spotTitle": "もつ焼き たかはし",
+      "videoId": "SubTuwkPInY",
+      "videoTitle": "【燕三条TV】もつ焼き道場 燕店（名物的な存在である肉みそは必見）｜新潟県燕市本東太田",
+      "publishedAt": "2020-07-28T15:23:25Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続4文字、店名の50%）がタイトルに含まれる可能性"
     }
   ]
 }

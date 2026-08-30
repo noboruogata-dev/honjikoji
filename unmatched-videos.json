@@ -1,17 +1,8 @@
 {
-  "generatedAt": "2026-08-27T23:56:05.720Z",
+  "generatedAt": "2026-08-30T23:02:39.390Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
-    {
-      "videoId": "VgoaW6jxr0s",
-      "title": "もつ焼きたかはし【本寺小路】【燕三条TV】【新潟県三条市】",
-      "publishedAt": "2020-04-05T07:53:42Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "もつ焼きたかはし",
-      "storeDisplay": "もつ焼きたかはし"
-    },
     {
       "videoId": "yiTt_hKN_1k",
       "title": "絶品たまごサンドの取材NG店に潜入！バード【本寺小路】【燕三条TV】【新潟県三条市】",
@@ -310,15 +301,6 @@
       "storeDisplay": "番外編"
     },
     {
-      "videoId": "SubTuwkPInY",
-      "title": "【燕三条TV】もつ焼き道場 燕店（名物的な存在である肉みそは必見）｜新潟県燕市本東太田",
-      "publishedAt": "2020-07-28T15:23:25Z",
-      "area": "tsubame",
-      "store": "もつ焼き道場 燕店",
-      "storeManual": "もつ焼き道場",
-      "storeDisplay": "もつ焼き道場"
-    },
-    {
       "videoId": "WyHblbvRmS8",
       "title": "【燕三条TV】喫茶ロンドン（西洋レトロ感あふれる純喫茶。ボリュームも美味しさも半端なし！）｜新潟県燕市",
       "publishedAt": "2020-08-12T10:18:40Z",
@@ -562,15 +544,6 @@
       "storeDisplay": null
     },
     {
-      "videoId": "wZAWvJH_w68",
-      "title": "チクチクとは？ #居酒屋 #グルメ #燕三条 #もつ焼きたかはし",
-      "publishedAt": "2026-02-08T23:38:23Z",
-      "area": "unknown",
-      "store": null,
-      "storeManual": null,
-      "storeDisplay": null
-    },
-    {
       "videoId": "O1D09HPRotI",
       "title": "真夜中ナポリタン #グルメ #居酒屋 #燕三条 #ナポリタン",
       "publishedAt": "2026-02-08T23:41:54Z",
@@ -700,15 +673,6 @@
       "videoId": "XA6gcz_Mg-k",
       "title": "とんかつ三条 #グルメ #燕三条 #とんかつ #飲み歩き",
       "publishedAt": "2026-02-24T00:51:24Z",
-      "area": "unknown",
-      "store": null,
-      "storeManual": null,
-      "storeDisplay": null
-    },
-    {
-      "videoId": "HyHOlLnEE0Q",
-      "title": "もつ焼き道場 #グルメ #居酒屋 #燕三条 #飲み歩き",
-      "publishedAt": "2026-02-24T00:56:31Z",
       "area": "unknown",
       "store": null,
       "storeManual": null,
