@@ -69,6 +69,21 @@ jobs:
             npm run generate:column -- --category="$CATEGORY" --publish
           fi
 
+      # assets-src/ はGit管理外（.gitignore）のため、生成直後の透過PNG原画は
+      # このジョブが終わると失われる。公開後に画像の不具合に気づいたとき
+      # 原因を切り分けられるよう、ワークフロー実行のアーティファクトとして
+      # 一時保存する（7日で自動失効）。前段が失敗していても集められるだけ
+      # 集めるため if: always()、生成自体が失敗し1枚もなくてもジョブを
+      # 失敗させないため if-no-files-found: ignore にする。
+      - name: Upload generated source images (debug artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: column-source-images-${{ github.run_id }}
+          path: assets-src/columns/
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Build published site
         run: npm run build
 

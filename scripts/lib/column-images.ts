@@ -8,6 +8,18 @@ export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image';
 export const MAX_IMAGE_ATTEMPTS = 2;
 export const MAX_PUBLIC_IMAGE_BYTES = 200 * 1024;
 
+/** アルファ値がこれ以上急変する隣接画素ペアを「ノイズらしい」とみなす境界。
+ *  境界線のアンチエイリアスは数px幅のなだらかな変化になるが、背景全体が
+ *  ディザリングされているケースは0近辺⇔255近辺を1px単位で往復する。 */
+const ALPHA_NOISE_JUMP_THRESHOLD = 150;
+/**
+ * 画像全体に占める「ノイズらしい隣接ペア」の比率のしきい値。
+ * 実測値（japanese-sake-label-rules-illust.webp の背景ディザリング事故と、
+ * 既存の正常画像2点）: 事故画像 7.8%（jump=150基準）、正常画像は0.0〜0.2%。
+ * 大きな余裕を見て1%に設定する。
+ */
+export const ALPHA_NOISE_RATIO_THRESHOLD = 0.01;
+
 /** 本文中ほどに2枚目の挿絵を入れるための最小要件。見出しが少ない、または
  *  本文が短い記事に無理に挿絵を挟むと窮屈になるため、どちらかを下回る記事は
  *  2枚目を生成せず、1枚目（アイキャッチ）だけで公開を続行する。 */
@@ -42,17 +54,23 @@ const CATEGORY_MOTIFS: Record<ColumnCategory, string> = {
   '夜の作法': '会計盆の上に置かれた一つの猪口',
 };
 
-export function chooseColumnMotif(input: ColumnImageInput): string {
-  const text = `${input.title} ${input.summary}`;
-  if (input.category === 'お酒の豆知識') {
+/** カテゴリとテキスト（キーワード照合対象）から、決定論的にモチーフを選ぶ。
+ *  1枚目（title+summary）・2枚目（挿入位置前後の本文）の両方から
+ *  同じ精度でモチーフを導けるよう、対象テキストを引数として切り出してある。 */
+function motifFromText(category: ColumnCategory, text: string): string {
+  if (category === 'お酒の豆知識') {
     if (/(燗|温度|熱燗|ぬる燗)/.test(text)) return '湯気が細く立つ一組の徳利と猪口';
     if (/(米|酒米|精米)/.test(text)) return '数粒の酒米を添えた一つの徳利';
     if (/(麹|発酵)/.test(text)) return '麹蓋と小さな一つの徳利';
   }
-  if (input.category === '街の歴史' && /(鍛冶|金物|刃物)/.test(text)) {
+  if (category === '街の歴史' && /(鍛冶|金物|刃物)/.test(text)) {
     return '古い鍛冶槌と小さな行灯を組み合わせた静物';
   }
-  return CATEGORY_MOTIFS[input.category];
+  return CATEGORY_MOTIFS[category];
+}
+
+export function chooseColumnMotif(input: ColumnImageInput): string {
+  return motifFromText(input.category, `${input.title} ${input.summary}`);
 }
 
 /** 1枚目・2枚目共通の画風ロック。挿絵の見た目をサイト全体で統一するため、
@@ -162,8 +180,16 @@ ${LOCKED_ART_DIRECTION}
 Return only the illustration image.`;
 }
 
-export function buildColumnMidImageAlt(input: ColumnImageInput): string {
-  return `${input.title}の本文中盤で語られる情景を描いた和モダンな挿絵`;
+/** 2枚目用のモチーフ。挿入位置の前後の本文（＝buildColumnMidImagePromptが
+ *  実際に画像生成へ渡す文章そのもの）をchooseColumnMotifと同じキーワード
+ *  照合にかけ、1枚目と同じ精度で具体的なモチーフを導く。マッチしなければ
+ *  1枚目と同じくカテゴリ既定のモチーフにフォールバックする。 */
+export function chooseMidImageMotif(input: ColumnImageInput, insertion: MidImageInsertion): string {
+  return motifFromText(input.category, `${insertion.contextBefore} ${insertion.contextAfter}`);
+}
+
+export function buildColumnMidImageAlt(input: ColumnImageInput, insertion: MidImageInsertion): string {
+  return `${input.title}の本文中盤、${chooseMidImageMotif(input, insertion)}を描いた和モダンな挿絵`;
 }
 
 interface AlphaStats {
@@ -186,7 +212,18 @@ export function needsBackgroundRemoval(transparentRatio: number): boolean {
   return transparentRatio < 0.05;
 }
 
-/** 透過を表す市松模様そのものが画素として描かれた画像を検出する。 */
+/**
+ * 透過を表す市松模様そのものが画素として描かれた画像を検出する。
+ *
+ * 「無彩色（グレースケール）」の判定にmin>120（明るいグレー〜白限定）を
+ * 課していたが、実際に発生した事故では黒に近い市松（約20,20,20）や中間の
+ * 濃さの市松（約50,50,50/105,105,105）もあり、いずれもこの下限に阻まれて
+ * 検出をすり抜けていた（japanese-sake-label-rules記事のアイキャッチ・
+ * 挿絵で確認）。下限を撤廃し、「無彩色（max-min<12）かつ不透明」だけを
+ * 条件にする。墨線（thin ink strokes）は面積が小さく隣接ペア数が少ないため、
+ * 誤検出防止は下限を課さなくても以下のneutralRatio/edgeRatioのしきい値で
+ * 十分に効く（薄い輪郭線だけでは画像全体の55%やエッジ比0.15%を超えない）。
+ */
 export async function hasRenderedTransparencyGrid(buffer: Buffer): Promise<boolean> {
   const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const total = info.width * info.height;
@@ -197,7 +234,7 @@ export async function hasRenderedTransparencyGrid(buffer: Buffer): Promise<boole
   const isOpaqueNeutral = (offset: number) => {
     const max = Math.max(data[offset], data[offset + 1], data[offset + 2]);
     const min = Math.min(data[offset], data[offset + 1], data[offset + 2]);
-    return data[offset + 3] >= 250 && max - min < 12 && min > 120;
+    return data[offset + 3] >= 250 && max - min < 12;
   };
   const luminance = (offset: number) => (data[offset] + data[offset + 1] + data[offset + 2]) / 3;
 
@@ -227,6 +264,44 @@ export async function hasRenderedTransparencyGrid(buffer: Buffer): Promise<boole
   const semitransparentNeutralRatio = semitransparentNeutral / total;
   const edgeRatio = contrastEdges / neighborPairs;
   return semitransparentNeutralRatio > 0.1 || neutralRatio > 0.55 || (neutralRatio > 0.4 && edgeRatio > 0.0015);
+}
+
+/**
+ * 隣接画素間でアルファ値が激しく往復している比率を測る（0〜1）。
+ *
+ * 背景が単色寄りでもRGBは揃ったまま「透明⇔不透明」がまだら状にディザリング
+ * されるケースを検出するために作った。このケースは、色は均一なため
+ * removeConnectedBackgroundの色距離ベースの背景推定にはほとんど引っかからず
+ * （提灯部分の描画色と誤認したり、たまたま角の画素が透明で背景色推定自体を
+ * 誤らせたりする）、hasRenderedTransparencyGrid（RGBの明度差で市松模様を
+ * 検出する）にも引っかからない（RGBはほぼ同じ色のままでアルファだけが
+ * 動くため、隣接画素間の明度差がほぼ0になる）。日本酒ラベルコラムの
+ * 2枚目挿絵で実際に発生した事故（背景が白のまま、アルファだけが1px単位で
+ * 0/255付近を往復）はこの手口で検出できる。
+ */
+export async function alphaNoiseRatio(
+  buffer: Buffer,
+  jumpThreshold: number = ALPHA_NOISE_JUMP_THRESHOLD
+): Promise<number> {
+  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height } = info;
+  let noisyPairs = 0;
+  let pairs = 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      if (x + 1 < width) {
+        pairs += 1;
+        if (Math.abs(data[offset + 3] - data[offset + 4 + 3]) > jumpThreshold) noisyPairs += 1;
+      }
+      if (y + 1 < height) {
+        const next = offset + width * 4;
+        pairs += 1;
+        if (Math.abs(data[offset + 3] - data[next + 3]) > jumpThreshold) noisyPairs += 1;
+      }
+    }
+  }
+  return pairs ? noisyPairs / pairs : 0;
 }
 
 /**
@@ -322,9 +397,12 @@ function extractImage(response: Awaited<ReturnType<GoogleGenAI['models']['genera
 }
 
 /** 指定プロンプトから透過PNGを生成し、透過QA（背景除去・チェッカー柄検出・
- *  透明率検証）を通過するまで最大MAX_IMAGE_ATTEMPTS回試みる。1枚目・2枚目の
- *  どちらもこの関数を通す（プロンプトが違うだけで検証ロジックは共通）。 */
-async function generateTransparentSource(ai: GoogleGenAI, prompt: string): Promise<Buffer> {
+ *  ディザリングノイズ検出・透明率検証）を通過するまで最大MAX_IMAGE_ATTEMPTS回
+ *  試みる。1枚目・2枚目のどちらもこの関数を通す（プロンプトが違うだけで
+ *  検証ロジックは共通）。生成し直しても直らない類のAPIエラーでない限り、
+ *  QAに落ちた画像はそのまま公開せず再試行する（不透過のまま使うフォール
+ *  バックは持たない）。 */
+export async function generateTransparentSource(ai: GoogleGenAI, prompt: string): Promise<Buffer> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_IMAGE_ATTEMPTS; attempt += 1) {
     try {
@@ -355,7 +433,15 @@ async function generateTransparentSource(ai: GoogleGenAI, prompt: string): Promi
       if (await hasRenderedTransparencyGrid(normalized)) {
         throw new Error('透過チェッカー模様が画像として描き込まれています。');
       }
-      console.log(`[Agent5:ImageQA] 透明ピクセル率 ${(finalStats.transparentRatio * 100).toFixed(1)}%`);
+      // 背景除去後もなお、色は均一なままアルファだけがまだら状に残っていないかを
+      // 確認する（removeConnectedBackgroundは色距離ベースのため、このタイプの
+      // ノイズは背景色推定を誤らせて素通りしやすい。実例と検証はcolumn-images.
+      // test.tsを参照）。ここで弾いた画像は、上のcatchで再試行に回る。
+      const noiseRatio = await alphaNoiseRatio(normalized);
+      if (noiseRatio > ALPHA_NOISE_RATIO_THRESHOLD) {
+        throw new Error(`背景のアルファが斑点状のノイズとして残っています: ${(noiseRatio * 100).toFixed(1)}%`);
+      }
+      console.log(`[Agent5:ImageQA] 透明ピクセル率 ${(finalStats.transparentRatio * 100).toFixed(1)}% / ノイズ率 ${(noiseRatio * 100).toFixed(2)}%`);
       return normalized;
     } catch (error) {
       lastError = error;
@@ -371,7 +457,7 @@ async function generateTransparentSource(ai: GoogleGenAI, prompt: string): Promi
 }
 
 /** QA済み透過PNGから、OGP・記事冒頭用のアイキャッチ（1200x630、装飾背景に合成）を作る。 */
-async function createEyecatchImage(source: Buffer): Promise<Buffer> {
+export async function createEyecatchImage(source: Buffer): Promise<Buffer> {
   const foreground = await sharp(source)
     .resize(570, 570, { fit: 'contain', withoutEnlargement: true })
     .png()
@@ -389,7 +475,7 @@ async function createEyecatchImage(source: Buffer): Promise<Buffer> {
 }
 
 /** QA済み透過PNGから、本文中ほどに挿し込む挿絵（900x900、透過のまま）を作る。 */
-async function createIllustrationImage(source: Buffer): Promise<Buffer> {
+export async function createIllustrationImage(source: Buffer): Promise<Buffer> {
   return sharp(source)
     .resize(900, 900, { fit: 'contain', withoutEnlargement: true })
     .webp({ quality: 80, alphaQuality: 92 })
@@ -458,7 +544,7 @@ export async function generateColumnImages(
     }
     await Promise.all([writeFile(midSourcePath, midSource), writeFile(illustrationPath, illustrationBuffer)]);
 
-    const illustration = { src: `/images/columns/${input.slug}-illust.webp`, alt: buildColumnMidImageAlt(input) };
+    const illustration = { src: `/images/columns/${input.slug}-illust.webp`, alt: buildColumnMidImageAlt(input, insertion) };
     result.illustration = illustration;
     result.midSourcePath = midSourcePath;
     result.body = insertMidImageMarkdown(body, insertion, illustration);
