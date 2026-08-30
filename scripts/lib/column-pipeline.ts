@@ -65,6 +65,9 @@ export interface ColumnProfile {
   kind: ColumnKind;
   researchFocus: string;
   writerVoice: string;
+  /** 「お酒の豆知識」カテゴリのときだけ設定される、循環中のサブテーマ。
+   *  ログ表示・Job Summaryでの記録に使う。 */
+  subtheme?: SakeSubtheme;
 }
 
 export const CATEGORY_ALIASES: Record<string, ColumnCategory> = {
@@ -74,7 +77,69 @@ export const CATEGORY_ALIASES: Record<string, ColumnCategory> = {
   manners: '夜の作法',
 };
 
-export function resolveProfile(categoryArg: string, kindArg?: string): ColumnProfile {
+/** .github/workflows/generate-column.yml の categories 配列（alcohol manners
+ *  history people）と同じ長さ。並び順には依存しない（サブテーマの循環は
+ *  「お酒の豆知識が回ってくる4週おきのサイクル数」だけを使うため）。
+ *  カテゴリの数を変える場合はワークフロー側と合わせてここも見直すこと。 */
+const CATEGORY_CYCLE_LENGTH = 4;
+
+export interface SakeSubtheme {
+  key: string;
+  /** ログ・Job Summary表示用の短い名前。 */
+  label: string;
+  researchFocus: string;
+}
+
+/**
+ * 「お酒の豆知識」カテゴリの中で循環させる4つの切り口。新潟の日本酒は
+ * 競合の強い領域のため、一般論に流れないよう切り口ごとに調査方針を絞る。
+ * 「三条・燕三条周辺の蔵」は該当する蔵が限られ一次情報も乏しい可能性が
+ * あるため、他の3つよりnotFoundになりやすい想定（generate-column.ts側で
+ * 失敗時にサブテーマ名をJob Summaryへ記録する）。
+ */
+export const SAKE_SUBTHEMES: SakeSubtheme[] = [
+  {
+    key: 'niigata-general',
+    label: '新潟の酒全般',
+    researchFocus:
+      '新潟県酒造組合や県公式資料、蔵元自身の公式サイトなど一次情報を優先し、新潟の酒どころとしての気候風土や「淡麗辛口」と呼ばれてきた背景、県内の酒蔵の広がりなど、新潟の日本酒を大きく捉える基礎知識を集める。特定の一つの蔵に深入りしない。',
+  },
+  {
+    key: 'sanjo-breweries',
+    label: '三条・燕三条周辺の蔵',
+    researchFocus:
+      '三条市・燕市・燕三条エリアに実在する酒蔵について、各蔵の公式サイトまたは新潟県酒造組合など一次情報で確認できる範囲の事実だけを集める。創業年・代表銘柄・受賞歴等の具体的な数字・固有名詞は、出典で裏が取れたものに限る。裏が取れなければ収集を諦め、notFoundとする。',
+  },
+  {
+    key: 'how-to-enjoy',
+    label: '飲み方・選び方',
+    researchFocus:
+      '日本酒造組合中央会など公的・一次情報を優先し、燗酒の温度帯、酒器の選び方、料理との合わせ方など、今夜から試せる実用的な知識を集める。特定の店舗・商品を推奨する情報は集めない。',
+  },
+  {
+    key: 'terminology',
+    label: '用語・ラベルの読み方',
+    researchFocus:
+      '国税庁の清酒の製法品質表示基準、酒造組合等の公式情報を優先し、「純米」「吟醸」「精米歩合」などの日本酒用語やラベル表示のルールを、正確に説明できる範囲で集める。',
+  },
+];
+
+/**
+ * 「お酒の豆知識」カテゴリ内で循環させるサブテーマを、日時から決定論的に
+ * 選ぶ（状態ファイルは持たない）。カテゴリ自体の週次循環
+ * （generate-column.ymlの `$(date -u +%s) / 604800 % 4`）と同じ考え方で、
+ * 「お酒の豆知識」が回ってくる4週おきのサイクル数（週番号をCATEGORY_
+ * CYCLE_LENGTHで割った商）を、さらにSAKE_SUBTHEMES.lengthで割った余りを使う。
+ * Date.getTime()はローカルタイムゾーンに関わらず常にUTC基準のため、
+ * bashのdate -u +%sと同じ結果になる（Asia/Tokyo変換は行わない）。
+ */
+export function resolveSakeSubtheme(now: Date = new Date()): SakeSubtheme {
+  const weeksSinceEpoch = Math.floor(now.getTime() / (7 * 24 * 60 * 60 * 1000));
+  const alcoholCycleIndex = Math.floor(weeksSinceEpoch / CATEGORY_CYCLE_LENGTH);
+  return SAKE_SUBTHEMES[alcoholCycleIndex % SAKE_SUBTHEMES.length];
+}
+
+export function resolveProfile(categoryArg: string, kindArg?: string, now: Date = new Date()): ColumnProfile {
   const category = CATEGORY_ALIASES[categoryArg.toLowerCase()];
   if (!category) {
     throw new Error(`category は ${Object.keys(CATEGORY_ALIASES).join(' / ')} のいずれかを指定してください。`);
@@ -114,17 +179,22 @@ export function resolveProfile(categoryArg: string, kindArg?: string): ColumnPro
     throw new Error(`${category} の kind は standard 固定です。`);
   }
 
+  if (category === 'お酒の豆知識') {
+    const subtheme = resolveSakeSubtheme(now);
+    return {
+      category,
+      kind: 'standard',
+      researchFocus: subtheme.researchFocus,
+      writerVoice: '初心者にも分かる言葉で、知識をひけらかさず、今夜試せる楽しみ方へつなげる。',
+      subtheme,
+    };
+  }
+
   return {
     category,
     kind: 'standard',
-    researchFocus:
-      category === 'お酒の豆知識'
-        ? '国税庁、酒造組合、酒蔵、業界団体などを優先し、日本酒や酒文化の正確で実用的な基礎知識を集める。'
-        : '公的な飲酒情報や一般的な接客・飲食店マナーを優先し、安全で気持ちのよい夜の過ごし方を集める。',
-    writerVoice:
-      category === 'お酒の豆知識'
-        ? '初心者にも分かる言葉で、知識をひけらかさず、今夜試せる楽しみ方へつなげる。'
-        : '説教調を避け、一見客も常連も気持ちよく過ごすための作法を柔らかく提案する。',
+    researchFocus: '公的な飲酒情報や一般的な接客・飲食店マナーを優先し、安全で気持ちのよい夜の過ごし方を集める。',
+    writerVoice: '説教調を避け、一見客も常連も気持ちよく過ごすための作法を柔らかく提案する。',
   };
 }
 

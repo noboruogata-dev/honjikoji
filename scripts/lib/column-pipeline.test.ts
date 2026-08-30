@@ -4,6 +4,8 @@ import {
   columnResearchSchema,
   columnWriterSchema,
   resolveProfile,
+  resolveSakeSubtheme,
+  SAKE_SUBTHEMES,
   validateColumnDraft,
 } from './column-pipeline';
 
@@ -61,6 +63,40 @@ describe('resolveProfile', () => {
   it('不正な組み合わせを拒否する', () => {
     expect(() => resolveProfile('history', 'fiction')).toThrow();
     expect(() => resolveProfile('manners', 'interview')).toThrow();
+  });
+
+  it('alcoholのときだけサブテーマを付与し、researchFocusをサブテーマのものにする', () => {
+    const now = new Date('2026-08-30T08:00:00Z');
+    const profile = resolveProfile('alcohol', undefined, now);
+    expect(profile.subtheme).toBeDefined();
+    expect(profile.researchFocus).toBe(profile.subtheme!.researchFocus);
+    expect(resolveProfile('history', undefined, now).subtheme).toBeUndefined();
+    expect(resolveProfile('manners', undefined, now).subtheme).toBeUndefined();
+  });
+});
+
+describe('resolveSakeSubtheme', () => {
+  it('同じ日時に対して常に同じサブテーマを返す（決定論的）', () => {
+    const now = new Date('2026-08-30T08:00:00Z');
+    expect(resolveSakeSubtheme(now)).toBe(resolveSakeSubtheme(now));
+  });
+
+  it('お酒の豆知識が回ってくる4週おきに、4サブテーマを順に一巡する', () => {
+    const start = new Date('2026-01-04T08:00:00Z'); // 日曜17:00 JST想定の適当な基準日
+    const FOUR_WEEKS_MS = 4 * 7 * 24 * 60 * 60 * 1000;
+    const seen = new Set<string>();
+    let previousKey: string | undefined;
+    for (let cycle = 0; cycle < SAKE_SUBTHEMES.length; cycle += 1) {
+      const subtheme = resolveSakeSubtheme(new Date(start.getTime() + cycle * FOUR_WEEKS_MS));
+      if (previousKey !== undefined) expect(subtheme.key).not.toBe(previousKey); // 毎回切り替わる
+      seen.add(subtheme.key);
+      previousKey = subtheme.key;
+    }
+    expect(seen.size).toBe(SAKE_SUBTHEMES.length); // 4巡目でSAKE_SUBTHEMES全部を使い切る
+
+    // さらに4週（1巡）進めると、同じサブテーマに戻る。
+    const wrapped = resolveSakeSubtheme(new Date(start.getTime() + SAKE_SUBTHEMES.length * FOUR_WEEKS_MS));
+    expect(wrapped.key).toBe(resolveSakeSubtheme(start).key);
   });
 });
 

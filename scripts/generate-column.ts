@@ -172,6 +172,13 @@ function researchPrompt(
   const provided = providedMaterial
     ? `\n--- 運営者提供資料 ---\n${providedMaterial}\n--- 提供資料ここまで ---\n提供資料由来の主張は sourceType="provided"、sourceTitle="運営者提供資料"、sourceUrl="" とする。資料にない人物の発言・経歴・心情を補わない。`
     : '';
+  // 「お酒の豆知識」は蔵元に直接関わる領域（誤った創業年・受賞歴等は
+  // 蔵元に迷惑をかける）。サブテーマを問わずカテゴリ全体に適用する
+  // （用語解説や飲み方の回でも実在銘柄に触れうるため）。
+  const categoryRules =
+    profile.category === 'お酒の豆知識'
+      ? '\n- 特定の酒蔵を扱う場合、その蔵の公式サイト、または新潟県酒造組合など一次情報で確認できた事実だけをclaimsに含める\n- 創業年・代表銘柄・受賞歴などの具体的な事実は、出典が確認できない限り一切含めない\n- 上記の裏付けが取れなければ、無理に代替の主張で埋めずnotFound=trueを返す'
+      : '';
 
   return `あなたは本寺小路夜話のResearch Agentです。Google Search Groundingを使い、記事執筆前の事実台帳を作ってください。
 
@@ -193,7 +200,7 @@ ${provided}
 - 検索結果のスニペットだけを根拠にせず、参照先の内容を確認する
 - 「発祥」「最初」「唯一」などの強い断定は一次資料なしでverifiedにしない
 - 実在しない資料、URL、人物、店舗、出来事を作らない
-- ${profile.kind === 'fiction' ? '実在店舗・実在人物の逸話を集めない。街の一般的背景だけを調べる。' : '記事に使える具体的事実を集める。'}
+- ${profile.kind === 'fiction' ? '実在店舗・実在人物の逸話を集めない。街の一般的背景だけを調べる。' : '記事に使える具体的事実を集める。'}${categoryRules}
 
 指定テーマに必要な根拠を得られない場合はnotFound=trueとし、claimsを空にしてください。
 slugは英小文字とハイフンだけで作成してください。出力は指定スキーマに準拠したJSONだけにしてください。`;
@@ -208,6 +215,14 @@ function writerPrompt(profile: ColumnProfile, research: ColumnResearch): string 
         : profile.kind === 'interview'
           ? '- 人物・店舗固有の内容はsourceType=providedの主張だけを使う。\n- 発言を新しく作らず、心情を推測しない。'
           : '- 読者が今夜試せる具体的な楽しみ方へつなげる。';
+  // 「お酒の豆知識」向けの追加ルール（サブテーマを問わずカテゴリ全体に適用）。
+  // 蔵元に関わる誤情報・伝聞・主観評価・特定銘柄の推奨を避け、かつ一般的な
+  // 日本酒記事に流れないよう本寺小路の文脈への言及を必須にする。ただし
+  // 掲載店の品揃えデータは持たないため、店舗名での取扱い断定は禁止する。
+  const categoryRules =
+    profile.category === 'お酒の豆知識'
+      ? '\n- Research JSONに無い酒蔵の固有情報（創業年・代表銘柄・受賞歴等）を一切補わない。\n- 「〜と言われている」「〜が有名」など出典不明の伝聞表現を使わない。\n- 「美味しい」「飲みやすい」等、味の主観評価を書かない。\n- 特定の酒蔵・銘柄を推奨する表現（「おすすめ」「ぜひ試してほしい」等）を避ける。\n- 本寺小路の文脈にどこかで触れる。ただし「本寺小路の◯◯店で飲める」等、裏の取れていない店舗の取扱いを断定しない。'
+      : '';
 
   return `あなたは本寺小路夜話のWriter Agentです。Groundingや検索は使えません。
 以下のResearch JSONだけを事実ソースとして執筆し、書かれていない固有名詞・数値・年代・由来・発言を作らないでください。
@@ -228,7 +243,7 @@ ${JSON.stringify(research, null, 2)}
 - 使用した事実ごとに対応するclaim idをusedClaimIdsへ入れる
 - status=unverifiedの主張は絶対に使わない
 - 他サイトの文章を転載しない
-${kindRules}
+${kindRules}${categoryRules}
 
 出力は指定スキーマに準拠したJSONだけにしてください。`;
 }
@@ -440,11 +455,18 @@ async function main() {
   if (!apiKey) throw new Error('.env に GEMINI_API_KEY を設定してください。');
   const ai = new GoogleGenAI({ apiKey });
 
+  const subthemeSuffix = profile.subtheme ? ` / サブテーマ: ${profile.subtheme.label}` : '';
   console.log('============================================================');
   console.log(' 本寺小路夜話 3段階生成パイプライン');
-  console.log(` ${profile.category} / ${profile.kind} / ${options.dryRun ? 'DRY RUN' : options.publish ? 'AUTO PUBLISH' : 'DRAFT SAVE'}`);
+  console.log(` ${profile.category} / ${profile.kind} / ${options.dryRun ? 'DRY RUN' : options.publish ? 'AUTO PUBLISH' : 'DRAFT SAVE'}${subthemeSuffix}`);
   console.log(' Agent1(Research) -> Agent2(Writer) -> Agent3(QA)');
   console.log('============================================================');
+
+  // notFoundのみでMAX_ATTEMPTS回とも空振りしたか（＝根拠自体が見つからない）を
+  // 区別するためのカウンタ。失敗時のJob Summaryの文言に使う
+  // （特に「三条・燕三条周辺の蔵」は該当が少なくnotFoundになりやすい想定）。
+  let notFoundCount = 0;
+  let lastError: unknown;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     console.log(`\n----- 試行 ${attempt}/${MAX_ATTEMPTS} -----`);
@@ -452,7 +474,8 @@ async function main() {
     try {
       const research = await runResearchAgent(ai, profile, options.topic, existing.titles, providedMaterial);
       if (research.notFound) {
-        console.warn('[generate-column] 十分な根拠を確認できませんでした。別テーマで再試行します。');
+        notFoundCount += 1;
+        console.warn(`[generate-column] 十分な根拠を確認できませんでした。別テーマで再試行します。${subthemeSuffix}`);
         continue;
       }
       const duplicate = existing.titles.some((title) => normalizeText(title) === normalizeText(research.topic));
@@ -479,6 +502,7 @@ async function main() {
           '',
           `- タイトル: ${writer.title}`,
           `- カテゴリ: ${profile.category}`,
+          ...(profile.subtheme ? [`- サブテーマ: ${profile.subtheme.label}`] : []),
           `- 種別: ${profile.kind}`,
           `- 状態: ${options.dryRun ? 'dry-run（未保存）' : options.publish ? 'published（自動QA通過）' : 'draft（要確認）'}`,
           `- ファイル: \`${path.relative(process.cwd(), saved.filePath)}\``,
@@ -491,11 +515,36 @@ async function main() {
       return;
     } catch (error) {
       if (error instanceof FatalPipelineError) throw error;
+      lastError = error;
       console.error(`[generate-column] 試行${attempt}失敗:`, error instanceof Error ? error.message : error);
-      if (attempt === MAX_ATTEMPTS) throw error;
+      if (attempt === MAX_ATTEMPTS) break;
     }
   }
-  throw new Error('十分な根拠を持つ未掲載テーマを選定できませんでした。');
+
+  // MAX_ATTEMPTS回とも生成できなかった（notFoundの繰り返し、またはエラー）。
+  // ログだけだと見落とされるため、カテゴリ・サブテーマ名までJob Summaryへ残す
+  // （「三条・燕三条周辺の蔵」等、特定サブテーマで空振りが続いていないかを
+  // 追えるようにするため）。
+  const allNotFound = notFoundCount >= MAX_ATTEMPTS;
+  const reason = allNotFound
+    ? `${MAX_ATTEMPTS}回とも十分な根拠を確認できませんでした。`
+    : `試行中にエラーが発生しました: ${lastError instanceof Error ? lastError.message : String(lastError)}`;
+  await appendStepSummary(
+    [
+      '## 📖 本寺小路夜話 コラム生成（失敗）',
+      '',
+      `- カテゴリ: ${profile.category}`,
+      ...(profile.subtheme ? [`- サブテーマ: ${profile.subtheme.label}`] : []),
+      `- 種別: ${profile.kind}`,
+      `- 結果: ${reason}`,
+    ].join('\n')
+  );
+
+  throw allNotFound
+    ? new Error(`十分な根拠を持つ未掲載テーマを選定できませんでした。${subthemeSuffix}`)
+    : lastError instanceof Error
+      ? lastError
+      : new Error(String(lastError));
 }
 
 main().catch((error) => {
