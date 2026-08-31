@@ -9,10 +9,12 @@ import {
   buildColumnMidImagePrompt,
   chooseColumnMotif,
   chooseMidImageMotif,
+  createSquareImage,
   findMidImageInsertion,
   inspectAlpha,
   insertMidImageMarkdown,
   hasRenderedTransparencyGrid,
+  MAX_PUBLIC_IMAGE_BYTES,
   MIN_BODY_CHARS_FOR_MID_IMAGE,
   needsBackgroundRemoval,
   removeConnectedBackground,
@@ -106,6 +108,36 @@ describe('buildColumnMidImagePrompt', () => {
     expect(prompt).toContain(insertion.contextAfter);
     expect(prompt).toContain('transparent background');
     expect(prompt).toContain('#f2b544');
+  });
+});
+
+describe('createSquareImage（Instagram投稿用スクエア画像）', () => {
+  it('1080x1080・不透明（背景を敷いた合成物）・200KB以下のwebpを作る', async () => {
+    const source = await sharp({ create: { width: 500, height: 500, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: Buffer.from('<svg width="200" height="200"><circle cx="100" cy="100" r="90" fill="#f2b544"/></svg>'), left: 150, top: 150 }])
+      .png()
+      .toBuffer();
+    const square = await createSquareImage(source);
+    const meta = await sharp(square).metadata();
+    expect(meta.width).toBe(1080);
+    expect(meta.height).toBe(1080);
+    expect(meta.hasAlpha).toBe(false); // 背景が敷かれた不透明な合成物であること（透過のまま投稿すると潰れるため）。
+    expect(square.length).toBeLessThanOrEqual(MAX_PUBLIC_IMAGE_BYTES);
+  });
+
+  it('サイト名ラベル分の下部余白を除いても、被写体の周囲に十分な余白が残る（左右上）', async () => {
+    // 500x500の円を被写体として、スクエア画像の左端付近が背景色
+    // （被写体で埋まっていない）であることを確認する。
+    const source = await sharp({ create: { width: 500, height: 500, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: Buffer.from('<svg width="500" height="500"><circle cx="250" cy="250" r="240" fill="#f2b544"/></svg>') }])
+      .png()
+      .toBuffer();
+    const square = await createSquareImage(source);
+    const { data, info } = await sharp(square).raw().toBuffer({ resolveWithObject: true });
+    const y = Math.floor(info.height / 2);
+    const leftEdgeOffset = (y * info.width + 5) * 3;
+    // 被写体の明るい色(#f2b544系)ではなく、背景の暗色(#14110f系)に近いはず。
+    expect(data[leftEdgeOffset]).toBeLessThan(60);
   });
 });
 

@@ -1,8 +1,17 @@
 import { ThinkingLevel, type GoogleGenAI } from '@google/genai';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import satori from 'satori';
 import sharp from 'sharp';
 import type { ColumnCategory, ColumnKind } from './column-pipeline.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// generate-ogp-images.ts（ogpImage.ts）と同じサブセット済みフォントを流用する。
+// satoriはテキストを<path>としてSVGに埋め込むため、ラスタライズ側（sharp）は
+// フォントを一切知らなくてよく、CIランナーにCJKフォントが入っていなくても
+// 確実に描画できる（scripts/assets/fonts/README.md参照）。
+const FONTS_DIR = path.resolve(__dirname, '../assets/fonts');
 
 export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image';
 export const MAX_IMAGE_ATTEMPTS = 2;
@@ -36,6 +45,9 @@ export interface ColumnImageInput {
 
 export interface ColumnImageResult {
   eyecatch: { src: string; alt: string };
+  /** Instagram投稿用の正方形画像（1080x1080）。eyecatchと同じ透過ソースから
+   *  切り出すため、追加の画像生成APIコールは発生しない。 */
+  square: { src: string; alt: string };
   /** 本文中ほどの2枚目挿絵。findMidImageInsertionの条件を満たさない場合や、
    *  2枚目の生成自体に失敗した場合はundefined（1枚目だけで公開を続行する）。 */
   illustration?: { src: string; alt: string };
@@ -482,6 +494,78 @@ export async function createIllustrationImage(source: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
+// Instagram投稿用スクエア画像の下部に入れるサイト名。変更時はここだけ直せばよい。
+const SQUARE_SITE_LABEL = '本寺小路ガイド';
+const SQUARE_SIZE = 1080;
+
+let squareLabelFontCache: Buffer | undefined;
+
+async function loadSquareLabelFont(): Promise<Buffer> {
+  if (!squareLabelFontCache) {
+    squareLabelFontCache = await readFile(path.join(FONTS_DIR, 'NotoSansJP-Regular-subset.ttf'));
+  }
+  return squareLabelFontCache;
+}
+
+/** サイト名だけの透過PNGラベルをsatoriで描く（文字は<path>化されるため、
+ *  実行環境にCJKフォントが入っていなくても確実に描画できる）。 */
+async function renderSquareSiteLabel(): Promise<Buffer> {
+  const font = await loadSquareLabelFont();
+  const height = 90;
+  const tree = {
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        width: `${SQUARE_SIZE}px`,
+        height: `${height}px`,
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: 'Noto Sans JP',
+        fontSize: 28,
+        letterSpacing: '0.15em',
+        color: 'rgba(242,233,216,0.55)',
+      },
+      children: SQUARE_SITE_LABEL,
+    },
+  };
+  const svg = await satori(tree, {
+    width: SQUARE_SIZE,
+    height,
+    fonts: [{ name: 'Noto Sans JP', data: font, weight: 400, style: 'normal' }],
+  });
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+/**
+ * QA済み透過PNGから、Instagram投稿用のスクエア画像（1080x1080、
+ * createEyecatchImageと同じ装飾背景に合成）を作る。透過のまま投稿すると
+ * 透明部分が黒く潰れるプラットフォームがあるため、背景を敷いて書き出す。
+ * サイト名はsatoriでレンダリング（フォント内蔵、CI環境のフォント有無に
+ * 依存しない）。新規の画像生成API呼び出しは発生しない
+ * （createEyecatchImageと同じsourceを共有する）。
+ */
+export async function createSquareImage(source: Buffer): Promise<Buffer> {
+  const foreground = await sharp(source)
+    .resize(620, 620, { fit: 'contain', withoutEnlargement: true })
+    .png()
+    .toBuffer();
+  const background = Buffer.from(`<svg width="${SQUARE_SIZE}" height="${SQUARE_SIZE}" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="g" cx="62%" cy="45%" r="55%"><stop offset="0" stop-color="#f2b544" stop-opacity="0.18"/><stop offset="1" stop-color="#14110f" stop-opacity="0"/></radialGradient></defs>
+    <rect width="${SQUARE_SIZE}" height="${SQUARE_SIZE}" fill="#14110f"/><rect width="${SQUARE_SIZE}" height="${SQUARE_SIZE}" fill="url(#g)"/>
+    <path d="M72 72 H1008 M72 1008 H1008" stroke="#d8cbb8" stroke-opacity="0.12"/>
+    <circle cx="96" cy="96" r="5" fill="#c8412f"/><circle cx="984" cy="984" r="5" fill="#f2b544"/>
+  </svg>`);
+  const label = await renderSquareSiteLabel();
+  return sharp(background)
+    .composite([
+      { input: foreground, gravity: 'center' },
+      { input: label, top: SQUARE_SIZE - 110, left: 0 },
+    ])
+    .webp({ quality: 84, alphaQuality: 95 })
+    .toBuffer();
+}
+
 /**
  * コラム記事の挿絵一式を生成する。
  *
@@ -507,20 +591,29 @@ export async function generateColumnImages(
 
   const sourcePath = path.join(sourceDir, `${input.slug}-source.png`);
   const eyecatchPath = path.join(publicDir, `${input.slug}-eyecatch.webp`);
-  await Promise.all([sourcePath, eyecatchPath].map(ensureDoesNotExist));
+  const squarePath = path.join(publicDir, `${input.slug}-square.webp`);
+  await Promise.all([sourcePath, eyecatchPath, squarePath].map(ensureDoesNotExist));
 
   const source = await generateTransparentSource(ai, buildColumnImagePrompt(input));
   const eyecatch = await createEyecatchImage(source);
+  // Instagram用スクエア画像はeyecatchと同じsourceから切り出すため、
+  // 追加の画像生成APIコールは発生しない。
+  const square = await createSquareImage(source);
 
   const warnings: string[] = [];
   if (eyecatch.length > MAX_PUBLIC_IMAGE_BYTES) {
     warnings.push(`アイキャッチが200KBを超えています（${Math.ceil(eyecatch.length / 1024)}KB）。`);
   }
+  if (square.length > MAX_PUBLIC_IMAGE_BYTES) {
+    warnings.push(`スクエア画像が200KBを超えています（${Math.ceil(square.length / 1024)}KB）。`);
+  }
 
-  await Promise.all([writeFile(sourcePath, source), writeFile(eyecatchPath, eyecatch)]);
+  await Promise.all([writeFile(sourcePath, source), writeFile(eyecatchPath, eyecatch), writeFile(squarePath, square)]);
+  console.log(`[Agent5:ImageQA] スクエア画像を保存しました（${Math.ceil(square.length / 1024)}KB）: ${path.relative(projectRoot, squarePath)}`);
 
   const result: ColumnImageResult = {
     eyecatch: { src: `/images/columns/${input.slug}-eyecatch.webp`, alt: buildColumnImageAlt(input) },
+    square: { src: `/images/columns/${input.slug}-square.webp`, alt: buildColumnImageAlt(input) },
     body,
     imageStatus: 'draft',
     sourcePath,
