@@ -50,6 +50,7 @@ import {
   summarizeOutcomes,
   uniqueSlug,
 } from './lib/gemini-agents.js';
+import { formatJapaneseYearMonth, FRESHNESS_LIMIT_MONTHS, isValidIsoDate, isWithinFreshnessLimit } from './lib/news-freshness.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NEWS_DIR = path.resolve(__dirname, '../src/content/news');
@@ -58,10 +59,11 @@ const MAX_ATTEMPTS = 3;
 
 // 各試行が最終的にどうなったかを記録し、全滅した場合でも「何が起きたか」を
 // ログとJob Summaryに必ず残すための集計用ラベル（generate-spot.tsと同じ方針）。
-type AttemptOutcome = 'notFound' | 'duplicate' | 'success' | 'error';
+type AttemptOutcome = 'notFound' | 'duplicate' | 'stale' | 'success' | 'error';
 const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
   notFound: '該当話題なし',
   duplicate: '重複',
+  stale: `鮮度NG（${FRESHNESS_LIMIT_MONTHS}ヶ月超）`,
   success: '成功',
   error: 'エラー',
 };
@@ -78,6 +80,9 @@ const researchSchema = z.object({
   headline: z.string(),
   category: z.string(),
   facts: z.string(),
+  // 年が本文に明記されている場合のみ値を入れる（相対表現・年不明はnull）。
+  // 判断できない場合にnullを許容し、無理に埋めさせない（推測禁止）。
+  eventDate: z.string().nullable(),
   relatedSpotSlug: z.string().optional().default(''),
   slug: z.string(),
   sources: z.array(z.string()).optional(),
@@ -119,6 +124,14 @@ const researchResponseSchema = {
       type: Type.STRING,
       description: '調べて分かった事実（日時・場所・詳細など）。不明な部分は「不明」と明記し、絶対に創作しない。',
     },
+    eventDate: {
+      type: Type.STRING,
+      nullable: true,
+      description:
+        'その出来事（開催予定または既に起きた）の日付。ISO形式(YYYY-MM-DD)。本文中に西暦年が明記されている場合のみ値を入れる。' +
+        '「7月23日」のように年が無い表記や「今週末」「来月」等の相対表現しか無い場合はnull（現在の年を補って解決してはならない）。' +
+        '複数の日付が登場する場合は、記事の主題である開催日だけを選ぶこと（最も未来の日付を機械的に選ばない）。主題の日付が特定できなければnull。',
+    },
     relatedSpotSlug: {
       type: Type.STRING,
       description: '既知店舗リストに一致する話題であればそのslug、なければ空文字',
@@ -133,7 +146,7 @@ const researchResponseSchema = {
       description: '参照したサイト名やURL（分かる範囲で）',
     },
   },
-  required: ['notFound', 'headline', 'category', 'facts', 'relatedSpotSlug', 'slug'],
+  required: ['notFound', 'headline', 'category', 'facts', 'eventDate', 'relatedSpotSlug', 'slug'],
 };
 
 const writerResponseSchema = {
@@ -163,7 +176,7 @@ interface KnownSpot {
   slug: string;
 }
 
-function buildResearchPrompt(excludeTopics: string[], knownSpots: KnownSpot[]): string {
+function buildResearchPrompt(excludeTopics: string[], knownSpots: KnownSpot[], today: string): string {
   const exclusionText =
     excludeTopics.length > 0
       ? `次の話題はすでに記事化済みです。同じ話題を選ばないでください:\n${excludeTopics
@@ -179,12 +192,18 @@ function buildResearchPrompt(excludeTopics: string[], knownSpots: KnownSpot[]): 
       : '';
 
   return `あなたは新潟県三条市の歓楽街「本寺小路」エリアの最新情報を追うニュースリサーチャーです。
+本日の日付: ${today}
+
 Google検索を使って、次のような観点から話題を調べてください:
 - 「${SEARCH_QUERIES[0]}」
 - 「${SEARCH_QUERIES[1]}」
 - 「${SEARCH_QUERIES[2]}」
 
 本寺小路・本町エリアに関連する、なるべく新しく具体的な話題を1つ選んでください（新規開店・リニューアルオープン・地域のお祭りやイベント・その他街の話題など）。
+
+**鮮度の制約（重要）: 収集対象は、これから開催される予定の出来事、または本日から遡って${FRESHNESS_LIMIT_MONTHS}ヶ月以内に実際に起きた出来事に限ってください。**
+それより古い情報（例: 数年前に開催されたイベントの記録）しか見つからない場合は、
+「最新のニュース」として扱わず、notFound を true にしてください（無理に古い話題を選ばない）。
 
 ${exclusionText}
 
@@ -194,14 +213,19 @@ ${knownSpotsText}
 - headline: 話題を要約する簡潔な見出し（下書き）
 - category: ${NEWS_CATEGORIES.join(' / ')} のいずれか
 - facts: 調べて分かった事実（日時・場所・詳細など）をまとめたテキスト。分からない部分は「不明」と明記し、絶対に創作しないこと。
+- eventDate: その出来事の日付。ISO形式（YYYY-MM-DD）。
+  - 本文中に西暦年が明記されている場合のみ値を入れる。
+  - 「7月23日」のように年が無い表記や、「今週末」「来月」等の相対表現しか無い場合は null（本日の日付から年を補って解決してはならない）。
+  - 複数の日付が登場する場合は、記事の主題である開催日だけを選ぶこと（一番未来の日付を機械的に選ばない）。主題の日付が特定できなければ null。
+  - 迷ったら null。不確かな日付を出すより、鮮度チェックが働かない方が安全。
 - relatedSpotSlug: 上記の既知店舗リストに一致する話題であればそのslug、なければ空文字
 - slug: ファイル名用の英小文字ケバブケースslug（ローマ字/英訳）
 - sources: 参照したサイト名やURL（分かる範囲で）
 
 重要な注意点:
 - 実在しない話題を創作しないでください。
-- 除外リストと重複する話題、または本寺小路・三条市に関連しない話題しか見つからない場合は、
-  notFound を true にし、他のフィールドは空文字列（配列は空配列）にしてください。`;
+- 除外リストと重複する話題、本寺小路・三条市に関連しない話題、鮮度の制約を満たさない話題しか
+  見つからない場合は、notFound を true にし、他のフィールドは空文字列・null（配列は空配列）にしてください。`;
 }
 
 function buildWriterPrompt(research: ResearchResult): string {
@@ -241,9 +265,10 @@ async function runResearchAgent(
   const label = '[Agent1:Research]';
   console.log(`${label} 起動。Google Search Groundingで本寺小路の最新話題をリサーチ中...`);
 
+  const today = new Date().toISOString().slice(0, 10);
   const rawText = await callGroundedJsonAgent(ai, {
     label,
-    prompt: buildResearchPrompt(excludeTopics, knownSpots),
+    prompt: buildResearchPrompt(excludeTopics, knownSpots, today),
     responseSchema: researchResponseSchema,
   });
 
@@ -258,6 +283,7 @@ async function runResearchAgent(
     console.warn(`${label} 除外リスト以外の該当する話題が見つかりませんでした。`);
   } else {
     console.log(`${label} 完了。選定した話題: 「${result.data.headline}」（${result.data.category}）`);
+    console.log(`${label} eventDate: ${result.data.eventDate ?? 'null（年不明または相対表現）'}`);
     if (result.data.relatedSpotSlug) {
       console.log(`${label} 関連店舗slug: ${result.data.relatedSpotSlug}`);
     }
@@ -364,6 +390,8 @@ async function main() {
   console.log('============================================================');
 
   const outcomes: AttemptOutcome[] = [];
+  // 「鮮度NG」で見送った試行の詳細（Job Summaryにそのまま出す）。
+  const staleNotes: string[] = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     console.log(`\n----- 試行 ${attempt}/${MAX_ATTEMPTS} -----`);
@@ -394,6 +422,22 @@ async function main() {
         continue;
       }
 
+      // Agent1のプロンプト制約（一次防衛線）をすり抜けた場合の決定論的な
+      // 最終防衛線。eventDateが無い（null）場合はチェックのしようがないため
+      // 素通りする＝Agent1側の判断を信頼する（新規開店等、明確な開催日を
+      // 持たない話題まで一律に弾かないため）。
+      if (research.eventDate) {
+        if (!isValidIsoDate(research.eventDate)) {
+          console.warn(`[generate-news] eventDateの形式が不正なため鮮度チェックをスキップします（値: "${research.eventDate}"）。`);
+        } else if (!isWithinFreshnessLimit(research.eventDate)) {
+          outcomes.push('stale');
+          const note = `古い情報のため見送りました（${formatJapaneseYearMonth(research.eventDate)}の出来事）: 「${research.headline}」`;
+          staleNotes.push(note);
+          console.warn(`[generate-news] ${note}`);
+          continue;
+        }
+      }
+
       const writer = await runWriterAgent(ai, research);
       const filePath = await runQaAgent(research, writer, existingSlugs);
       outcomes.push('success');
@@ -411,6 +455,7 @@ async function main() {
           '',
           `- ファイル: \`${path.relative(process.cwd(), filePath)}\``,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+          ...(staleNotes.length > 0 ? ['', '鮮度NGで見送った候補:', ...staleNotes.map((n) => `- ${n}`)] : []),
         ].join('\n')
       );
       return;
@@ -469,6 +514,7 @@ async function main() {
       `${MAX_ATTEMPTS}回試行しましたが、新しいニュース記事は生成されませんでした。`,
       '',
       `- 試行内訳: ${summaryLine}`,
+      ...(staleNotes.length > 0 ? ['', '鮮度NGで見送った候補:', ...staleNotes.map((n) => `- ${n}`)] : []),
       '',
       '_エラーではなく意図的なスキップです。次回の定期実行で再試行されます。_',
     ].join('\n')
