@@ -497,6 +497,20 @@ export async function createIllustrationImage(source: Buffer): Promise<Buffer> {
 // Instagram投稿用スクエア画像の下部に入れるサイト名。変更時はここだけ直せばよい。
 const SQUARE_SITE_LABEL = '本寺小路ガイド';
 const SQUARE_SIZE = 1080;
+// イラストはInstagramフィード表示（幅約400px）でも存在感が出るよう大きめに取る。
+const SQUARE_ILLUSTRATION_SIZE = 800;
+const SQUARE_LABEL_HEIGHT = 110;
+// ラベル下端から画面端までの小さな余白（ラベル自体の分は含まない）。
+const SQUARE_BOTTOM_MARGIN = 30;
+// 「イラスト上端までの余白」と「イラスト下端〜ラベルまでの余白」が
+// 均等になるように、残りの縦スペースを2等分する（サイト名の分だけ
+// イラストの中心が少し上寄りになるのは意図通り）。
+const SQUARE_VERTICAL_GAP = Math.round(
+  (SQUARE_SIZE - SQUARE_ILLUSTRATION_SIZE - SQUARE_LABEL_HEIGHT - SQUARE_BOTTOM_MARGIN) / 2
+);
+const SQUARE_ILLUSTRATION_TOP = SQUARE_VERTICAL_GAP;
+const SQUARE_ILLUSTRATION_LEFT = Math.round((SQUARE_SIZE - SQUARE_ILLUSTRATION_SIZE) / 2);
+const SQUARE_LABEL_TOP = SQUARE_ILLUSTRATION_TOP + SQUARE_ILLUSTRATION_SIZE + SQUARE_VERTICAL_GAP;
 
 let squareLabelFontCache: Buffer | undefined;
 
@@ -508,30 +522,31 @@ async function loadSquareLabelFont(): Promise<Buffer> {
 }
 
 /** サイト名だけの透過PNGラベルをsatoriで描く（文字は<path>化されるため、
- *  実行環境にCJKフォントが入っていなくても確実に描画できる）。 */
+ *  実行環境にCJKフォントが入っていなくても確実に描画できる）。
+ *  主役はイラストなので、生成り色(#d8cbb8)を使いつつ完全な白は避け、
+ *  読める範囲でさりげなく収める。 */
 async function renderSquareSiteLabel(): Promise<Buffer> {
   const font = await loadSquareLabelFont();
-  const height = 90;
   const tree = {
     type: 'div',
     props: {
       style: {
         display: 'flex',
         width: `${SQUARE_SIZE}px`,
-        height: `${height}px`,
+        height: `${SQUARE_LABEL_HEIGHT}px`,
         justifyContent: 'center',
         alignItems: 'center',
         fontFamily: 'Noto Sans JP',
-        fontSize: 28,
+        fontSize: 34,
         letterSpacing: '0.15em',
-        color: 'rgba(242,233,216,0.55)',
+        color: 'rgba(216,203,184,0.82)',
       },
       children: SQUARE_SITE_LABEL,
     },
   };
   const svg = await satori(tree, {
     width: SQUARE_SIZE,
-    height,
+    height: SQUARE_LABEL_HEIGHT,
     fonts: [{ name: 'Noto Sans JP', data: font, weight: 400, style: 'normal' }],
   });
   return sharp(Buffer.from(svg)).png().toBuffer();
@@ -547,20 +562,21 @@ async function renderSquareSiteLabel(): Promise<Buffer> {
  */
 export async function createSquareImage(source: Buffer): Promise<Buffer> {
   const foreground = await sharp(source)
-    .resize(620, 620, { fit: 'contain', withoutEnlargement: true })
+    .resize(SQUARE_ILLUSTRATION_SIZE, SQUARE_ILLUSTRATION_SIZE, { fit: 'contain', withoutEnlargement: true })
     .png()
     .toBuffer();
+  // 左上・右下の点はゴミに見えるとの指摘を受けて削除し、上下の飾り罫線だけ
+  // 残す（イラスト・ラベルの新しい縦位置に合わせて位置も調整）。
   const background = Buffer.from(`<svg width="${SQUARE_SIZE}" height="${SQUARE_SIZE}" xmlns="http://www.w3.org/2000/svg">
     <defs><radialGradient id="g" cx="62%" cy="45%" r="55%"><stop offset="0" stop-color="#f2b544" stop-opacity="0.18"/><stop offset="1" stop-color="#14110f" stop-opacity="0"/></radialGradient></defs>
     <rect width="${SQUARE_SIZE}" height="${SQUARE_SIZE}" fill="#14110f"/><rect width="${SQUARE_SIZE}" height="${SQUARE_SIZE}" fill="url(#g)"/>
-    <path d="M72 72 H1008 M72 1008 H1008" stroke="#d8cbb8" stroke-opacity="0.12"/>
-    <circle cx="96" cy="96" r="5" fill="#c8412f"/><circle cx="984" cy="984" r="5" fill="#f2b544"/>
+    <path d="M48 48 H1032 M48 1060 H1032" stroke="#d8cbb8" stroke-opacity="0.12"/>
   </svg>`);
   const label = await renderSquareSiteLabel();
   return sharp(background)
     .composite([
-      { input: foreground, gravity: 'center' },
-      { input: label, top: SQUARE_SIZE - 110, left: 0 },
+      { input: foreground, top: SQUARE_ILLUSTRATION_TOP, left: SQUARE_ILLUSTRATION_LEFT },
+      { input: label, top: SQUARE_LABEL_TOP, left: 0 },
     ])
     .webp({ quality: 84, alphaQuality: 95 })
     .toBuffer();
