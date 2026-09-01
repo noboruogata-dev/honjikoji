@@ -32,6 +32,8 @@ jobs:
       - name: Generate spot article
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # 任意。未設定でもplaceIdが付かないだけで動作する。
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
         run: npm run generate:spot
 
       - name: Commit and push if there are changes

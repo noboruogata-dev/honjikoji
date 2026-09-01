@@ -1,0 +1,82 @@
+---
+// src/components/LivePlaceHours.astro
+//
+// 店舗詳細ページの「営業時間」「定休日」表示を、Place IDがあればGoogle Place
+// Details (New) のライブ情報で上書きする。
+//
+// 設計方針（Google Maps Platform利用規約対応。詳細は functions/api/place-hours.ts
+// のコメント参照）:
+// - ビルド時にPlaces APIの内容を一切埋め込まない。ページ表示のたびに
+//   /api/place-hours（Cloudflare Pages Function）経由でライブ取得する。
+// - 取得成功時のみ、既存のopenHours/regularHoliday表示（data-static-open-hours /
+//   data-static-regular-holiday を付けた要素）を隠し、Google由来の曜日別
+//   テキストに完全に置き換える。矛盾する情報を同時に見せないため。
+// - 取得失敗・placeId未設定・JS無効時は何もしない。既存のstatic表示が
+//   そのまま残る（OpenStatus.astroと同じ「自信がなければ出さない」方針）。
+interface Props {
+  placeId?: string;
+}
+
+const { placeId } = Astro.props;
+---
+
+{
+  placeId && (
+    <div class="hidden bg-night-900 px-4 py-3 sm:col-span-2" data-live-place-hours data-place-id={placeId}>
+      <dt class="text-xs text-gold-100/40">
+        営業時間・定休日<span class="ml-1 text-gold-100/30">（Google Maps情報）</span>
+      </dt>
+      <dd class="mt-1 space-y-0.5 text-sm text-gold-100/85" data-live-place-hours-list />
+    </div>
+  )
+}
+
+<script>
+  interface PlaceHoursResponse {
+    weekdayDescriptions?: unknown;
+  }
+
+  async function renderLivePlaceHours(el: HTMLElement) {
+    const placeId = el.dataset.placeId;
+    if (!placeId) return;
+
+    let data: PlaceHoursResponse;
+    try {
+      const res = await fetch(`/api/place-hours?placeId=${encodeURIComponent(placeId)}`);
+      if (!res.ok) return;
+      data = await res.json();
+    } catch {
+      return;
+    }
+
+    const lines = Array.isArray(data.weekdayDescriptions)
+      ? data.weekdayDescriptions.filter((line): line is string => typeof line === 'string')
+      : [];
+    if (lines.length === 0) return;
+
+    const list = el.querySelector<HTMLElement>('[data-live-place-hours-list]');
+    if (!list) return;
+
+    list.replaceChildren(
+      ...lines.map((line) => {
+        const p = document.createElement('p');
+        p.textContent = line;
+        return p;
+      })
+    );
+    el.classList.remove('hidden');
+
+    // 静的表示（openHours/regularHoliday）はここでのみ隠す。矛盾する情報を
+    // 同時に見せないため、置き換えに成功したときだけ隠す。
+    document.querySelector('[data-static-open-hours]')?.classList.add('hidden');
+    document.querySelector('[data-static-regular-holiday]')?.classList.add('hidden');
+  }
+
+  function renderAll() {
+    document.querySelectorAll<HTMLElement>('[data-live-place-hours]').forEach((el) => {
+      void renderLivePlaceHours(el);
+    });
+  }
+
+  document.addEventListener('astro:page-load', renderAll);
+</script>

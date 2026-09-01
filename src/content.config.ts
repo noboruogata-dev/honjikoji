@@ -9,6 +9,14 @@ const spots = defineCollection({
     address: z.string(),
     // Google マップの検索クエリ（"店名 三条市" 形式）。
     mapQuery: z.string(),
+    // Google Places API (New) の Place ID（任意）。scripts/generate-spot.ts の
+    // Agent 3、または npm run generate:spot -- --backfill-place-id が
+    // Text Search で解決して設定する。Google Maps Platform利用規約上、
+    // Place IDだけが唯一「無期限保存」を明示的に許可されたフィールドのため
+    // frontmatterに保存できる（営業時間など他のPlaces由来フィールドは
+    // 規約上ここに保存できない。src/components/LivePlaceHours.astroが、
+    // ページ表示のたびにこのIDでPlace Detailsをライブ取得して表示する）。
+    placeId: z.string().optional(),
     budget: z.string(),
     // 予算帯フィルタ用の数値下限（任意）。表示用の budget 文字列とは独立して
     // 並走させる。spots/index.astroの予算フィルタは「〜¥3,000」のような

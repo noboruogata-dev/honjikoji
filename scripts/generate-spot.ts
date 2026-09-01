@@ -15,7 +15,19 @@
  *            bodyの構造要件（段落数・見出し数・最長段落文字数）も決定論的に
  *            チェックしたうえで、通過したものだけを src/content/spots/[slug].md
  *            に保存する（LLM呼び出しなし、コードのみ。構造要件は非ブロッキングの
- *            WARNで、満たさなくても保存はされる）。
+ *            WARNで、満たさなくても保存はされる）。GOOGLE_PLACES_API_KEY が
+ *            設定されていれば、Text Searchで店名・住所からPlace IDも解決して
+ *            保存する（scripts/lib/googlePlaces.ts。解決できなくても保存は続行）。
+ *
+ * 営業時間まわりの設計（2系統）:
+ *   系統1（詳細ページの表示）: Place IDがあれば、詳細ページが表示のたびに
+ *     Place Details (New) をライブ取得して表示する（src/components/LivePlaceHours.astro
+ *     と functions/api/place-hours.ts）。Places API由来のコンテンツはビルド時にも
+ *     このリポジトリにも一切保存しない（Google Maps Platform利用規約で
+ *     opening hoursの保存・キャッシュが許可されていないため）。
+ *   系統2（サイト内の営業中判定・フィルタ・路地マップ点灯など）: 引き続き
+ *     このAgent3がopenHours/regularHolidayから決定論的に導出するhours
+ *     （src/lib/hours.ts）を使う。Places APIとは無関係の既存ロジックのまま。
  *
  * 注意: youtubeVideos はこのパイプラインでは絶対に生成・推測しない。
  * 実在する動画IDをLLMが幻覚する（または存在するが別動画を取り違える）
@@ -33,11 +45,13 @@
  * 事前準備:
  *   .env に GEMINI_API_KEY を設定してください（.env.example 参照）。
  *   https://aistudio.google.com/apikey で取得できます。
+ *   GOOGLE_PLACES_API_KEY は任意です（未設定でもplaceIdが付かないだけで動作します）。
  */
 
 import 'dotenv/config';
 import { GoogleGenAI, Type } from '@google/genai';
 import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -64,6 +78,7 @@ import {
 } from './lib/gemini-agents.js';
 import { parseBudgetRange } from './lib/budgetParser.js';
 import { isIrregularHoliday, parseOpenHoursToHours } from './lib/openHoursParser.js';
+import { resolvePlaceId } from './lib/googlePlaces.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SPOTS_DIR = path.resolve(__dirname, '../src/content/spots');
@@ -146,6 +161,9 @@ const spotFrontmatterSchema = z.object({
   genre: z.string().min(1, 'genre が空です'),
   address: z.string().min(1, 'address が空です'),
   mapQuery: z.string().min(1, 'mapQuery が空です'),
+  // Google Places API (New) のText Searchで解決できた場合のみ設定する
+  // （解決できなければ未設定のまま。content.config.tsのコメント参照）。
+  placeId: z.string().optional(),
   budget: z.string().min(1, 'budget が空です'),
   // budgetからscripts/lib/budgetParser.tsで導出できた場合のみ設定する
   // （導出できなければ未設定のまま）。
@@ -585,6 +603,17 @@ async function runQaAgent(
   const label = '[Agent3:QA]';
   console.log(`${label} 起動。Frontmatterスキーマ（Zod）を検証中...`);
 
+  // 店名・住所からPlace IDを解決する（GOOGLE_PLACES_API_KEY未設定・該当なし・
+  // APIエラーのいずれでも null。処理は継続し、placeIdは未設定のまま保存する）。
+  const resolvedPlace = await resolvePlaceId(research.title, research.address, process.env.GOOGLE_PLACES_API_KEY);
+  if (resolvedPlace) {
+    console.log(`${label} Place IDを解決しました: ${resolvedPlace.placeId}`);
+  } else {
+    console.warn(
+      `${label} Place IDを解決できませんでした（GOOGLE_PLACES_API_KEY未設定、または該当なし）。詳細ページのライブ営業時間表示は無効のまま保存します。`
+    );
+  }
+
   // openHours/regularHolidayから構造化hoursを決定論的に導出する（LLM不使用）。
   // 導出できなければhoursは未設定のまま保存する（誤った営業時間よりは
   // hours欠落＝unknown表示の方が安全という方針。scripts/lib/openHoursParser.ts）。
@@ -610,6 +639,7 @@ async function runQaAgent(
     genre: research.genre,
     address: research.address,
     mapQuery: `${research.title} 三条市`,
+    placeId: resolvedPlace?.placeId,
     budget: research.budget,
     budgetMin: budgetRange.min,
     budgetMax: budgetRange.max,
@@ -677,6 +707,7 @@ async function runQaAgent(
     `genre: ${toYamlString(fm.genre)}`,
     `address: ${toYamlString(fm.address)}`,
     `mapQuery: ${toYamlString(fm.mapQuery)}`,
+    ...(fm.placeId ? [`placeId: ${toYamlString(fm.placeId)}`] : []),
     `budget: ${toYamlString(fm.budget)}`,
     ...(fm.budgetMin !== undefined ? [`budgetMin: ${fm.budgetMin}`] : []),
     ...(fm.budgetMax !== undefined ? [`budgetMax: ${fm.budgetMax}`] : []),
@@ -1139,6 +1170,143 @@ async function runBackfillBudget(): Promise<void> {
 }
 
 // ============================================================
+// --backfill-place-id: 既存の店舗記事のうち、placeIdがまだ無いものだけを
+// 店名・住所からGoogle Places API (New) のText Searchで解決する
+// （scripts/lib/googlePlaces.ts）。
+//
+// 既存のplaceIdは絶対に上書きしない。書き込み前に必ず「slug・店名・住所→
+// 解決したPlace ID」の対応表を提示し、標準入力でユーザーの確認（y）を
+// 取ってから書き込む（対話専用。確認プロンプトがあるためCI等の非対話環境
+// では使えない）。
+// ============================================================
+
+type PlaceIdBackfillStatus = 'resolved' | 'skipped-existing' | 'not-resolved';
+
+interface PlaceIdBackfillResult {
+  slug: string;
+  title: string;
+  address: string;
+  status: PlaceIdBackfillStatus;
+  placeId?: string;
+}
+
+/** placeId行を、mapQuery行の直後に挿入する（他フィールド・本文には触れない）。 */
+function insertPlaceIdField(raw: string, placeId: string): string | null {
+  const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(raw);
+  if (!frontmatterMatch) return null;
+  const fmBlock = frontmatterMatch[1];
+  const fmStart = frontmatterMatch.index + '---\n'.length;
+
+  const mapQueryLineMatch = /^mapQuery:.*$/m.exec(fmBlock);
+  if (!mapQueryLineMatch) return null;
+
+  const insertAt = fmStart + mapQueryLineMatch.index + mapQueryLineMatch[0].length + 1;
+  const insertText = `placeId: ${toYamlString(placeId)}\n`;
+  return raw.slice(0, insertAt) + insertText + raw.slice(insertAt);
+}
+
+async function runBackfillPlaceId(): Promise<void> {
+  console.log('============================================================');
+  console.log(' 本寺小路ガイド Place ID 遡及生成（--backfill-place-id）');
+  console.log('============================================================');
+
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) {
+    console.error(
+      '[generate-spot] GOOGLE_PLACES_API_KEY が設定されていません。.env に GOOGLE_PLACES_API_KEY=... を追加してください（.env.example 参照）。'
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  await mkdir(SPOTS_DIR, { recursive: true });
+  const files = (await readdir(SPOTS_DIR)).filter((file) => file.endsWith('.md'));
+
+  const results: PlaceIdBackfillResult[] = [];
+
+  for (const file of files) {
+    const slug = file.replace(/\.md$/, '');
+    const frontmatter = await readFrontmatter(SPOTS_DIR, slug);
+
+    if (!frontmatter) {
+      results.push({ slug, title: slug, address: '', status: 'not-resolved' });
+      continue;
+    }
+
+    const title = typeof frontmatter.title === 'string' ? frontmatter.title : slug;
+    const address = typeof frontmatter.address === 'string' ? frontmatter.address : '';
+
+    if (typeof frontmatter.placeId === 'string' && frontmatter.placeId.length > 0) {
+      results.push({ slug, title, address, status: 'skipped-existing' });
+      continue;
+    }
+
+    if (!address) {
+      results.push({ slug, title, address, status: 'not-resolved' });
+      continue;
+    }
+
+    const resolved = await resolvePlaceId(title, address, apiKey);
+    if (!resolved) {
+      results.push({ slug, title, address, status: 'not-resolved' });
+      continue;
+    }
+
+    results.push({ slug, title, address, status: 'resolved', placeId: resolved.placeId });
+  }
+
+  const resolvedResults = results.filter(
+    (r): r is PlaceIdBackfillResult & { placeId: string } => r.status === 'resolved'
+  );
+  const skippedExisting = results.filter((r) => r.status === 'skipped-existing');
+  const notResolved = results.filter((r) => r.status === 'not-resolved');
+
+  console.log('\n============================================================');
+  console.log(
+    ` 解決結果: 対象${results.length}件中、新規解決${resolvedResults.length}件・既存スキップ${skippedExisting.length}件・解決不可${notResolved.length}件`
+  );
+  console.log('============================================================');
+
+  if (resolvedResults.length === 0) {
+    console.log('[generate-spot] 新規に書き込むPlace IDはありません。終了します。');
+    return;
+  }
+
+  console.log('\n以下の対応表でfrontmatterに書き込みます（店名・住所 → 解決したPlace ID）:\n');
+  for (const r of resolvedResults) {
+    console.log(`  - ${r.slug}\n      店名: ${r.title}\n      住所: ${r.address}\n      Place ID: ${r.placeId}`);
+  }
+  if (notResolved.length > 0) {
+    console.log(`\n解決できなかった店舗（変更なし）: ${notResolved.map((r) => r.slug).join(', ')}`);
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await rl.question(`\n上記 ${resolvedResults.length} 件をfrontmatterに書き込みますか？ (y/N): `);
+  rl.close();
+
+  if (answer.trim().toLowerCase() !== 'y') {
+    console.log('[generate-spot] 中断しました。何も書き込んでいません。');
+    return;
+  }
+
+  let written = 0;
+  for (const r of resolvedResults) {
+    const filePath = path.join(SPOTS_DIR, `${r.slug}.md`);
+    const raw = await readFile(filePath, 'utf-8');
+    const newRaw = insertPlaceIdField(raw, r.placeId);
+    if (newRaw === null) {
+      console.warn(`[generate-spot] ${r.slug}: mapQuery行が見つからず、安全に挿入できませんでした。スキップします。`);
+      continue;
+    }
+    await writeFile(filePath, newRaw, 'utf-8');
+    written += 1;
+    console.log(`[generate-spot] ${r.slug}: placeId: ${r.placeId} を書き込みました。`);
+  }
+
+  console.log(`\n[generate-spot] 完了: ${written}件のplaceIdを書き込みました。`);
+}
+
+// ============================================================
 // オーケストレーター
 // ============================================================
 
@@ -1163,6 +1331,14 @@ async function main() {
   // 既存のbudgetMin/budgetMaxは絶対に上書きしない。
   if (process.argv[2] === '--backfill-budget') {
     await runBackfillBudget();
+    return;
+  }
+
+  // 遡及生成モード: GEMINI_API_KEY不要（GOOGLE_PLACES_API_KEYは必須）。既存の
+  // 店舗記事のうちplaceIdが無いものだけを解決する。書き込み前に対応表を
+  // 提示し、標準入力で確認を取る（対話専用）。既存のplaceIdは上書きしない。
+  if (process.argv[2] === '--backfill-place-id') {
+    await runBackfillPlaceId();
     return;
   }
 
