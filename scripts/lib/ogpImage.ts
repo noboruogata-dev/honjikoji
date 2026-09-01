@@ -186,3 +186,139 @@ export async function renderOgpImage(input: OgpImageInput): Promise<Buffer> {
 
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
+
+// ============================================================
+// Instagram投稿用スクエア画像（1080×1080）
+//
+// 店舗記事・お知らせにはコラムのようなAIイラストが無いため、OGP画像と
+// 同じsatori+sharp基盤（フォント・提灯装飾を共有）でタイトル文字を主役に
+// した正方形画像を組む。意匠（暗い背景・琥珀色のグロー・明朝体の
+// タイトル・下部のサイト名）は src/lib/column-images.ts の
+// createSquareImage / renderSquareSiteLabel と揃えている
+// （あちらはAIイラストの切り出し、こちらはタイトル文字が主役という違いのみ）。
+// ============================================================
+
+const SQUARE_SIZE = 1080;
+
+/**
+ * タイトルの文字数に応じてフォントサイズを段階的に下げる。fitTitleと同じ
+ * 考え方だが、正方形（横幅がOGPより狭い）向けに閾値・サイズを調整している。
+ */
+function fitSquareTitle(title: string): { fontSize: number; text: string } {
+  const chars = [...title];
+  const len = chars.length;
+
+  if (len <= 10) return { fontSize: 72, text: title };
+  if (len <= 16) return { fontSize: 58, text: title };
+  if (len <= 24) return { fontSize: 46, text: title };
+
+  const TRUNCATE_AT = 32;
+  const truncated = chars.length > TRUNCATE_AT ? `${chars.slice(0, TRUNCATE_AT).join('')}…` : title;
+  return { fontSize: 38, text: truncated };
+}
+
+async function buildSquareTree(input: OgpImageInput) {
+  const { mincho, gothic } = await loadFonts();
+  const lanternDataUri = await loadLanternDataUri();
+  const { fontSize, text } = fitSquareTitle(input.title);
+
+  const tree = {
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: `${SQUARE_SIZE}px`,
+        height: `${SQUARE_SIZE}px`,
+        padding: '0 96px',
+        backgroundColor: '#14110f',
+        backgroundImage:
+          'linear-gradient(160deg, #14110f 0%, #1c1611 55%, #2e1f14 100%),' +
+          'radial-gradient(ellipse 65% 50% at 62% 42%, rgba(242,181,68,0.18), rgba(242,181,68,0) 60%)',
+        color: '#f2e9d8',
+        fontFamily: 'Noto Sans JP',
+        overflow: 'hidden',
+      },
+      children: [
+        {
+          type: 'img',
+          props: {
+            src: lanternDataUri,
+            width: 116,
+            height: 116,
+            style: { position: 'absolute', top: '72px', opacity: 0.85 },
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              fontFamily: 'Shippori Mincho',
+              fontSize,
+              fontWeight: 700,
+              lineHeight: 1.5,
+              textAlign: 'center',
+              letterSpacing: '0.02em',
+            },
+            children: text,
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              fontSize: 30,
+              marginTop: '32px',
+              color: '#e8c468',
+              letterSpacing: '0.05em',
+            },
+            children: input.label,
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              position: 'absolute',
+              bottom: '56px',
+              fontSize: 26,
+              letterSpacing: '0.15em',
+              // コラムの正方形画像のサイト名ラベルと同じ色（生成り色、非完全白）。
+              color: 'rgba(216,203,184,0.82)',
+            },
+            children: '本寺小路ガイド',
+          },
+        },
+      ],
+    },
+  };
+
+  return { tree, mincho, gothic };
+}
+
+/**
+ * Instagram投稿用スクエア画像（1080×1080 WebP）を生成する。renderOgpImageと
+ * 同様、フォントに無い文字やその他のレンダリング失敗時は例外を投げる
+ * （呼び出し元でcatchし、Instagram素材生成自体をスキップすること。
+ * scripts/lib/instagramMaterialAgent.ts参照）。
+ */
+export async function renderInstagramSquareImage(input: OgpImageInput): Promise<Buffer> {
+  const { tree, mincho, gothic } = await buildSquareTree(input);
+
+  const svg = await satori(tree, {
+    width: SQUARE_SIZE,
+    height: SQUARE_SIZE,
+    fonts: [
+      { name: 'Shippori Mincho', data: mincho, weight: 700, style: 'normal' },
+      { name: 'Noto Sans JP', data: gothic, weight: 400, style: 'normal' },
+    ],
+  });
+
+  // コラムの正方形画像(createSquareImage)と同じWebP・品質で揃える。
+  return sharp(Buffer.from(svg)).webp({ quality: 84 }).toBuffer();
+}

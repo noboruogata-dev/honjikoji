@@ -51,8 +51,10 @@ import {
   uniqueSlug,
 } from './lib/gemini-agents.js';
 import { formatJapaneseYearMonth, FRESHNESS_LIMIT_MONTHS, isValidIsoDate, isWithinFreshnessLimit } from './lib/news-freshness.js';
+import { runInstagramMaterialAgent } from './lib/instagramMaterialAgent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, '..');
 const NEWS_DIR = path.resolve(__dirname, '../src/content/news');
 const SPOTS_DIR = path.resolve(__dirname, '../src/content/spots');
 const MAX_ATTEMPTS = 3;
@@ -441,6 +443,23 @@ async function main() {
       const writer = await runWriterAgent(ai, research);
       const filePath = await runQaAgent(research, writer, existingSlugs);
       outcomes.push('success');
+
+      // Instagram投稿素材（文面・正方形画像・Slack通知）。週1の独立したニュース
+      // 記事のみが対象（店舗公開時に自動生成される「公開お知らせ」は同じ店舗記事
+      // と内容が重複するため対象外。generate-spot.tsのAgent4は呼ばない）。
+      // 例外を投げないため、失敗しても記事の保存自体は成功のまま処理を続けられる。
+      const newsSlug = path.basename(filePath, '.md');
+      await runInstagramMaterialAgent(ai, {
+        type: 'news',
+        contentLabel: 'お知らせ',
+        slug: newsSlug,
+        title: writer.title,
+        summary: writer.summary,
+        body: writer.body,
+        imageLabel: 'お知らせ',
+        urlPath: `/news/${newsSlug}/`,
+        projectRoot: PROJECT_ROOT,
+      });
 
       console.log('\n============================================================');
       console.log(` 完了: 「${writer.title}」（${research.category}）を保存しました。`);

@@ -51,6 +51,7 @@ import {
   findMidImageInsertion,
   generateColumnImages,
 } from './lib/column-images.js';
+import { runInstagramMaterialAgent } from './lib/instagramMaterialAgent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COLUMNS_DIR = path.resolve(__dirname, '../src/content/columns');
@@ -496,6 +497,25 @@ async function main() {
         options.noImage,
         options.publish
       );
+
+      // Instagram投稿素材（文面・正方形画像・Slack通知）。--publishで実際に
+      // 公開されたときのみ対象（dry-run・下書き保存では送らない）。例外を
+      // 投げないため、失敗してもコラムの保存自体は成功のまま処理を続けられる。
+      if (options.publish && !options.dryRun) {
+        const columnSlug = path.basename(saved.filePath, '.md');
+        await runInstagramMaterialAgent(ai, {
+          type: 'column',
+          contentLabel: 'コラム',
+          slug: columnSlug,
+          title: writer.title,
+          summary: writer.summary,
+          body: writer.body,
+          imageLabel: profile.category,
+          urlPath: `/columns/${columnSlug}/`,
+          projectRoot: PROJECT_ROOT,
+        });
+      }
+
       await appendStepSummary(
         [
           '## 📖 本寺小路夜話 コラム生成',

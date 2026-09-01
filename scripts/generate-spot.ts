@@ -80,8 +80,10 @@ import { parseBudgetRange } from './lib/budgetParser.js';
 import { isIrregularHoliday, parseOpenHoursToHours } from './lib/openHoursParser.js';
 import { resolvePlaceId, resolveRegularOpeningHoursPeriods } from './lib/googlePlaces.js';
 import { compareHoursWithGoogle } from './lib/hoursComparison.js';
+import { runInstagramMaterialAgent } from './lib/instagramMaterialAgent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, '..');
 const SPOTS_DIR = path.resolve(__dirname, '../src/content/spots');
 const NEWS_DIR = path.resolve(__dirname, '../src/content/news');
 // scripts/match-youtube.ts が書き出すファイルと同じパス（リポジトリルート直下）。
@@ -1534,6 +1536,22 @@ async function main() {
         title: research.title,
         genre: research.genre,
         description: writer.description,
+      });
+
+      // Instagram投稿素材（文面・正方形画像・Slack通知）。店舗記事のみが対象
+      // （announcement=公開お知らせは同じ店を扱うため、Instagramへ2回投稿する
+      // ことはなく対象外。ユーザーとの合意事項）。例外を投げないため、失敗しても
+      // 店舗記事の保存自体は成功のまま処理を続けられる。
+      await runInstagramMaterialAgent(ai, {
+        type: 'spot',
+        contentLabel: '店舗記事',
+        slug: spotSlug,
+        title: research.title,
+        summary: writer.description,
+        body: writer.body,
+        imageLabel: research.genre ? `${research.genre} ／ 本寺小路` : '本寺小路',
+        urlPath: `/spots/${spotSlug}/`,
+        projectRoot: PROJECT_ROOT,
       });
 
       const hoursLine = hoursDerived

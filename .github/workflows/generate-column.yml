@@ -62,6 +62,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image' }}
           CATEGORY: ${{ steps.category.outputs.category }}
+          # 任意。未設定でもInstagram素材のSlack通知だけスキップされる。
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           if [ "$CATEGORY" = "people" ]; then
             npm run generate:column -- --category=people --kind=fiction --publish
@@ -92,7 +94,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add src/content/columns src/content/news public/images/columns
+          git add src/content/columns src/content/news public/images/columns public/images/instagram
 
           if git diff --cached --quiet; then
             echo "No new column was generated. Skipping commit."
