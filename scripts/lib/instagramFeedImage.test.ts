@@ -2,9 +2,9 @@ import { describe, expect, it, afterEach } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { resolveInstagramSquareImage } from './instagramSquareImage';
+import { resolveInstagramFeedImage } from './instagramFeedImage';
 
-describe('resolveInstagramSquareImage', () => {
+describe('resolveInstagramFeedImage', () => {
   let projectRoot: string;
 
   afterEach(async () => {
@@ -12,12 +12,12 @@ describe('resolveInstagramSquareImage', () => {
   });
 
   it('type=columnで既存のコラムイラスト画像があれば最優先で使う（文字ベース画像は生成しない）', async () => {
-    projectRoot = await mkdtemp(path.join(tmpdir(), 'instagram-square-'));
+    projectRoot = await mkdtemp(path.join(tmpdir(), 'instagram-feed-'));
     const columnsDir = path.join(projectRoot, 'public/images/columns');
     await mkdir(columnsDir, { recursive: true });
-    await writeFile(path.join(columnsDir, 'my-column-square.webp'), Buffer.from('dummy'));
+    await writeFile(path.join(columnsDir, 'my-column-feed.webp'), Buffer.from('dummy'));
 
-    const result = await resolveInstagramSquareImage({
+    const result = await resolveInstagramFeedImage({
       type: 'column',
       slug: 'my-column',
       title: 'テストコラム',
@@ -27,7 +27,7 @@ describe('resolveInstagramSquareImage', () => {
 
     expect(result.ok).toBe(true);
     expect(result.source).toBe('column-illustration');
-    expect(result.imageUrl).toBe('https://honjikoji.jp/images/columns/my-column-square.webp');
+    expect(result.imageUrl).toBe('https://honjikoji.jp/images/columns/my-column-feed.webp');
 
     // 文字ベース画像側（public/images/instagram/）には何も作られていないこと。
     const instagramDir = path.join(projectRoot, 'public/images/instagram');
@@ -35,9 +35,9 @@ describe('resolveInstagramSquareImage', () => {
   });
 
   it('type=columnでコラムイラスト画像が無ければ文字ベース画像を生成する', async () => {
-    projectRoot = await mkdtemp(path.join(tmpdir(), 'instagram-square-'));
+    projectRoot = await mkdtemp(path.join(tmpdir(), 'instagram-feed-'));
 
-    const result = await resolveInstagramSquareImage({
+    const result = await resolveInstagramFeedImage({
       type: 'column',
       slug: 'no-illustration-column',
       title: 'テストコラム',
@@ -48,17 +48,17 @@ describe('resolveInstagramSquareImage', () => {
     expect(result.ok).toBe(true);
     expect(result.source).toBe('generated');
     expect(result.imageUrl).toBe(
-      'https://honjikoji.jp/images/instagram/column-no-illustration-column-square.webp'
+      'https://honjikoji.jp/images/instagram/column-no-illustration-column-feed.webp'
     );
   }, 20000);
 
   it('type=spotは既存があれば再利用し、無ければ生成する', async () => {
-    projectRoot = await mkdtemp(path.join(tmpdir(), 'instagram-square-'));
+    projectRoot = await mkdtemp(path.join(tmpdir(), 'instagram-feed-'));
     const instagramDir = path.join(projectRoot, 'public/images/instagram');
     await mkdir(instagramDir, { recursive: true });
-    await writeFile(path.join(instagramDir, 'spot-my-spot-square.webp'), Buffer.from('dummy'));
+    await writeFile(path.join(instagramDir, 'spot-my-spot-feed.webp'), Buffer.from('dummy'));
 
-    const result = await resolveInstagramSquareImage({
+    const result = await resolveInstagramFeedImage({
       type: 'spot',
       slug: 'my-spot',
       title: 'テスト店舗',

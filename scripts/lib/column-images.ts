@@ -45,9 +45,9 @@ export interface ColumnImageInput {
 
 export interface ColumnImageResult {
   eyecatch: { src: string; alt: string };
-  /** Instagram投稿用の正方形画像（1080x1080）。eyecatchと同じ透過ソースから
-   *  切り出すため、追加の画像生成APIコールは発生しない。 */
-  square: { src: string; alt: string };
+  /** Instagram投稿用のフィード画像（1080x1350、4:5）。eyecatchと同じ透過
+   *  ソースから切り出すため、追加の画像生成APIコールは発生しない。 */
+  feed: { src: string; alt: string };
   /** 本文中ほどの2枚目挿絵。findMidImageInsertionの条件を満たさない場合や、
    *  2枚目の生成自体に失敗した場合はundefined（1枚目だけで公開を続行する）。 */
   illustration?: { src: string; alt: string };
@@ -494,89 +494,111 @@ export async function createIllustrationImage(source: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-// Instagram投稿用スクエア画像の下部に入れるサイト名。変更時はここだけ直せばよい。
-const SQUARE_SITE_LABEL = '本寺小路ガイド';
-const SQUARE_SIZE = 1080;
+// Instagram投稿用フィード画像の下部に入れるサイト名。変更時はここだけ直せばよい。
+const FEED_SITE_LABEL = '本寺小路ガイド';
+// Instagramのフィード表示は4:5が推奨（1:1正方形は上下に余白が入り小さく
+// 表示される）ため、この比率で統一する（幅は1:1版から変更していない）。
+const FEED_WIDTH = 1080;
+const FEED_HEIGHT = 1350;
 // イラストはInstagramフィード表示（幅約400px）でも存在感が出るよう大きめに取る。
-const SQUARE_ILLUSTRATION_SIZE = 800;
-const SQUARE_LABEL_HEIGHT = 110;
-// ラベル下端から画面端までの小さな余白（ラベル自体の分は含まない）。
-const SQUARE_BOTTOM_MARGIN = 30;
-// 「イラスト上端までの余白」と「イラスト下端〜ラベルまでの余白」が
-// 均等になるように、残りの縦スペースを2等分する（サイト名の分だけ
-// イラストの中心が少し上寄りになるのは意図通り）。
-const SQUARE_VERTICAL_GAP = Math.round(
-  (SQUARE_SIZE - SQUARE_ILLUSTRATION_SIZE - SQUARE_LABEL_HEIGHT - SQUARE_BOTTOM_MARGIN) / 2
+// 1:1版(800)から、高さが伸びた(1080→1350)ぶんの余裕を活かして少し拡大。
+const FEED_ILLUSTRATION_SIZE = 860;
+const FEED_CATEGORY_LABEL_HEIGHT = 90;
+const FEED_SITE_LABEL_HEIGHT = 110;
+// 上端・下端の小さな余白（カテゴリ名・サイト名自体の高さは含まない）。
+const FEED_TOP_MARGIN = 56;
+const FEED_BOTTOM_MARGIN = 36;
+// 「カテゴリ名下端〜イラスト上端」と「イラスト下端〜サイト名上端」が
+// 均等になるように、残りの縦スペースを2等分する。
+const FEED_MIDDLE_GAP = Math.round(
+  (FEED_HEIGHT -
+    FEED_TOP_MARGIN -
+    FEED_CATEGORY_LABEL_HEIGHT -
+    FEED_ILLUSTRATION_SIZE -
+    FEED_SITE_LABEL_HEIGHT -
+    FEED_BOTTOM_MARGIN) /
+    2
 );
-const SQUARE_ILLUSTRATION_TOP = SQUARE_VERTICAL_GAP;
-const SQUARE_ILLUSTRATION_LEFT = Math.round((SQUARE_SIZE - SQUARE_ILLUSTRATION_SIZE) / 2);
-const SQUARE_LABEL_TOP = SQUARE_ILLUSTRATION_TOP + SQUARE_ILLUSTRATION_SIZE + SQUARE_VERTICAL_GAP;
+const FEED_CATEGORY_LABEL_TOP = FEED_TOP_MARGIN;
+const FEED_ILLUSTRATION_TOP = FEED_CATEGORY_LABEL_TOP + FEED_CATEGORY_LABEL_HEIGHT + FEED_MIDDLE_GAP;
+const FEED_ILLUSTRATION_LEFT = Math.round((FEED_WIDTH - FEED_ILLUSTRATION_SIZE) / 2);
+const FEED_SITE_LABEL_TOP = FEED_ILLUSTRATION_TOP + FEED_ILLUSTRATION_SIZE + FEED_MIDDLE_GAP;
 
-let squareLabelFontCache: Buffer | undefined;
+let feedLabelFontCache: Buffer | undefined;
 
-async function loadSquareLabelFont(): Promise<Buffer> {
-  if (!squareLabelFontCache) {
-    squareLabelFontCache = await readFile(path.join(FONTS_DIR, 'NotoSansJP-Regular-subset.ttf'));
+async function loadFeedLabelFont(): Promise<Buffer> {
+  if (!feedLabelFontCache) {
+    feedLabelFontCache = await readFile(path.join(FONTS_DIR, 'NotoSansJP-Regular-subset.ttf'));
   }
-  return squareLabelFontCache;
+  return feedLabelFontCache;
 }
 
-/** サイト名だけの透過PNGラベルをsatoriで描く（文字は<path>化されるため、
- *  実行環境にCJKフォントが入っていなくても確実に描画できる）。
- *  主役はイラストなので、生成り色(#d8cbb8)を使いつつ完全な白は避け、
- *  読める範囲でさりげなく収める。 */
-async function renderSquareSiteLabel(): Promise<Buffer> {
-  const font = await loadSquareLabelFont();
+/** 1行だけの透過PNGラベルをsatoriで描く（文字は<path>化されるため、実行
+ *  環境にCJKフォントが入っていなくても確実に描画できる）共通ヘルパー。 */
+async function renderFeedTextLabel(text: string, height: number, fontSize: number, color: string): Promise<Buffer> {
+  const font = await loadFeedLabelFont();
   const tree = {
     type: 'div',
     props: {
       style: {
         display: 'flex',
-        width: `${SQUARE_SIZE}px`,
-        height: `${SQUARE_LABEL_HEIGHT}px`,
+        width: `${FEED_WIDTH}px`,
+        height: `${height}px`,
         justifyContent: 'center',
         alignItems: 'center',
         fontFamily: 'Noto Sans JP',
-        fontSize: 34,
+        fontSize,
         letterSpacing: '0.15em',
-        color: 'rgba(216,203,184,0.82)',
+        color,
       },
-      children: SQUARE_SITE_LABEL,
+      children: text,
     },
   };
   const svg = await satori(tree, {
-    width: SQUARE_SIZE,
-    height: SQUARE_LABEL_HEIGHT,
+    width: FEED_WIDTH,
+    height,
     fonts: [{ name: 'Noto Sans JP', data: font, weight: 400, style: 'normal' }],
   });
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 /**
- * QA済み透過PNGから、Instagram投稿用のスクエア画像（1080x1080、
+ * QA済み透過PNGから、Instagram投稿用のフィード画像（1080x1350、4:5、
  * createEyecatchImageと同じ装飾背景に合成）を作る。透過のまま投稿すると
  * 透明部分が黒く潰れるプラットフォームがあるため、背景を敷いて書き出す。
- * サイト名はsatoriでレンダリング（フォント内蔵、CI環境のフォント有無に
- * 依存しない）。新規の画像生成API呼び出しは発生しない
- * （createEyecatchImageと同じsourceを共有する）。
+ * カテゴリ名（上）・サイト名（下）はsatoriでレンダリング（フォント内蔵、
+ * CI環境のフォント有無に依存しない）。新規の画像生成API呼び出しは発生
+ * しない（createEyecatchImageと同じsourceを共有する）。
+ *
+ * フィードを流し見したときに何の記事か分からないという指摘を受け、
+ * カテゴリ名（"お酒の豆知識"等）を追加した。記事タイトルは入れない
+ * （キャプション側で伝える設計のため）。イラストが主役であることを
+ * 維持するため、カテゴリ名・サイト名はどちらも控えめな装飾文字の扱いに
+ * とどめ、フォントサイズ・存在感ともイラストより明確に小さくしている。
  */
-export async function createSquareImage(source: Buffer): Promise<Buffer> {
+export async function createFeedImage(source: Buffer, category: string): Promise<Buffer> {
   const foreground = await sharp(source)
-    .resize(SQUARE_ILLUSTRATION_SIZE, SQUARE_ILLUSTRATION_SIZE, { fit: 'contain', withoutEnlargement: true })
+    .resize(FEED_ILLUSTRATION_SIZE, FEED_ILLUSTRATION_SIZE, { fit: 'contain', withoutEnlargement: true })
     .png()
     .toBuffer();
   // 左上・右下の点はゴミに見えるとの指摘を受けて削除し、上下の飾り罫線だけ
   // 残す（イラスト・ラベルの新しい縦位置に合わせて位置も調整）。
-  const background = Buffer.from(`<svg width="${SQUARE_SIZE}" height="${SQUARE_SIZE}" xmlns="http://www.w3.org/2000/svg">
-    <defs><radialGradient id="g" cx="62%" cy="45%" r="55%"><stop offset="0" stop-color="#f2b544" stop-opacity="0.18"/><stop offset="1" stop-color="#14110f" stop-opacity="0"/></radialGradient></defs>
-    <rect width="${SQUARE_SIZE}" height="${SQUARE_SIZE}" fill="#14110f"/><rect width="${SQUARE_SIZE}" height="${SQUARE_SIZE}" fill="url(#g)"/>
-    <path d="M48 48 H1032 M48 1060 H1032" stroke="#d8cbb8" stroke-opacity="0.12"/>
+  const background = Buffer.from(`<svg width="${FEED_WIDTH}" height="${FEED_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="g" cx="62%" cy="42%" r="55%"><stop offset="0" stop-color="#f2b544" stop-opacity="0.18"/><stop offset="1" stop-color="#14110f" stop-opacity="0"/></radialGradient></defs>
+    <rect width="${FEED_WIDTH}" height="${FEED_HEIGHT}" fill="#14110f"/><rect width="${FEED_WIDTH}" height="${FEED_HEIGHT}" fill="url(#g)"/>
+    <path d="M48 30 H1032 M48 1320 H1032" stroke="#d8cbb8" stroke-opacity="0.12"/>
   </svg>`);
-  const label = await renderSquareSiteLabel();
+  const [categoryLabel, siteLabel] = await Promise.all([
+    // カテゴリ名はOGP・文字ベースフィード画像のラベルと同じ琥珀色(#e8c468)で
+    // 揃え、サイト全体でのブランド上の一貫性を保つ。
+    renderFeedTextLabel(category, FEED_CATEGORY_LABEL_HEIGHT, 36, '#e8c468'),
+    renderFeedTextLabel(FEED_SITE_LABEL, FEED_SITE_LABEL_HEIGHT, 34, 'rgba(216,203,184,0.82)'),
+  ]);
   return sharp(background)
     .composite([
-      { input: foreground, top: SQUARE_ILLUSTRATION_TOP, left: SQUARE_ILLUSTRATION_LEFT },
-      { input: label, top: SQUARE_LABEL_TOP, left: 0 },
+      { input: categoryLabel, top: FEED_CATEGORY_LABEL_TOP, left: 0 },
+      { input: foreground, top: FEED_ILLUSTRATION_TOP, left: FEED_ILLUSTRATION_LEFT },
+      { input: siteLabel, top: FEED_SITE_LABEL_TOP, left: 0 },
     ])
     .webp({ quality: 84, alphaQuality: 95 })
     .toBuffer();
@@ -607,29 +629,29 @@ export async function generateColumnImages(
 
   const sourcePath = path.join(sourceDir, `${input.slug}-source.png`);
   const eyecatchPath = path.join(publicDir, `${input.slug}-eyecatch.webp`);
-  const squarePath = path.join(publicDir, `${input.slug}-square.webp`);
-  await Promise.all([sourcePath, eyecatchPath, squarePath].map(ensureDoesNotExist));
+  const feedPath = path.join(publicDir, `${input.slug}-feed.webp`);
+  await Promise.all([sourcePath, eyecatchPath, feedPath].map(ensureDoesNotExist));
 
   const source = await generateTransparentSource(ai, buildColumnImagePrompt(input));
   const eyecatch = await createEyecatchImage(source);
-  // Instagram用スクエア画像はeyecatchと同じsourceから切り出すため、
+  // Instagram用フィード画像はeyecatchと同じsourceから切り出すため、
   // 追加の画像生成APIコールは発生しない。
-  const square = await createSquareImage(source);
+  const feed = await createFeedImage(source, input.category);
 
   const warnings: string[] = [];
   if (eyecatch.length > MAX_PUBLIC_IMAGE_BYTES) {
     warnings.push(`アイキャッチが200KBを超えています（${Math.ceil(eyecatch.length / 1024)}KB）。`);
   }
-  if (square.length > MAX_PUBLIC_IMAGE_BYTES) {
-    warnings.push(`スクエア画像が200KBを超えています（${Math.ceil(square.length / 1024)}KB）。`);
+  if (feed.length > MAX_PUBLIC_IMAGE_BYTES) {
+    warnings.push(`フィード画像が200KBを超えています（${Math.ceil(feed.length / 1024)}KB）。`);
   }
 
-  await Promise.all([writeFile(sourcePath, source), writeFile(eyecatchPath, eyecatch), writeFile(squarePath, square)]);
-  console.log(`[Agent5:ImageQA] スクエア画像を保存しました（${Math.ceil(square.length / 1024)}KB）: ${path.relative(projectRoot, squarePath)}`);
+  await Promise.all([writeFile(sourcePath, source), writeFile(eyecatchPath, eyecatch), writeFile(feedPath, feed)]);
+  console.log(`[Agent5:ImageQA] フィード画像を保存しました（${Math.ceil(feed.length / 1024)}KB）: ${path.relative(projectRoot, feedPath)}`);
 
   const result: ColumnImageResult = {
     eyecatch: { src: `/images/columns/${input.slug}-eyecatch.webp`, alt: buildColumnImageAlt(input) },
-    square: { src: `/images/columns/${input.slug}-square.webp`, alt: buildColumnImageAlt(input) },
+    feed: { src: `/images/columns/${input.slug}-feed.webp`, alt: buildColumnImageAlt(input) },
     body,
     imageStatus: 'draft',
     sourcePath,

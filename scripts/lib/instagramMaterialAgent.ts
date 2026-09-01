@@ -3,7 +3,7 @@
  *
  * Agent: Instagram Material — 記事の生成・公開が成功した後に呼ぶ、
  * Instagram投稿素材の準備エージェント。文面生成（Agent:InstagramCaption、
- * LLM）・正方形画像の解決（scripts/lib/instagramSquareImage.ts。コラムは
+ * LLM）・フィード画像の解決（scripts/lib/instagramFeedImage.ts。コラムは
  * 専用イラスト優先、無ければ文字ベース画像を生成）・Slack通知
  * （Incoming Webhook）を1つにまとめる。
  *
@@ -14,7 +14,7 @@
 import { GoogleGenAI } from '@google/genai';
 import path from 'node:path';
 import { runInstagramCaptionAgent, type InstagramContentType } from './instagram-caption.js';
-import { resolveInstagramSquareImage } from './instagramSquareImage.js';
+import { resolveInstagramFeedImage } from './instagramFeedImage.js';
 import { notifyInstagramMaterial } from './slackNotify.js';
 
 // astro.config.mjs の `site` と同じ値。
@@ -65,7 +65,7 @@ export async function runInstagramMaterialAgent(
       return { posted: false };
     }
 
-    const image = await resolveInstagramSquareImage({
+    const image = await resolveInstagramFeedImage({
       type: input.type,
       slug: input.slug,
       title: input.title,
@@ -73,12 +73,12 @@ export async function runInstagramMaterialAgent(
       projectRoot: input.projectRoot,
     });
     if (!image.ok || !image.imagePath || !image.imageUrl) {
-      const warning = `Instagram素材: 正方形画像を準備できませんでした（${image.error ?? '不明なエラー'}）。`;
+      const warning = `Instagram素材: フィード画像を準備できませんでした（${image.error ?? '不明なエラー'}）。`;
       console.warn(`${label} ${warning}`);
       return { posted: false, warning };
     }
     console.log(
-      `${label} 正方形画像: ${path.relative(input.projectRoot, image.imagePath)}（source: ${image.source}）`
+      `${label} フィード画像: ${path.relative(input.projectRoot, image.imagePath)}（source: ${image.source}）`
     );
 
     const articleUrl = `${SITE_URL}${input.urlPath}`;

@@ -5,7 +5,7 @@ const baseInput = {
   contentLabel: '店舗記事',
   title: 'テスト店舗',
   articleUrl: 'https://honjikoji.jp/spots/test/',
-  imageUrl: 'https://honjikoji.jp/images/instagram/spot-test-square.webp',
+  imageUrl: 'https://honjikoji.jp/images/instagram/spot-test-feed.webp',
   captionFullText: 'キャプション本文\n\n#本寺小路 #三条市 #新潟グルメ #燕三条',
 };
 

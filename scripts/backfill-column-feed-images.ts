@@ -1,26 +1,26 @@
 /**
- * scripts/backfill-column-square-images.ts
+ * scripts/backfill-column-feed-images.ts
  *
- * 既存のコラム記事に、Instagram投稿用スクエア画像（1080x1080、
- * public/images/columns/<slug>-square.webp）を後付けする。
+ * 既存のコラム記事に、Instagram投稿用フィード画像（1080x1350、4:5、
+ * public/images/columns/<slug>-feed.webp）を後付けする。
  *
  * eyecatchと同じ透過ソース（assets-src/columns/<slug>-source.png）から
  * 切り出すため、新たな画像生成APIコールは発生しない。ただし
  * assets-src/ はGit管理外（.gitignore）で生成直後のジョブでしか
  * 存在しないため、ソースが見つからない記事はスキップする（別の画像を
- * 代用したりはしない）。既存のスクエア画像は上書きしない。
+ * 代用したりはしない）。既存のフィード画像は上書きしない。
  *
  * 使い方:
- *   npm run backfill:column-square-images -- --backfill
- *   npm run backfill:column-square-images -- --backfill --slug=<slug>
- *   npm run backfill:column-square-images -- --backfill --dry-run
+ *   npm run backfill:column-feed-images -- --backfill
+ *   npm run backfill:column-feed-images -- --backfill --slug=<slug>
+ *   npm run backfill:column-feed-images -- --backfill --dry-run
  */
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendStepSummary, readFrontmatter } from './lib/gemini-agents.js';
-import { createSquareImage, MAX_PUBLIC_IMAGE_BYTES } from './lib/column-images.js';
+import { createFeedImage, MAX_PUBLIC_IMAGE_BYTES } from './lib/column-images.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -45,7 +45,7 @@ function reasonLabel(reason: SkipReason): string {
     case 'no-eyecatch':
       return 'eyecatchが無いため対象外（切り出し元がない）';
     case 'already-exists':
-      return '既にスクエア画像があるため上書きしない';
+      return '既にフィード画像があるため上書きしない';
     case 'no-source':
       return `透過ソース（${path.relative(PROJECT_ROOT, SOURCE_DIR)}/<slug>-source.png）が見つからない（生成直後のジョブでしか残らないため）`;
   }
@@ -61,9 +61,9 @@ async function main() {
   const args = process.argv.slice(2);
   if (!args.includes('--backfill')) {
     console.log('何もしません。実行するには --backfill を指定してください。');
-    console.log('  npm run backfill:column-square-images -- --backfill');
-    console.log('  npm run backfill:column-square-images -- --backfill --slug=<slug>');
-    console.log('  npm run backfill:column-square-images -- --backfill --dry-run');
+    console.log('  npm run backfill:column-feed-images -- --backfill');
+    console.log('  npm run backfill:column-feed-images -- --backfill --slug=<slug>');
+    console.log('  npm run backfill:column-feed-images -- --backfill --dry-run');
     return;
   }
   const dryRun = args.includes('--dry-run');
@@ -89,9 +89,10 @@ async function main() {
       results.push({ slug, status: 'skipped', reason: 'no-eyecatch' });
       continue;
     }
+    const category = typeof fm.category === 'string' ? fm.category : '本寺小路夜話';
 
-    const squarePath = path.join(PUBLIC_DIR, `${slug}-square.webp`);
-    if (existsSync(squarePath)) {
+    const feedPath = path.join(PUBLIC_DIR, `${slug}-feed.webp`);
+    if (existsSync(feedPath)) {
       results.push({ slug, status: 'skipped', reason: 'already-exists' });
       continue;
     }
@@ -110,11 +111,11 @@ async function main() {
 
     try {
       const source = await readFile(sourcePath);
-      const square = await createSquareImage(source);
-      await writeFile(squarePath, square);
-      results.push({ slug, status: 'generated', bytes: square.length });
-      const warn = square.length > MAX_PUBLIC_IMAGE_BYTES ? `（200KB超: ${Math.ceil(square.length / 1024)}KB）` : '';
-      console.log(`${slug}: 生成しました（${Math.ceil(square.length / 1024)}KB）${warn}`);
+      const feed = await createFeedImage(source, category);
+      await writeFile(feedPath, feed);
+      results.push({ slug, status: 'generated', bytes: feed.length });
+      const warn = feed.length > MAX_PUBLIC_IMAGE_BYTES ? `（200KB超: ${Math.ceil(feed.length / 1024)}KB）` : '';
+      console.log(`${slug}: 生成しました（${Math.ceil(feed.length / 1024)}KB）${warn}`);
     } catch (error) {
       results.push({ slug, status: 'failed', detail: error instanceof Error ? error.message : String(error) });
     }
@@ -136,7 +137,7 @@ async function main() {
 
   await appendStepSummary(
     [
-      '## 🖼️ コラム スクエア画像バックフィル',
+      '## 🖼️ コラム フィード画像バックフィル',
       '',
       `対象${results.length}件中、生成${generated.length}件・スキップ${skipped.length}件・失敗${failed.length}件${dryRun ? '（dry-run）' : ''}`,
       '',
@@ -152,6 +153,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('[backfill-column-square-images] 安全に停止しました:', error instanceof Error ? error.message : error);
+  console.error('[backfill-column-feed-images] 安全に停止しました:', error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });

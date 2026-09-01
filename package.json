@@ -17,7 +17,7 @@
     "generate:column-image": "tsx scripts/generate-column-image.ts",
     "regenerate:column-illust": "tsx scripts/regenerate-column-illust.ts",
     "regenerate:column-eyecatch": "tsx scripts/regenerate-column-eyecatch.ts",
-    "backfill:column-square-images": "tsx scripts/backfill-column-square-images.ts",
+    "backfill:column-feed-images": "tsx scripts/backfill-column-feed-images.ts",
     "generate:ogp-images": "tsx scripts/generate-ogp-images.ts",
     "generate:guides-manifest": "tsx scripts/generate-guides-manifest.ts",
     "instagram:draft": "tsx scripts/instagram-draft.ts",

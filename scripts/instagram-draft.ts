@@ -15,8 +15,8 @@
  * --dry-run: Slackへは送らず、生成したキャプション・画像パスをコンソールに
  *   出力するだけにする。
  *
- * 正方形画像の解決はscripts/lib/instagramSquareImage.tsに従う。type=column
- * なら専用イラスト（public/images/columns/<slug>-square.webp）を最優先で
+ * フィード画像の解決はscripts/lib/instagramFeedImage.tsに従う。type=column
+ * なら専用イラスト（public/images/columns/<slug>-feed.webp）を最優先で
  * 使い、無い場合のみ文字ベース画像（public/images/instagram/...）を生成する。
  * spot/newsは元々文字ベース画像のみで、既存があれば再利用する。
  *
@@ -32,7 +32,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInstagramCaptionAgent, type InstagramContentType } from './lib/instagram-caption.js';
-import { resolveInstagramSquareImage } from './lib/instagramSquareImage.js';
+import { resolveInstagramFeedImage } from './lib/instagramFeedImage.js';
 import { notifyInstagramMaterial } from './lib/slackNotify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -171,7 +171,7 @@ async function main() {
     console.warn(`[instagram-draft] ⚠️ ${caption.lengthNote}`);
   }
 
-  const image = await resolveInstagramSquareImage({
+  const image = await resolveInstagramFeedImage({
     type: args.type,
     slug: args.slug,
     title: content.title,
@@ -179,7 +179,7 @@ async function main() {
     projectRoot: PROJECT_ROOT,
   });
   if (!image.ok || !image.imagePath || !image.imageUrl) {
-    throw new Error(`正方形画像を準備できませんでした（${image.error ?? '不明なエラー'}）。`);
+    throw new Error(`フィード画像を準備できませんでした（${image.error ?? '不明なエラー'}）。`);
   }
   const sourceLabel =
     image.source === 'column-illustration'
@@ -187,7 +187,7 @@ async function main() {
       : image.source === 'existing-generated'
         ? '既存の文字ベース画像を使用'
         : '文字ベース画像を新規生成';
-  console.log(`[instagram-draft] 正方形画像（${sourceLabel}）: ${path.relative(PROJECT_ROOT, image.imagePath)}`);
+  console.log(`[instagram-draft] フィード画像（${sourceLabel}）: ${path.relative(PROJECT_ROOT, image.imagePath)}`);
 
   const articleUrl = `${SITE_URL}${content.urlPath}`;
 

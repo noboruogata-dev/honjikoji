@@ -60,7 +60,7 @@ async function loadFonts() {
 // フォントをJIS X 0208全域まで広げても、それすら無い外字・異体字・
 // 絵文字等は存在しうるため、実際に描画する文字列を事前にfontkitで検査し、
 // 欠けている文字を検出できるようにする（renderOgpImage/
-// renderInstagramSquareImage自体には無害な描画を強制する手段が無いため、
+// renderInstagramFeedImage自体には無害な描画を強制する手段が無いため、
 // 呼び出し側がこの関数の結果を見て生成をスキップする、という運用にする。
 // scripts/generate-ogp-images.ts・scripts/lib/instagramMaterialAgent.ts
 // の呼び出し箇所を参照）。
@@ -92,7 +92,7 @@ function findMissingChars(text: string, font: FontkitFont): string[] {
 }
 
 /**
- * renderOgpImage/renderInstagramSquareImageが実際に描画する文字列
+ * renderOgpImage/renderInstagramFeedImageが実際に描画する文字列
  * （title→Shippori Mincho、label→Noto Sans JP）について、フォントに
  * 無い文字を検査する。空配列なら全文字が描画できる。例外は投げない。
  */
@@ -239,20 +239,27 @@ export async function renderOgpImage(input: OgpImageInput): Promise<Buffer> {
 }
 
 // ============================================================
-// Instagram投稿用スクエア画像（1080×1080）
+// Instagram投稿用フィード画像（1080×1350、4:5）
+//
+// Instagramのフィード表示は4:5が推奨（1:1正方形は上下に余白が入り
+// 小さく表示される）ため、この比率で統一する。
 //
 // 店舗記事・お知らせにはコラムのようなAIイラストが無いため、OGP画像と
 // 同じsatori+sharp基盤（フォント・提灯装飾を共有）でタイトル文字を主役に
-// した正方形画像を組む。意匠（暗い背景・琥珀色のグロー・明朝体の
-// タイトル・下部のサイト名）は src/lib/column-images.ts の
-// createSquareImage / renderSquareSiteLabel と揃えている
-// （あちらはAIイラストの切り出し、こちらはタイトル文字が主役という違いのみ）。
+// した画像を組む。意匠（暗い背景・琥珀色のグロー・明朝体のタイトル・
+// 下部のサイト名）は src/lib/column-images.ts の createFeedImage /
+// renderFeedSiteLabel と揃えている（あちらはAIイラストの切り出し、
+// こちらはタイトル文字が主役という違いのみ）。
 // ============================================================
 
-const SQUARE_SIZE = 1080;
-// 左右合計144px（片側72px）。fitSquareTitleの各段のmaxCharsPerLineは
-// このコンテンツ幅（1080-144=936px）を前提に決めている。
-const SQUARE_HORIZONTAL_PADDING = 72;
+const FEED_WIDTH = 1080;
+const FEED_HEIGHT = 1350;
+// 左右合計144px（片側72px）。fitFeedTitleの各段のmaxCharsPerLineは
+// このコンテンツ幅（1080-144=936px、幅は1:1版から変更していない）を
+// 前提に決めている。高さだけ1080→1350に伸びたぶんは、タイトル・
+// ラベルのブロックをflexGrowで囲んで縦方向に自動で中央寄せすることで
+// 吸収する（提灯とサイト名は上下に固定、詳細はbuildFeedTree参照）。
+const FEED_HORIZONTAL_PADDING = 72;
 
 /**
  * 日本語の禁則処理を簡易的に行うタイトル折り返し。完全な形態素解析はせず、
@@ -321,7 +328,7 @@ function truncateForLineCount(title: string, maxCharsPerLine: number, maxLines: 
 // 文字数（コンテンツ幅936px、Shippori Mincho Boldでの実測ベースの目安）。
 // タイトルが2行に収まる最大のサイズを選ぶ（「既存のOGP画像の4段階縮小」と
 // 同じ考え方を、行数ベースで判定する形に発展させたもの）。
-const SQUARE_TITLE_TIERS = [
+const FEED_TITLE_TIERS = [
   { fontSize: 100, maxCharsPerLine: 9 },
   { fontSize: 84, maxCharsPerLine: 11 },
   { fontSize: 68, maxCharsPerLine: 13 },
@@ -329,32 +336,32 @@ const SQUARE_TITLE_TIERS = [
   { fontSize: 44, maxCharsPerLine: 21 },
 ] as const;
 
-const SQUARE_TITLE_MAX_LINES = 3;
+const FEED_TITLE_MAX_LINES = 3;
 
 /**
  * タイトルの折り返し結果（行数）に応じてフォントサイズを段階的に選ぶ。
  * 2行に収まる最大サイズを優先し、どのサイズでも2行に収まらない場合は
  * 最小サイズで最大3行まで許容、それでも収まらなければ末尾を省略する。
  */
-function fitSquareTitle(title: string): { fontSize: number; lines: string[] } {
-  for (const tier of SQUARE_TITLE_TIERS) {
+function fitFeedTitle(title: string): { fontSize: number; lines: string[] } {
+  for (const tier of FEED_TITLE_TIERS) {
     const lines = wrapJapaneseTitle(title, tier.maxCharsPerLine);
     if (lines.length <= 2) return { fontSize: tier.fontSize, lines };
   }
 
-  const smallest = SQUARE_TITLE_TIERS[SQUARE_TITLE_TIERS.length - 1];
+  const smallest = FEED_TITLE_TIERS[FEED_TITLE_TIERS.length - 1];
   let lines = wrapJapaneseTitle(title, smallest.maxCharsPerLine);
-  if (lines.length > SQUARE_TITLE_MAX_LINES) {
-    const truncated = truncateForLineCount(title, smallest.maxCharsPerLine, SQUARE_TITLE_MAX_LINES);
+  if (lines.length > FEED_TITLE_MAX_LINES) {
+    const truncated = truncateForLineCount(title, smallest.maxCharsPerLine, FEED_TITLE_MAX_LINES);
     lines = wrapJapaneseTitle(truncated, smallest.maxCharsPerLine);
   }
   return { fontSize: smallest.fontSize, lines };
 }
 
-async function buildSquareTree(input: OgpImageInput) {
+async function buildFeedTree(input: OgpImageInput) {
   const { mincho, gothic } = await loadFonts();
   const lanternDataUri = await loadLanternDataUri();
-  const { fontSize, lines } = fitSquareTitle(input.title);
+  const { fontSize, lines } = fitFeedTitle(input.title);
 
   const tree = {
     type: 'div',
@@ -362,11 +369,9 @@ async function buildSquareTree(input: OgpImageInput) {
       style: {
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: `${SQUARE_SIZE}px`,
-        height: `${SQUARE_SIZE}px`,
-        padding: `0 ${SQUARE_HORIZONTAL_PADDING}px`,
+        width: `${FEED_WIDTH}px`,
+        height: `${FEED_HEIGHT}px`,
+        padding: `0 ${FEED_HORIZONTAL_PADDING}px`,
         backgroundColor: '#14110f',
         backgroundImage:
           'linear-gradient(160deg, #14110f 0%, #1c1611 55%, #2e1f14 100%),' +
@@ -376,64 +381,105 @@ async function buildSquareTree(input: OgpImageInput) {
         overflow: 'hidden',
       },
       children: [
+        // 飾り罫線（上）。column-images.tsのフィード画像と同じ意匠を、
+        // border-topを持つ1px div（satoriが対応するCSSプロパティ）で再現する
+        // （あちらはraw SVG合成、こちらはsatoriツリー内で完結させるための
+        // 表現方法の違いのみ）。4:5化で伸びた余白に「意図的な枠」の印象を
+        // 与える。
         {
-          type: 'img',
-          props: {
-            // 罫線の提灯（PNG本体は480x240=2:1）。以前は116x116の正方形枠に
-            // 押し込めて小さく寂しく見えていたため、本来の比率のまま幅を
-            // 広げて余白との釣り合いを取る。
-            src: lanternDataUri,
-            width: 220,
-            height: 110,
-            style: { position: 'absolute', top: '64px', opacity: 0.85 },
-          },
+          type: 'div',
+          props: { style: { display: 'flex', height: '1px', marginTop: '30px', backgroundColor: 'rgba(216,203,184,0.14)' } },
         },
+        // 提灯ゾーン: 上端に固定（高さは中身に合わせた自動サイズ）。
         {
           type: 'div',
           props: {
-            style: {
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              fontFamily: 'Shippori Mincho',
-              fontSize,
-              fontWeight: 700,
-              lineHeight: 1.4,
-              textAlign: 'center',
-              letterSpacing: '0.02em',
-            },
-            // 行ごとに独立したdivとして描画する（satoriの自動折り返しに
-            // 任せず、wrapJapaneseTitleが決めた行単位を厳密に守るため）。
-            children: lines.map((line) => ({ type: 'div', props: { children: line } })),
+            style: { display: 'flex', justifyContent: 'center', paddingTop: '64px' },
+            children: [
+              {
+                type: 'img',
+                props: {
+                  // 罫線の提灯（PNG本体は480x240=2:1）。本来の比率のまま
+                  // 幅を広げて余白との釣り合いを取る。
+                  src: lanternDataUri,
+                  width: 220,
+                  height: 110,
+                  style: { opacity: 0.85 },
+                },
+              },
+            ],
           },
         },
+        // タイトル+ラベルゾーン: flexGrowで残り全部の高さを取り、その中で
+        // 縦方向に中央寄せする。1:1から4:5に高さが伸びた分（+270px）は
+        // すべてこのゾーンが吸収するため、提灯・サイト名の位置は変わらず、
+        // タイトル周りの余白だけが伸びる（＝余白が「意図的な間」に見える）。
         {
           type: 'div',
           props: {
-            style: {
-              display: 'flex',
-              fontSize: 30,
-              marginTop: '28px',
-              color: '#e8c468',
-              letterSpacing: '0.05em',
-            },
-            children: input.label,
+            style: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexGrow: 1 },
+            children: [
+              {
+                type: 'div',
+                props: {
+                  style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    fontFamily: 'Shippori Mincho',
+                    fontSize,
+                    fontWeight: 700,
+                    lineHeight: 1.4,
+                    textAlign: 'center',
+                    letterSpacing: '0.02em',
+                  },
+                  // 行ごとに独立したdivとして描画する（satoriの自動折り返しに
+                  // 任せず、wrapJapaneseTitleが決めた行単位を厳密に守るため）。
+                  children: lines.map((line) => ({ type: 'div', props: { children: line } })),
+                },
+              },
+              {
+                type: 'div',
+                props: {
+                  style: {
+                    display: 'flex',
+                    fontSize: 30,
+                    marginTop: '28px',
+                    color: '#e8c468',
+                    letterSpacing: '0.05em',
+                  },
+                  children: input.label,
+                },
+              },
+            ],
           },
         },
+        // サイト名ゾーン: 下端に固定。
         {
           type: 'div',
           props: {
-            style: {
-              display: 'flex',
-              position: 'absolute',
-              bottom: '56px',
-              fontSize: 26,
-              letterSpacing: '0.15em',
-              // コラムの正方形画像のサイト名ラベルと同じ色（生成り色、非完全白）。
-              color: 'rgba(216,203,184,0.82)',
-            },
-            children: '本寺小路ガイド',
+            style: { display: 'flex', justifyContent: 'center', paddingBottom: '56px' },
+            children: [
+              {
+                type: 'div',
+                props: {
+                  style: {
+                    display: 'flex',
+                    fontSize: 26,
+                    letterSpacing: '0.15em',
+                    // コラムのフィード画像のサイト名ラベルと同じ色（生成り色、非完全白）。
+                    color: 'rgba(216,203,184,0.82)',
+                  },
+                  children: '本寺小路ガイド',
+                },
+              },
+            ],
           },
+        },
+        // 飾り罫線（下）。上と対になる位置に置く。
+        {
+          type: 'div',
+          props: { style: { display: 'flex', height: '1px', marginBottom: '30px', backgroundColor: 'rgba(216,203,184,0.14)' } },
         },
       ],
     },
@@ -443,23 +489,23 @@ async function buildSquareTree(input: OgpImageInput) {
 }
 
 /**
- * Instagram投稿用スクエア画像（1080×1080 WebP）を生成する。renderOgpImageと
- * 同様、フォントに無い文字やその他のレンダリング失敗時は例外を投げる
- * （呼び出し元でcatchし、Instagram素材生成自体をスキップすること。
- * scripts/lib/instagramMaterialAgent.ts参照）。
+ * Instagram投稿用フィード画像（1080×1350 WebP、4:5）を生成する。
+ * renderOgpImageと同様、フォントに無い文字やその他のレンダリング失敗時は
+ * 例外を投げる（呼び出し元でcatchし、Instagram素材生成自体をスキップ
+ * すること。scripts/lib/instagramMaterialAgent.ts参照）。
  */
-export async function renderInstagramSquareImage(input: OgpImageInput): Promise<Buffer> {
-  const { tree, mincho, gothic } = await buildSquareTree(input);
+export async function renderInstagramFeedImage(input: OgpImageInput): Promise<Buffer> {
+  const { tree, mincho, gothic } = await buildFeedTree(input);
 
   const svg = await satori(tree, {
-    width: SQUARE_SIZE,
-    height: SQUARE_SIZE,
+    width: FEED_WIDTH,
+    height: FEED_HEIGHT,
     fonts: [
       { name: 'Shippori Mincho', data: mincho, weight: 700, style: 'normal' },
       { name: 'Noto Sans JP', data: gothic, weight: 400, style: 'normal' },
     ],
   });
 
-  // コラムの正方形画像(createSquareImage)と同じWebP・品質で揃える。
+  // コラムのフィード画像(createFeedImage)と同じWebP・品質で揃える。
   return sharp(Buffer.from(svg)).webp({ quality: 84 }).toBuffer();
 }
