@@ -85,23 +85,35 @@ function extractClosedDays(regularHoliday: string): Set<number> | null {
 }
 
 /**
- * openHours から開店・閉店時刻を抽出する。区切り文字は実データ上
- * 「〜」（U+301C）と「～」（U+FF5E）の両方が混在して使われているため、
- * 主要なダッシュ/波ダッシュ類をまとめて許容する。末尾の「（L.O. 22:30）」
- * 等の注記は非アンカーマッチのため自然に無視される。
+ * openHours から開店・閉店時刻の組を「すべて」抽出する。「11:30〜14:00、
+ * 17:30〜22:00」のように昼の部・夜の部が併記される営業時間は実データ上
+ * 珍しくないため、最初の1組だけ拾って残りを無視すると、実際には営業して
+ * いる時間帯（多くの場合は夜の部）が丸ごとhoursから欠落し、OpenStatus等が
+ * 「営業時間外」と誤表示する（かつてこのバグで実際に発生した）。
+ *
+ * 区切り文字は実データ上「〜」（U+301C）と「～」（U+FF5E）の両方が混在して
+ * 使われているため、主要なダッシュ/波ダッシュ類をまとめて許容する。末尾の
+ * 「（L.O. 22:30）」等の注記は非アンカーマッチのため自然に無視される。
+ *
+ * いずれかの組の時刻表記が不正な場合はnull（安全方針: 一部だけ解釈して
+ * 残りを無視するくらいなら導出自体を諦める。extractClosedDaysと同じ考え方）。
  */
-function extractOpenClose(openHours: string): { openMinutes: number; closeMinutes: number } | null {
-  const match = /(\d{1,2}:\d{2})\s*[〜～\-~−]\s*(\d{1,2}:\d{2})/.exec(openHours);
-  if (!match) return null;
+function extractOpenCloseRanges(openHours: string): Array<{ openMinutes: number; closeMinutes: number }> | null {
+  const matches = [...openHours.matchAll(/(\d{1,2}:\d{2})\s*[〜～\-~−]\s*(\d{1,2}:\d{2})/g)];
+  if (matches.length === 0) return null;
 
-  const openMinutes = toMinutes(match[1]);
-  const closeRaw = toMinutes(match[2]);
-  if (openMinutes === null || closeRaw === null) return null;
+  const ranges: Array<{ openMinutes: number; closeMinutes: number }> = [];
+  for (const match of matches) {
+    const openMinutes = toMinutes(match[1]);
+    const closeRaw = toMinutes(match[2]);
+    if (openMinutes === null || closeRaw === null) return null;
 
-  // 閉店が開店以下（=日をまたぐ）なら+24時間して経過時刻表記にする
-  // （content.config.tsのhours仕様。例: 19:00〜02:00 → open:19:00, close:26:00）。
-  const closeMinutes = closeRaw <= openMinutes ? closeRaw + 24 * 60 : closeRaw;
-  return { openMinutes, closeMinutes };
+    // 閉店が開店以下（=日をまたぐ）なら+24時間して経過時刻表記にする
+    // （content.config.tsのhours仕様。例: 19:00〜02:00 → open:19:00, close:26:00）。
+    const closeMinutes = closeRaw <= openMinutes ? closeRaw + 24 * 60 : closeRaw;
+    ranges.push({ openMinutes, closeMinutes });
+  }
+  return ranges;
 }
 
 export function parseOpenHoursToHours(openHours: string, regularHoliday: string): ParseOpenHoursResult {
@@ -113,8 +125,8 @@ export function parseOpenHoursToHours(openHours: string, regularHoliday: string)
     };
   }
 
-  const times = extractOpenClose(openHours);
-  if (times === null) {
+  const ranges = extractOpenCloseRanges(openHours);
+  if (ranges === null) {
     return {
       hours: undefined,
       reason: `openHours "${openHours}" から営業時間を特定できませんでした`,
@@ -129,13 +141,14 @@ export function parseOpenHoursToHours(openHours: string, regularHoliday: string)
     };
   }
 
+  // 昼の部・夜の部のように複数の営業帯がある場合、休業曜日はregularHoliday
+  // 由来の1つしか分からないため、各営業帯に同じdaysを適用する（営業帯ごとに
+  // 休業曜日が異なるケースはopenHoursの自由文からは判別できず、対応しない）。
   return {
-    hours: [
-      {
-        days,
-        open: formatMinutes(times.openMinutes),
-        close: formatMinutes(times.closeMinutes),
-      },
-    ],
+    hours: ranges.map((times) => ({
+      days,
+      open: formatMinutes(times.openMinutes),
+      close: formatMinutes(times.closeMinutes),
+    })),
   };
 }

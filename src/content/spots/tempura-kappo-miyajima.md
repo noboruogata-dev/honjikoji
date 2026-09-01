@@ -7,12 +7,12 @@ placeId: "ChIJ651hSEXi9F8Rtm0_FYSDilU"
 budget: "￥3,000〜￥5,000"
 budgetMin: 3000
 budgetMax: 5000
-openHours: "11:30〜14:00、17:30〜22:00"
+openHours: "17:30〜22:00"
 regularHoliday: "木曜日"
 hours:
   - days: [0, 1, 2, 3, 5, 6]
-    open: "11:30"
-    close: "14:00"
+    open: "17:30"
+    close: "22:00"
 vibes:
   - "1軒目におすすめ"
   - "カウンター席あり"
