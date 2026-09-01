@@ -20,6 +20,7 @@
     "backfill:column-square-images": "tsx scripts/backfill-column-square-images.ts",
     "generate:ogp-images": "tsx scripts/generate-ogp-images.ts",
     "generate:guides-manifest": "tsx scripts/generate-guides-manifest.ts",
+    "instagram:draft": "tsx scripts/instagram-draft.ts",
     "match:youtube": "tsx scripts/match-youtube.ts",
     "test": "vitest run"
   },
