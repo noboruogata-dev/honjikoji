@@ -3,6 +3,7 @@ title: "もつ焼き たかはし"
 genre: "居酒屋"
 address: "新潟県三条市本町2-7-23"
 mapQuery: "もつ焼き たかはし 三条市"
+placeId: "ChIJc3S5xFri9F8RZnxyLyal-Jo"
 budget: "￥2,000〜￥3,000"
 budgetMin: 2000
 budgetMax: 3000

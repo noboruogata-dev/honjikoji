@@ -3,6 +3,7 @@ title: "大衆焼肉 さんきらく"
 genre: "焼肉"
 address: "新潟県三条市本町1-9-5"
 mapQuery: "大衆焼肉 さんきらく 三条市"
+placeId: "ChIJASjIFVvi9F8R2Sgkd0HlcuA"
 budget: "￥2,000〜￥3,000"
 budgetMin: 2000
 budgetMax: 3000

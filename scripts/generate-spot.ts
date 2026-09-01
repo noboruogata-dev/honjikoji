@@ -1181,6 +1181,7 @@ async function runBackfillBudget(): Promise<void> {
 // ============================================================
 
 type PlaceIdBackfillStatus = 'resolved' | 'skipped-existing' | 'not-resolved';
+type PlaceIdSource = 'api' | 'manual';
 
 interface PlaceIdBackfillResult {
   slug: string;
@@ -1188,14 +1189,43 @@ interface PlaceIdBackfillResult {
   address: string;
   status: PlaceIdBackfillStatus;
   placeId?: string;
+  source?: PlaceIdSource;
+  /** 手動指定が既存のplaceIdを上書きする場合のみ設定する（対応表での明示用）。 */
+  previousPlaceId?: string;
 }
 
-/** placeId行を、mapQuery行の直後に挿入する（他フィールド・本文には触れない）。 */
-function insertPlaceIdField(raw: string, placeId: string): string | null {
+/**
+ * コマンドライン引数から `slug=placeId` 形式の手動指定を読み取る
+ * （例: `--backfill-place-id bar-keywest=ChIJ...`）。該当しない引数は無視する。
+ * 手動指定したslugはText Search自体を呼ばない（APIクォータを消費しない）。
+ */
+function parseManualPlaceIdOverrides(args: string[]): Map<string, string> {
+  const overrides = new Map<string, string>();
+  for (const arg of args) {
+    const match = /^([^=\s]+)=([A-Za-z0-9_-]{10,255})$/.exec(arg);
+    if (!match) continue;
+    overrides.set(match[1], match[2]);
+  }
+  return overrides;
+}
+
+/**
+ * placeId行をfrontmatterに書き込む。既に `placeId:` 行があれば置き換え
+ * （手動指定での上書き用）、無ければmapQuery行の直後に挿入する。
+ * 他フィールド・本文には一切触れない。
+ */
+function upsertPlaceIdField(raw: string, placeId: string): string | null {
   const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(raw);
   if (!frontmatterMatch) return null;
   const fmBlock = frontmatterMatch[1];
   const fmStart = frontmatterMatch.index + '---\n'.length;
+
+  const existingLineMatch = /^placeId:.*$/m.exec(fmBlock);
+  if (existingLineMatch) {
+    const start = fmStart + existingLineMatch.index;
+    const end = start + existingLineMatch[0].length;
+    return raw.slice(0, start) + `placeId: ${toYamlString(placeId)}` + raw.slice(end);
+  }
 
   const mapQueryLineMatch = /^mapQuery:.*$/m.exec(fmBlock);
   if (!mapQueryLineMatch) return null;
@@ -1205,24 +1235,36 @@ function insertPlaceIdField(raw: string, placeId: string): string | null {
   return raw.slice(0, insertAt) + insertText + raw.slice(insertAt);
 }
 
-async function runBackfillPlaceId(): Promise<void> {
+async function runBackfillPlaceId(manualOverrides: Map<string, string>): Promise<void> {
   console.log('============================================================');
   console.log(' 本寺小路ガイド Place ID 遡及生成（--backfill-place-id）');
   console.log('============================================================');
+  if (manualOverrides.size > 0) {
+    console.log(
+      `[generate-spot] 手動指定: ${Array.from(manualOverrides.entries())
+        .map(([slug, id]) => `${slug}=${id}`)
+        .join(', ')}`
+    );
+  }
 
+  // 手動指定のみで全件まかなえるなら、APIキー未設定でも動作してよい
+  // （Text Search自体を呼ばないため）。
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
-    console.error(
-      '[generate-spot] GOOGLE_PLACES_API_KEY が設定されていません。.env に GOOGLE_PLACES_API_KEY=... を追加してください（.env.example 参照）。'
+    console.warn(
+      '[generate-spot] GOOGLE_PLACES_API_KEY が設定されていません。手動指定（slug=placeId）以外はスキップされます。'
     );
-    process.exitCode = 1;
-    return;
+  } else {
+    console.log(
+      `[generate-spot] GOOGLE_PLACES_API_KEY: 先頭6文字 "${apiKey.slice(0, 6)}"・全体${apiKey.length}文字を読み込みました。`
+    );
   }
 
   await mkdir(SPOTS_DIR, { recursive: true });
   const files = (await readdir(SPOTS_DIR)).filter((file) => file.endsWith('.md'));
 
   const results: PlaceIdBackfillResult[] = [];
+  const usedOverrideSlugs = new Set<string>();
 
   for (const file of files) {
     const slug = file.replace(/\.md$/, '');
@@ -1235,24 +1277,51 @@ async function runBackfillPlaceId(): Promise<void> {
 
     const title = typeof frontmatter.title === 'string' ? frontmatter.title : slug;
     const address = typeof frontmatter.address === 'string' ? frontmatter.address : '';
+    const existingPlaceId =
+      typeof frontmatter.placeId === 'string' && frontmatter.placeId.length > 0 ? frontmatter.placeId : undefined;
 
-    if (typeof frontmatter.placeId === 'string' && frontmatter.placeId.length > 0) {
-      results.push({ slug, title, address, status: 'skipped-existing' });
+    const manualPlaceId = manualOverrides.get(slug);
+    if (manualPlaceId) {
+      usedOverrideSlugs.add(slug);
+      if (manualPlaceId === existingPlaceId) {
+        results.push({ slug, title, address, status: 'skipped-existing', placeId: existingPlaceId });
+        continue;
+      }
+      results.push({
+        slug,
+        title,
+        address,
+        status: 'resolved',
+        placeId: manualPlaceId,
+        source: 'manual',
+        previousPlaceId: existingPlaceId,
+      });
       continue;
     }
 
-    if (!address) {
+    if (existingPlaceId) {
+      results.push({ slug, title, address, status: 'skipped-existing', placeId: existingPlaceId });
+      continue;
+    }
+
+    if (!address || !apiKey) {
       results.push({ slug, title, address, status: 'not-resolved' });
       continue;
     }
 
-    const resolved = await resolvePlaceId(title, address, apiKey);
+    const resolved = await resolvePlaceId(title, address, apiKey, { verbose: true });
     if (!resolved) {
       results.push({ slug, title, address, status: 'not-resolved' });
       continue;
     }
 
-    results.push({ slug, title, address, status: 'resolved', placeId: resolved.placeId });
+    results.push({ slug, title, address, status: 'resolved', placeId: resolved.placeId, source: 'api' });
+  }
+
+  for (const [slug] of manualOverrides) {
+    if (!usedOverrideSlugs.has(slug)) {
+      console.warn(`[generate-spot] 手動指定 "${slug}" に該当する記事が見つかりませんでした。無視します。`);
+    }
   }
 
   const resolvedResults = results.filter(
@@ -1274,7 +1343,11 @@ async function runBackfillPlaceId(): Promise<void> {
 
   console.log('\n以下の対応表でfrontmatterに書き込みます（店名・住所 → 解決したPlace ID）:\n');
   for (const r of resolvedResults) {
-    console.log(`  - ${r.slug}\n      店名: ${r.title}\n      住所: ${r.address}\n      Place ID: ${r.placeId}`);
+    const sourceLabel = r.source === 'manual' ? '手動指定' : 'Text Search';
+    const overwriteLabel = r.previousPlaceId ? `\n      現在値: ${r.previousPlaceId} → 上書き` : '';
+    console.log(
+      `  - ${r.slug}\n      店名: ${r.title}\n      住所: ${r.address}\n      Place ID: ${r.placeId}（${sourceLabel}）${overwriteLabel}`
+    );
   }
   if (notResolved.length > 0) {
     console.log(`\n解決できなかった店舗（変更なし）: ${notResolved.map((r) => r.slug).join(', ')}`);
@@ -1293,7 +1366,7 @@ async function runBackfillPlaceId(): Promise<void> {
   for (const r of resolvedResults) {
     const filePath = path.join(SPOTS_DIR, `${r.slug}.md`);
     const raw = await readFile(filePath, 'utf-8');
-    const newRaw = insertPlaceIdField(raw, r.placeId);
+    const newRaw = upsertPlaceIdField(raw, r.placeId);
     if (newRaw === null) {
       console.warn(`[generate-spot] ${r.slug}: mapQuery行が見つからず、安全に挿入できませんでした。スキップします。`);
       continue;
@@ -1334,11 +1407,15 @@ async function main() {
     return;
   }
 
-  // 遡及生成モード: GEMINI_API_KEY不要（GOOGLE_PLACES_API_KEYは必須）。既存の
-  // 店舗記事のうちplaceIdが無いものだけを解決する。書き込み前に対応表を
-  // 提示し、標準入力で確認を取る（対話専用）。既存のplaceIdは上書きしない。
+  // 遡及生成モード: GEMINI_API_KEY不要。既存の店舗記事のうちplaceIdが無い
+  // ものだけをText Search（GOOGLE_PLACES_API_KEY必須）で解決する。書き込み前に
+  // 対応表を提示し、標準入力で確認を取る（対話専用）。Text Search経由では
+  // 既存のplaceIdを上書きしない。
+  // `slug=placeId` 形式の追加引数（例: bar-keywest=ChIJ...）を渡すと、その
+  // slugだけはAPIを呼ばず指定値を使う（既存placeIdがあっても上書き対象になる。
+  // GOOGLE_PLACES_API_KEY未設定でも手動指定分だけは動作する）。
   if (process.argv[2] === '--backfill-place-id') {
-    await runBackfillPlaceId();
+    await runBackfillPlaceId(parseManualPlaceIdOverrides(process.argv.slice(3)));
     return;
   }
 

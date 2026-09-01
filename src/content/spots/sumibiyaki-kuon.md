@@ -3,6 +3,7 @@ title: "炭火焼 く遠"
 genre: "居酒屋"
 address: "新潟県三条市本町2丁目1-45"
 mapQuery: "炭火焼 く遠 三条市"
+placeId: "ChIJ9fx6ybfj9F8RoWfyBuec14Q"
 budget: "￥3,000〜￥5,000"
 budgetMin: 3000
 budgetMax: 5000

@@ -3,6 +3,7 @@ title: "天婦羅割烹 みや嶋"
 genre: "割烹"
 address: "新潟県三条市本町2-1-39"
 mapQuery: "天婦羅割烹 みや嶋 三条市"
+placeId: "ChIJ651hSEXi9F8Rtm0_FYSDilU"
 budget: "￥3,000〜￥5,000"
 budgetMin: 3000
 budgetMax: 5000
