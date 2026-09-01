@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formatJapaneseYearMonth, FRESHNESS_LIMIT_MONTHS, isValidIsoDate, isWithinFreshnessLimit } from './news-freshness';
+import {
+  formatJapaneseYearMonth,
+  FRESHNESS_LIMIT_MONTHS,
+  isTodayOrFuture,
+  isValidIsoDate,
+  isWithinFreshnessLimit,
+  todayInTokyo,
+} from './news-freshness';
 
 const NOW = new Date('2026-08-30T00:00:00Z');
 
@@ -38,6 +45,38 @@ describe('isWithinFreshnessLimit', () => {
 
   it('不正な形式の値はfalse（安全側）', () => {
     expect(isWithinFreshnessLimit('7月23日', NOW)).toBe(false);
+  });
+});
+
+describe('todayInTokyo', () => {
+  it('UTCの日付が変わる直前でも、日本時間の日付を返す（JST 8:59 = UTC前日23:59）', () => {
+    // UTC 2026-08-29T23:59:00Z = JST 2026-08-30T08:59:00+09:00
+    expect(todayInTokyo(new Date('2026-08-29T23:59:00Z'))).toBe('2026-08-30');
+  });
+
+  it('UTCと日本時間が同じ日付になる時間帯はそのまま', () => {
+    // UTC 2026-08-30T10:00:00Z = JST 2026-08-30T19:00:00+09:00
+    expect(todayInTokyo(new Date('2026-08-30T10:00:00Z'))).toBe('2026-08-30');
+  });
+});
+
+describe('isTodayOrFuture', () => {
+  const TODAY = '2026-09-02';
+
+  it('今日の日付は許容する（本日開催のイベント）', () => {
+    expect(isTodayOrFuture(TODAY, TODAY)).toBe(true);
+  });
+
+  it('未来の日付は許容する', () => {
+    expect(isTodayOrFuture('2026-09-10', TODAY)).toBe(true);
+  });
+
+  it('過去の日付は拒否する（既に終わったイベントの再現: 三条夏まつり事故）', () => {
+    expect(isTodayOrFuture('2026-08-01', TODAY)).toBe(false);
+  });
+
+  it('不正な形式の値はfalse（安全側）', () => {
+    expect(isTodayOrFuture('7月23日', TODAY)).toBe(false);
   });
 });
 

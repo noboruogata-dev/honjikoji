@@ -28,6 +28,32 @@ export function isWithinFreshnessLimit(eventDateIso: string, now: Date = new Dat
   return new Date(`${eventDateIso}T00:00:00Z`).getTime() >= limit.getTime();
 }
 
+/**
+ * 日本時間（Asia/Tokyo）での「今日」をYYYY-MM-DD形式で返す。
+ * GitHub ActionsのランナーはUTCで動くため、`new Date().toISOString()`を
+ * そのまま使うと日本時間の日付とズレる（特にJST 0:00〜9:00の間はUTC側が
+ * 前日になる）。scripts/generate-column.tsのtodayInTokyo()と同じ実装。
+ */
+export function todayInTokyo(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
+/**
+ * eventDateが「今日（日本時間）以降」かどうか。単純な出来事（祭り・
+ * イベント等、その日を過ぎたら終わるもの）が既に終わっているかどうかの
+ * 判定に使う（3ヶ月以内かどうかを見るisWithinFreshnessLimitとは別軸）。
+ * 呼び出し側でisValidIsoDate済みの値を渡すこと（不正な値はfalseを返す）。
+ */
+export function isTodayOrFuture(eventDateIso: string, todayIso: string = todayInTokyo()): boolean {
+  if (!isValidIsoDate(eventDateIso)) return false;
+  return eventDateIso >= todayIso;
+}
+
 /** "2024-07-23" -> "2024年7月"（Job Summary用の日本語表記）。 */
 export function formatJapaneseYearMonth(eventDateIso: string): string {
   const [year, month] = eventDateIso.split('-');

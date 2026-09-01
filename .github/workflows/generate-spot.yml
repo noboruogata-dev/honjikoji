@@ -50,7 +50,7 @@ jobs:
             exit 0
           fi
 
-          NEW_FILE=$(git diff --cached --name-only --diff-filter=A | head -n 1)
+          NEW_FILE=$(git diff --cached --name-only --diff-filter=A -- 'src/content/spots/*.md' | head -n 1)
           if [ -n "$NEW_FILE" ]; then
             git commit -m "chore(spots): 自動生成記事を追加 ($(basename "$NEW_FILE"))"
           else

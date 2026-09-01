@@ -50,7 +50,14 @@ import {
   summarizeOutcomes,
   uniqueSlug,
 } from './lib/gemini-agents.js';
-import { formatJapaneseYearMonth, FRESHNESS_LIMIT_MONTHS, isValidIsoDate, isWithinFreshnessLimit } from './lib/news-freshness.js';
+import {
+  formatJapaneseYearMonth,
+  FRESHNESS_LIMIT_MONTHS,
+  isTodayOrFuture,
+  isValidIsoDate,
+  isWithinFreshnessLimit,
+  todayInTokyo,
+} from './lib/news-freshness.js';
 import { runInstagramMaterialAgent } from './lib/instagramMaterialAgent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,11 +68,12 @@ const MAX_ATTEMPTS = 3;
 
 // 各試行が最終的にどうなったかを記録し、全滅した場合でも「何が起きたか」を
 // ログとJob Summaryに必ず残すための集計用ラベル（generate-spot.tsと同じ方針）。
-type AttemptOutcome = 'notFound' | 'duplicate' | 'stale' | 'success' | 'error';
+type AttemptOutcome = 'notFound' | 'duplicate' | 'stale' | 'pastEvent' | 'success' | 'error';
 const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
   notFound: '該当話題なし',
   duplicate: '重複',
   stale: `鮮度NG（${FRESHNESS_LIMIT_MONTHS}ヶ月超）`,
+  pastEvent: '開催済みイベントのため除外',
   success: '成功',
   error: 'エラー',
 };
@@ -81,6 +89,14 @@ const researchSchema = z.object({
   notFound: z.boolean(),
   headline: z.string(),
   category: z.string(),
+  // event: 祭り・花火大会・ライブ等、その日（期間）を過ぎたら終わる一過性の
+  //   出来事。eventDateは「開催日」を意味し、既に過去なら告知として公開
+  //   しない（本日以降のみ公開）。
+  // statusChange: 新規開店・リニューアル・移転等、その日を境に新しい状態が
+  //   始まり、その後も続くもの。eventDateは「状態が始まった日」を意味し、
+  //   従来通り鮮度ウィンドウ（FRESHNESS_LIMIT_MONTHS）以内なら過去でも公開可。
+  // notFound時やeventDateが無い話題ではnull（判定不能・不要なため）。
+  eventKind: z.enum(['event', 'statusChange']).nullable(),
   facts: z.string(),
   // 年が本文に明記されている場合のみ値を入れる（相対表現・年不明はnull）。
   // 判断できない場合にnullを許容し、無理に埋めさせない（推測禁止）。
@@ -122,6 +138,15 @@ const researchResponseSchema = {
       type: Type.STRING,
       description: `次のいずれか1つ: ${NEWS_CATEGORIES.join(' / ')}（NEW SPOT=新規開店・リニューアル、EVENT=祭り・イベント、NOTICE=その他のお知らせ）`,
     },
+    eventKind: {
+      type: Type.STRING,
+      nullable: true,
+      description:
+        "'event' または 'statusChange' のいずれか（notFoundならnull）。" +
+        "'event': 祭り・花火大会・ライブ等、その日（期間）を過ぎたら終わる一過性の出来事（カテゴリEVENTはほぼこちら）。" +
+        "'statusChange': 新規開店・リニューアル・移転等、その日を境に新しい状態が始まり、その後も続くもの（カテゴリNEW SPOTはほぼこちら）。" +
+        'カテゴリNOTICEはどちらか内容に応じて判断すること。',
+    },
     facts: {
       type: Type.STRING,
       description: '調べて分かった事実（日時・場所・詳細など）。不明な部分は「不明」と明記し、絶対に創作しない。',
@@ -148,7 +173,7 @@ const researchResponseSchema = {
       description: '参照したサイト名やURL（分かる範囲で）',
     },
   },
-  required: ['notFound', 'headline', 'category', 'facts', 'eventDate', 'relatedSpotSlug', 'slug'],
+  required: ['notFound', 'headline', 'category', 'eventKind', 'facts', 'eventDate', 'relatedSpotSlug', 'slug'],
 };
 
 const writerResponseSchema = {
@@ -203,7 +228,15 @@ Google検索を使って、次のような観点から話題を調べてくだ�
 
 本寺小路・本町エリアに関連する、なるべく新しく具体的な話題を1つ選んでください（新規開店・リニューアルオープン・地域のお祭りやイベント・その他街の話題など）。
 
-**鮮度の制約（重要）: 収集対象は、これから開催される予定の出来事、または本日から遡って${FRESHNESS_LIMIT_MONTHS}ヶ月以内に実際に起きた出来事に限ってください。**
+**鮮度の制約（重要）: 出来事の種類によって基準が異なります。**
+- 祭り・花火大会・ライブ等、その日（期間）を過ぎたら終わる一過性の出来事（event）は、
+  **まだ開催されていない（本日${today}以降に開催予定の）ものだけ**を選んでください。
+  既に終わったイベントは、たとえ最近（${FRESHNESS_LIMIT_MONTHS}ヶ月以内）でも「告知」としては
+  古すぎます。過去のイベントしか見つからない場合は notFound にしてください
+  （例: 7月末に終わった夏まつりを9月になってから記事化してはならない）。
+- 新規開店・リニューアル・移転等、その日を境に新しい状態が始まり今も続いているもの
+  （statusChange）は、本日から遡って${FRESHNESS_LIMIT_MONTHS}ヶ月以内に始まったものであれば、
+  開始日が過去でも構いません（「先月オープンした店」は今日時点でも紹介する価値があるため）。
 それより古い情報（例: 数年前に開催されたイベントの記録）しか見つからない場合は、
 「最新のニュース」として扱わず、notFound を true にしてください（無理に古い話題を選ばない）。
 
@@ -214,6 +247,9 @@ ${knownSpotsText}
 出力は厳密なJSON形式で、次の情報を可能な限り正確に埋めてください。
 - headline: 話題を要約する簡潔な見出し（下書き）
 - category: ${NEWS_CATEGORIES.join(' / ')} のいずれか
+- eventKind: 'event'（その日を過ぎたら終わる一過性の出来事。カテゴリEVENTはほぼこちら）
+  または 'statusChange'（その日を境に始まり今も続く状態変化。カテゴリNEW SPOTはほぼこちら）。
+  カテゴリNOTICEは内容に応じてどちらか判断すること。
 - facts: 調べて分かった事実（日時・場所・詳細など）をまとめたテキスト。分からない部分は「不明」と明記し、絶対に創作しないこと。
 - eventDate: その出来事の日付。ISO形式（YYYY-MM-DD）。
   - 本文中に西暦年が明記されている場合のみ値を入れる。
@@ -267,7 +303,7 @@ async function runResearchAgent(
   const label = '[Agent1:Research]';
   console.log(`${label} 起動。Google Search Groundingで本寺小路の最新話題をリサーチ中...`);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInTokyo();
   const rawText = await callGroundedJsonAgent(ai, {
     label,
     prompt: buildResearchPrompt(excludeTopics, knownSpots, today),
@@ -284,7 +320,7 @@ async function runResearchAgent(
   if (result.data.notFound) {
     console.warn(`${label} 除外リスト以外の該当する話題が見つかりませんでした。`);
   } else {
-    console.log(`${label} 完了。選定した話題: 「${result.data.headline}」（${result.data.category}）`);
+    console.log(`${label} 完了。選定した話題: 「${result.data.headline}」（${result.data.category} / ${result.data.eventKind ?? 'null'}）`);
     console.log(`${label} eventDate: ${result.data.eventDate ?? 'null（年不明または相対表現）'}`);
     if (result.data.relatedSpotSlug) {
       console.log(`${label} 関連店舗slug: ${result.data.relatedSpotSlug}`);
@@ -391,8 +427,12 @@ async function main() {
   console.log(' Agent1(Research) -> Agent2(Writer) -> Agent3(QA & Save)');
   console.log('============================================================');
 
+  // このジョブ実行中は同じ「今日」を使い回す（試行の合間に日付が変わる
+  // ことはまず無いが、念のため1回だけ計算する）。
+  const today = todayInTokyo();
+
   const outcomes: AttemptOutcome[] = [];
-  // 「鮮度NG」で見送った試行の詳細（Job Summaryにそのまま出す）。
+  // 「鮮度NG」「開催済みイベント」で見送った試行の詳細（Job Summaryにそのまま出す）。
   const staleNotes: string[] = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -428,9 +468,24 @@ async function main() {
       // 最終防衛線。eventDateが無い（null）場合はチェックのしようがないため
       // 素通りする＝Agent1側の判断を信頼する（新規開店等、明確な開催日を
       // 持たない話題まで一律に弾かないため）。
+      //
+      // eventKindで基準を分ける（既に終わった祭りを「告知」として公開して
+      // しまった事故の再発防止。scripts/lib/news-freshness.tsのコメント参照）:
+      // - event（祭り・イベント等、その日を過ぎたら終わる一過性の出来事）は
+      //   本日以降の開催予定でなければ公開しない（過去なら鮮度に関わらず除外）。
+      // - statusChange（新規開店等、その日を境に続く状態変化）・eventKindが
+      //   null（判定不能）の場合は、従来通り鮮度ウィンドウのみで判定する。
       if (research.eventDate) {
         if (!isValidIsoDate(research.eventDate)) {
           console.warn(`[generate-news] eventDateの形式が不正なため鮮度チェックをスキップします（値: "${research.eventDate}"）。`);
+        } else if (research.eventKind === 'event') {
+          if (!isTodayOrFuture(research.eventDate, today)) {
+            outcomes.push('pastEvent');
+            const note = `既に終了したイベントのため見送りました（${formatJapaneseYearMonth(research.eventDate)}開催）: 「${research.headline}」`;
+            staleNotes.push(note);
+            console.warn(`[generate-news] ${note}`);
+            continue;
+          }
         } else if (!isWithinFreshnessLimit(research.eventDate)) {
           outcomes.push('stale');
           const note = `古い情報のため見送りました（${formatJapaneseYearMonth(research.eventDate)}の出来事）: 「${research.headline}」`;
@@ -475,7 +530,7 @@ async function main() {
           `- ファイル: \`${path.relative(process.cwd(), filePath)}\``,
           instagramMaterial.warning ? `- ⚠️ ${instagramMaterial.warning}` : null,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
-          ...(staleNotes.length > 0 ? ['', '鮮度NGで見送った候補:', ...staleNotes.map((n) => `- ${n}`)] : []),
+          ...(staleNotes.length > 0 ? ['', '鮮度/開催日チェックで見送った候補:', ...staleNotes.map((n) => `- ${n}`)] : []),
         ]
           .filter((line): line is string => line !== null)
           .join('\n')
@@ -536,7 +591,7 @@ async function main() {
       `${MAX_ATTEMPTS}回試行しましたが、新しいニュース記事は生成されませんでした。`,
       '',
       `- 試行内訳: ${summaryLine}`,
-      ...(staleNotes.length > 0 ? ['', '鮮度NGで見送った候補:', ...staleNotes.map((n) => `- ${n}`)] : []),
+      ...(staleNotes.length > 0 ? ['', '鮮度/開催日チェックで見送った候補:', ...staleNotes.map((n) => `- ${n}`)] : []),
       '',
       '_エラーではなく意図的なスキップです。次回の定期実行で再試行されます。_',
     ].join('\n')
