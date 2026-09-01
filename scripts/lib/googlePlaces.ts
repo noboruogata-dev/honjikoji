@@ -16,9 +16,17 @@
  */
 
 const TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
+const placeDetailsUrl = (placeId: string) =>
+  `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=ja&regionCode=JP`;
 
 export interface ResolvedPlace {
   placeId: string;
+}
+
+/** Place Details (New) の regularOpeningHours.periods 1件分。day は 0=日曜〜6=土曜。 */
+export interface GoogleOpeningPeriod {
+  open: { day: number; hour: number; minute: number };
+  close: { day: number; hour: number; minute: number };
 }
 
 export interface ResolvePlaceIdOptions {
@@ -108,4 +116,80 @@ export async function resolvePlaceId(
   }
 
   return { placeId };
+}
+
+/**
+ * Place Details (New) から regularOpeningHours.periods を取得する。
+ *
+ * 「Agent 1が導出したhoursの検証」専用（scripts/lib/hoursComparison.ts）。
+ * Google Maps Platform利用規約上、opening hoursはfrontmatter等への永続保存が
+ * 許可されていないため、取得した値はその場での比較にのみ使い、呼び出し元
+ * では絶対に保存しないこと（functions/api/place-hours.tsと同じ「都度ライブ
+ * 取得・保存しない」方針）。
+ *
+ * verboseは既定でfalse（呼び出し元に明示的に強制しない）。scripts/generate-spot.ts
+ * の自動実行（GitHub Actions）から呼ぶ場合はverbose:trueを渡さないこと
+ * ―true にすると営業時間の実データがActionsのログに残ってしまい、規約が
+ * 禁止する「Google Maps Contentの保存」に該当し得る。--backfill-place-id等、
+ * 人間が手元で対話的にデバッグする用途でのみtrueにする想定。
+ */
+export async function resolveRegularOpeningHoursPeriods(
+  placeId: string,
+  apiKey: string | undefined,
+  options: ResolvePlaceIdOptions = {}
+): Promise<GoogleOpeningPeriod[] | null> {
+  const verbose = options.verbose ?? false;
+  const log = (msg: string) => {
+    if (verbose) console.error(`[googlePlaces] ${msg}`);
+  };
+
+  if (!apiKey) {
+    log('APIキーが渡されていません（GOOGLE_PLACES_API_KEY未設定）。');
+    return null;
+  }
+
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const url = placeDetailsUrl(placeId);
+
+  log(`request: GET ${url}`);
+  log(`  X-Goog-Api-Key: ${maskApiKey(apiKey)}`);
+  log(`  X-Goog-FieldMask: regularOpeningHours`);
+
+  let response: Response;
+  try {
+    response = await fetchImpl(url, {
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        // フィールドマスクは regularOpeningHours のみ。他のフィールドを
+        // 足すと上位SKUの課金対象が増えるため絶対に増やさないこと。
+        'X-Goog-FieldMask': 'regularOpeningHours',
+      },
+    });
+  } catch (err) {
+    log(`fetch自体が例外を投げました: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+
+  const bodyText = await response.text();
+  log(`response status: ${response.status} ${response.statusText}`);
+  // verbose時のみ全文を出す。既定(false)では営業時間の実データを一切ログに残さない。
+  log(`response body: ${bodyText}`);
+
+  if (!response.ok) return null;
+
+  let data: unknown;
+  try {
+    data = JSON.parse(bodyText);
+  } catch {
+    log('レスポンスボディをJSONとしてパースできませんでした。');
+    return null;
+  }
+
+  const periods = (data as { regularOpeningHours?: { periods?: unknown } } | null)?.regularOpeningHours?.periods;
+  if (!Array.isArray(periods) || periods.length === 0) {
+    log('レスポンスに regularOpeningHours.periods が含まれていませんでした。');
+    return null;
+  }
+
+  return periods as GoogleOpeningPeriod[];
 }

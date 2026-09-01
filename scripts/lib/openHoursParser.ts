@@ -36,8 +36,11 @@ const WEEKDAY_TO_NUMBER: Record<string, number> = {
   土: 6,
 };
 
-/** "H:MM" / "HH:MM" を分単位の整数に変換する。不正な値は null。 */
-function toMinutes(value: string): number | null {
+/**
+ * "H:MM" / "HH:MM" を分単位の整数に変換する。不正な値は null。
+ * scripts/lib/hoursComparison.ts でも再利用するためexportする。
+ */
+export function toMinutes(value: string): number | null {
   const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
   if (!match) return null;
   const hour = Number(match[1]);

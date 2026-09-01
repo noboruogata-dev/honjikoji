@@ -78,7 +78,8 @@ import {
 } from './lib/gemini-agents.js';
 import { parseBudgetRange } from './lib/budgetParser.js';
 import { isIrregularHoliday, parseOpenHoursToHours } from './lib/openHoursParser.js';
-import { resolvePlaceId } from './lib/googlePlaces.js';
+import { resolvePlaceId, resolveRegularOpeningHoursPeriods } from './lib/googlePlaces.js';
+import { compareHoursWithGoogle } from './lib/hoursComparison.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SPOTS_DIR = path.resolve(__dirname, '../src/content/spots');
@@ -570,6 +571,12 @@ interface QaResult {
   hoursDerived: boolean;
   /** hoursDerivedがfalseのときのみ設定される、導出できなかった理由。 */
   hoursReason?: string;
+  /**
+   * Agent1由来のhoursをPlaces APIの値と照合した結果（検証のみ・値は保存しない）。
+   * placeId未解決・GOOGLE_PLACES_API_KEY未設定・hours未導出のいずれかなら
+   * checked: false（照合自体を行っていない）。
+   */
+  hoursVerification: { checked: boolean; hasMismatch: boolean; maxDiffMinutes: number; mismatchedDays: string[] };
 }
 
 /** SpotFrontmatterのhoursを、content.config.tsが期待するYAML行に変換する（無ければ空配列）。 */
@@ -618,6 +625,39 @@ async function runQaAgent(
   // 導出できなければhoursは未設定のまま保存する（誤った営業時間よりは
   // hours欠落＝unknown表示の方が安全という方針。scripts/lib/openHoursParser.ts）。
   const hoursResult = parseOpenHoursToHours(research.openHours, research.regularHoliday);
+
+  // Agent1由来のhoursを、Places APIの値と照合する（検証のみ）。Places API側の
+  // 値そのものはfrontmatterにもJob Summaryにも保存しない（Google Maps Platform
+  // 利用規約上、opening hoursの永続保存は許可されていないため）。ここで残す
+  // のは「差分の有無・大きさ（分）・曜日名」という私たち自身が計算した派生
+  // 情報のみで、Google側の実際の時刻文字列は一切含めない
+  // （scripts/lib/hoursComparison.ts のコメント参照）。
+  let hoursVerification: QaResult['hoursVerification'] = {
+    checked: false,
+    hasMismatch: false,
+    maxDiffMinutes: 0,
+    mismatchedDays: [],
+  };
+  if (resolvedPlace && hoursResult.hours) {
+    const googlePeriods = await resolveRegularOpeningHoursPeriods(
+      resolvedPlace.placeId,
+      process.env.GOOGLE_PLACES_API_KEY
+    );
+    if (googlePeriods) {
+      const comparison = compareHoursWithGoogle(hoursResult.hours, googlePeriods);
+      hoursVerification = { checked: true, ...comparison };
+      if (comparison.hasMismatch) {
+        console.warn(
+          `${label} [営業時間検証] Places APIとの照合で差分を検出しました（${comparison.mismatchedDays.join('・')}、最大${comparison.maxDiffMinutes}分程度）。Google Mapsで直接ご確認ください。`
+        );
+      } else {
+        console.log(`${label} [営業時間検証] Places APIと一致しました。`);
+      }
+    } else {
+      console.warn(`${label} [営業時間検証] Places APIから営業時間を取得できず、照合をスキップしました。`);
+    }
+  }
+
   // regularHolidayに「不定休」を含む店は isIrregular: true を明示的に立てる。
   // hoursは（不定休のため）通常はundefinedのままだが、サイト内の営業中
   // カウント・提灯表示・路地マップの点灯に含めたい場合は、bar-keywest.mdの
@@ -730,7 +770,7 @@ async function runQaAgent(
   await writeFile(filePath, frontmatter + writer.body.trim() + '\n', 'utf-8');
 
   console.log(`${label} 完了。保存しました: ${path.relative(process.cwd(), filePath)}`);
-  return { filePath, hoursDerived: Boolean(fm.hours), hoursReason: hoursResult.reason };
+  return { filePath, hoursDerived: Boolean(fm.hours), hoursReason: hoursResult.reason, hoursVerification };
 }
 
 // ============================================================
@@ -1478,7 +1518,11 @@ async function main() {
       }
 
       const writer = await runWriterAgent(ai, research);
-      const { filePath, hoursDerived, hoursReason } = await runQaAgent(research, writer, existingSlugs);
+      const { filePath, hoursDerived, hoursReason, hoursVerification } = await runQaAgent(
+        research,
+        writer,
+        existingSlugs
+      );
       outcomes.push('success');
 
       // 店舗記事の保存が成功した直後に、対応する公開お知らせを生成する。
@@ -1496,6 +1540,15 @@ async function main() {
         ? '営業時間(hours): 自動導出しました'
         : `営業時間(hours): 自動導出できませんでした（${hoursReason}）`;
 
+      // Places APIとの照合結果（検証のみ）。値そのもの（Google側の実際の時刻）は
+      // 一切含めない。差分の有無・大きさ・曜日名という派生情報のみを出す
+      // （scripts/lib/hoursComparison.ts のコメント参照）。
+      const hoursVerificationLine = !hoursVerification.checked
+        ? null
+        : hoursVerification.hasMismatch
+          ? `⚠️ 営業時間の検証: Places APIとの照合で差分を検出しました（${hoursVerification.mismatchedDays.join('・')}、最大${hoursVerification.maxDiffMinutes}分程度）。Google Mapsで直接ご確認のうえ、必要なら手動で修正してください。`
+          : '営業時間の検証: Places APIと一致しました。';
+
       console.log('\n============================================================');
       console.log(
         ` 完了: 「${research.title}」（${research.genre}）${research.isNew ? '[NEW] ' : ''}を保存しました。`
@@ -1503,6 +1556,7 @@ async function main() {
       console.log(` -> ${path.relative(process.cwd(), filePath)}`);
       console.log(` ${announcementSummaryLine(announcement)}`);
       console.log(` ${hoursLine}`);
+      if (hoursVerificationLine) console.log(` ${hoursVerificationLine}`);
       console.log('============================================================');
 
       await appendStepSummary(
@@ -1514,6 +1568,7 @@ async function main() {
           `- ファイル: \`${path.relative(process.cwd(), filePath)}\``,
           `- ${announcementSummaryLine(announcement)}`,
           `- ${hoursLine}`,
+          hoursVerificationLine ? `- ${hoursVerificationLine}` : null,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
           unconfirmedHintLine(),
         ]
