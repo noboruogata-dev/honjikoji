@@ -15,9 +15,10 @@
  * --dry-run: Slackへは送らず、生成したキャプション・画像パスをコンソールに
  *   出力するだけにする。
  *
- * 正方形画像（public/images/instagram/<type>-<slug>-square.webp）が既に
- * あればそれを再利用し、新規の画像生成（satori+sharp）は行わない。無ければ
- * 生成する。
+ * 正方形画像の解決はscripts/lib/instagramSquareImage.tsに従う。type=column
+ * なら専用イラスト（public/images/columns/<slug>-square.webp）を最優先で
+ * 使い、無い場合のみ文字ベース画像（public/images/instagram/...）を生成する。
+ * spot/newsは元々文字ベース画像のみで、既存があれば再利用する。
  *
  * 事前準備:
  *   .env に GEMINI_API_KEY を設定してください。
@@ -27,12 +28,11 @@
 
 import 'dotenv/config';
 import { GoogleGenAI } from '@google/genai';
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInstagramCaptionAgent, type InstagramContentType } from './lib/instagram-caption.js';
-import { checkGlyphCoverage, renderInstagramSquareImage } from './lib/ogpImage.js';
+import { resolveInstagramSquareImage } from './lib/instagramSquareImage.js';
 import { notifyInstagramMaterial } from './lib/slackNotify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -171,33 +171,30 @@ async function main() {
     console.warn(`[instagram-draft] ⚠️ ${caption.lengthNote}`);
   }
 
-  const imageDir = path.join(PROJECT_ROOT, 'public/images/instagram');
-  const imageFileName = `${args.type}-${args.slug}-square.webp`;
-  const imagePath = path.join(imageDir, imageFileName);
-
-  if (existsSync(imagePath)) {
-    console.log(`[instagram-draft] 正方形画像は既存のものを使います: ${path.relative(PROJECT_ROOT, imagePath)}`);
-  } else {
-    const missingChars = await checkGlyphCoverage({ type: args.type, title: content.title, label: content.imageLabel });
-    if (missingChars.length > 0) {
-      throw new Error(
-        `タイトル/ラベルにフォントに無い文字が含まれるため、正方形画像を生成できません（該当文字: ${missingChars.join('')}）。scripts/assets/fonts/README.md を参照してください。`
-      );
-    }
-    console.log('[instagram-draft] 正方形画像を生成中...');
-    await mkdir(imageDir, { recursive: true });
-    const imageBuffer = await renderInstagramSquareImage({ type: args.type, title: content.title, label: content.imageLabel });
-    await writeFile(imagePath, imageBuffer);
-    console.log(`[instagram-draft] 正方形画像を保存しました: ${path.relative(PROJECT_ROOT, imagePath)}`);
+  const image = await resolveInstagramSquareImage({
+    type: args.type,
+    slug: args.slug,
+    title: content.title,
+    imageLabel: content.imageLabel,
+    projectRoot: PROJECT_ROOT,
+  });
+  if (!image.ok || !image.imagePath || !image.imageUrl) {
+    throw new Error(`正方形画像を準備できませんでした（${image.error ?? '不明なエラー'}）。`);
   }
+  const sourceLabel =
+    image.source === 'column-illustration'
+      ? '既存のコラムイラスト画像を使用'
+      : image.source === 'existing-generated'
+        ? '既存の文字ベース画像を使用'
+        : '文字ベース画像を新規生成';
+  console.log(`[instagram-draft] 正方形画像（${sourceLabel}）: ${path.relative(PROJECT_ROOT, image.imagePath)}`);
 
   const articleUrl = `${SITE_URL}${content.urlPath}`;
-  const imageUrl = `${SITE_URL}/images/instagram/${imageFileName}`;
 
   console.log('\n----- 投稿文面 -----\n');
   console.log(caption.fullText);
   console.log('\n----- 画像 -----\n');
-  console.log(imageUrl);
+  console.log(image.imageUrl);
   console.log('\n----- 記事URL -----\n');
   console.log(articleUrl);
 
@@ -211,7 +208,7 @@ async function main() {
     contentLabel: CONTENT_LABELS[args.type],
     title: content.title,
     articleUrl,
-    imageUrl,
+    imageUrl: image.imageUrl,
     captionFullText: caption.fullText,
     lengthNote: caption.lengthNote,
   });

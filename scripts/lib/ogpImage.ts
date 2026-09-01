@@ -250,28 +250,111 @@ export async function renderOgpImage(input: OgpImageInput): Promise<Buffer> {
 // ============================================================
 
 const SQUARE_SIZE = 1080;
+// 左右合計144px（片側72px）。fitSquareTitleの各段のmaxCharsPerLineは
+// このコンテンツ幅（1080-144=936px）を前提に決めている。
+const SQUARE_HORIZONTAL_PADDING = 72;
 
 /**
- * タイトルの文字数に応じてフォントサイズを段階的に下げる。fitTitleと同じ
- * 考え方だが、正方形（横幅がOGPより狭い）向けに閾値・サイズを調整している。
+ * 日本語の禁則処理を簡易的に行うタイトル折り返し。完全な形態素解析はせず、
+ * 句読点・記号を優先的な改行位置として扱い、それが無い場合のみ文字数で
+ * 折り返す（要求仕様通りの割り切り）:
+ * - 「。」「！」「？」「、」および閉じ括弧の直後を優先的な改行位置にする
+ * - 助詞（と・の・で・を）の直後で終わる行はできるだけ避ける
+ *   （優先的な改行位置が見つからない場合のみ効く。避けようとして
+ *   行が短くなりすぎる＝1文字も入らなくなる場合は諦めて機械的に切る）
+ * - 行頭に句読点・閉じ括弧が来ないようにする（標準的な禁則処理）
+ * テスト用にexportする。
  */
-function fitSquareTitle(title: string): { fontSize: number; text: string } {
+export function wrapJapaneseTitle(title: string, maxCharsPerLine: number): string[] {
+  const PREFERRED_BREAK_AFTER = /[。！？、」』）]/;
+  const AVOID_BREAK_AFTER = /[とのでを]/;
+  const FORBIDDEN_LINE_START = /[。！？、」』）]/;
+
   const chars = [...title];
-  const len = chars.length;
+  const lines: string[] = [];
+  let lineStart = 0;
 
-  if (len <= 10) return { fontSize: 72, text: title };
-  if (len <= 16) return { fontSize: 58, text: title };
-  if (len <= 24) return { fontSize: 46, text: title };
+  while (lineStart < chars.length) {
+    let breakAt = Math.min(lineStart + maxCharsPerLine, chars.length);
 
-  const TRUNCATE_AT = 32;
-  const truncated = chars.length > TRUNCATE_AT ? `${chars.slice(0, TRUNCATE_AT).join('')}…` : title;
-  return { fontSize: 38, text: truncated };
+    if (breakAt < chars.length) {
+      // 1) breakAt以内で、直近の「優先的な改行位置」を後ろから探す。
+      let candidate = -1;
+      for (let i = breakAt; i > lineStart; i -= 1) {
+        if (PREFERRED_BREAK_AFTER.test(chars[i - 1])) {
+          candidate = i;
+          break;
+        }
+      }
+      if (candidate > lineStart) {
+        breakAt = candidate;
+      } else {
+        // 2) 優先的な改行位置が無ければ、助詞の直後で終わるのを避ける
+        //    （行が空にならない範囲でのみ）。
+        while (breakAt > lineStart + 1 && AVOID_BREAK_AFTER.test(chars[breakAt - 1])) {
+          breakAt -= 1;
+        }
+      }
+      // 3) 禁則処理: 行頭に句読点・閉じ括弧が来る場合は、その文字も
+      //    前の行に含める。
+      while (breakAt < chars.length && FORBIDDEN_LINE_START.test(chars[breakAt])) {
+        breakAt += 1;
+      }
+    }
+
+    lines.push(chars.slice(lineStart, breakAt).join(''));
+    lineStart = breakAt;
+  }
+
+  return lines;
+}
+
+/** 指定した行数に収まるよう、末尾を省略記号で切り詰める。 */
+function truncateForLineCount(title: string, maxCharsPerLine: number, maxLines: number): string {
+  const budget = maxCharsPerLine * maxLines - 1; // 省略記号「…」の1字分を差し引く
+  const chars = [...title];
+  if (chars.length <= budget) return title;
+  return `${chars.slice(0, budget).join('')}…`;
+}
+
+// フォントサイズが大きい順に並べ、それぞれのサイズで許容する1行あたりの
+// 文字数（コンテンツ幅936px、Shippori Mincho Boldでの実測ベースの目安）。
+// タイトルが2行に収まる最大のサイズを選ぶ（「既存のOGP画像の4段階縮小」と
+// 同じ考え方を、行数ベースで判定する形に発展させたもの）。
+const SQUARE_TITLE_TIERS = [
+  { fontSize: 100, maxCharsPerLine: 9 },
+  { fontSize: 84, maxCharsPerLine: 11 },
+  { fontSize: 68, maxCharsPerLine: 13 },
+  { fontSize: 54, maxCharsPerLine: 17 },
+  { fontSize: 44, maxCharsPerLine: 21 },
+] as const;
+
+const SQUARE_TITLE_MAX_LINES = 3;
+
+/**
+ * タイトルの折り返し結果（行数）に応じてフォントサイズを段階的に選ぶ。
+ * 2行に収まる最大サイズを優先し、どのサイズでも2行に収まらない場合は
+ * 最小サイズで最大3行まで許容、それでも収まらなければ末尾を省略する。
+ */
+function fitSquareTitle(title: string): { fontSize: number; lines: string[] } {
+  for (const tier of SQUARE_TITLE_TIERS) {
+    const lines = wrapJapaneseTitle(title, tier.maxCharsPerLine);
+    if (lines.length <= 2) return { fontSize: tier.fontSize, lines };
+  }
+
+  const smallest = SQUARE_TITLE_TIERS[SQUARE_TITLE_TIERS.length - 1];
+  let lines = wrapJapaneseTitle(title, smallest.maxCharsPerLine);
+  if (lines.length > SQUARE_TITLE_MAX_LINES) {
+    const truncated = truncateForLineCount(title, smallest.maxCharsPerLine, SQUARE_TITLE_MAX_LINES);
+    lines = wrapJapaneseTitle(truncated, smallest.maxCharsPerLine);
+  }
+  return { fontSize: smallest.fontSize, lines };
 }
 
 async function buildSquareTree(input: OgpImageInput) {
   const { mincho, gothic } = await loadFonts();
   const lanternDataUri = await loadLanternDataUri();
-  const { fontSize, text } = fitSquareTitle(input.title);
+  const { fontSize, lines } = fitSquareTitle(input.title);
 
   const tree = {
     type: 'div',
@@ -283,7 +366,7 @@ async function buildSquareTree(input: OgpImageInput) {
         alignItems: 'center',
         width: `${SQUARE_SIZE}px`,
         height: `${SQUARE_SIZE}px`,
-        padding: '0 96px',
+        padding: `0 ${SQUARE_HORIZONTAL_PADDING}px`,
         backgroundColor: '#14110f',
         backgroundImage:
           'linear-gradient(160deg, #14110f 0%, #1c1611 55%, #2e1f14 100%),' +
@@ -296,10 +379,13 @@ async function buildSquareTree(input: OgpImageInput) {
         {
           type: 'img',
           props: {
+            // 罫線の提灯（PNG本体は480x240=2:1）。以前は116x116の正方形枠に
+            // 押し込めて小さく寂しく見えていたため、本来の比率のまま幅を
+            // 広げて余白との釣り合いを取る。
             src: lanternDataUri,
-            width: 116,
-            height: 116,
-            style: { position: 'absolute', top: '72px', opacity: 0.85 },
+            width: 220,
+            height: 110,
+            style: { position: 'absolute', top: '64px', opacity: 0.85 },
           },
         },
         {
@@ -307,14 +393,18 @@ async function buildSquareTree(input: OgpImageInput) {
           props: {
             style: {
               display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               fontFamily: 'Shippori Mincho',
               fontSize,
               fontWeight: 700,
-              lineHeight: 1.5,
+              lineHeight: 1.4,
               textAlign: 'center',
               letterSpacing: '0.02em',
             },
-            children: text,
+            // 行ごとに独立したdivとして描画する（satoriの自動折り返しに
+            // 任せず、wrapJapaneseTitleが決めた行単位を厳密に守るため）。
+            children: lines.map((line) => ({ type: 'div', props: { children: line } })),
           },
         },
         {
@@ -323,7 +413,7 @@ async function buildSquareTree(input: OgpImageInput) {
             style: {
               display: 'flex',
               fontSize: 30,
-              marginTop: '32px',
+              marginTop: '28px',
               color: '#e8c468',
               letterSpacing: '0.05em',
             },
