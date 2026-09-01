@@ -449,7 +449,7 @@ async function main() {
       // と内容が重複するため対象外。generate-spot.tsのAgent4は呼ばない）。
       // 例外を投げないため、失敗しても記事の保存自体は成功のまま処理を続けられる。
       const newsSlug = path.basename(filePath, '.md');
-      await runInstagramMaterialAgent(ai, {
+      const instagramMaterial = await runInstagramMaterialAgent(ai, {
         type: 'news',
         contentLabel: 'お知らせ',
         slug: newsSlug,
@@ -473,9 +473,12 @@ async function main() {
           `「${writer.title}」（${research.category}）を保存しました。`,
           '',
           `- ファイル: \`${path.relative(process.cwd(), filePath)}\``,
+          instagramMaterial.warning ? `- ⚠️ ${instagramMaterial.warning}` : null,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
           ...(staleNotes.length > 0 ? ['', '鮮度NGで見送った候補:', ...staleNotes.map((n) => `- ${n}`)] : []),
-        ].join('\n')
+        ]
+          .filter((line): line is string => line !== null)
+          .join('\n')
       );
       return;
     } catch (err) {

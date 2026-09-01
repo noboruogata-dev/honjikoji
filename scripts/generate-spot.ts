@@ -1542,7 +1542,7 @@ async function main() {
       // （announcement=公開お知らせは同じ店を扱うため、Instagramへ2回投稿する
       // ことはなく対象外。ユーザーとの合意事項）。例外を投げないため、失敗しても
       // 店舗記事の保存自体は成功のまま処理を続けられる。
-      await runInstagramMaterialAgent(ai, {
+      const instagramMaterial = await runInstagramMaterialAgent(ai, {
         type: 'spot',
         contentLabel: '店舗記事',
         slug: spotSlug,
@@ -1587,6 +1587,7 @@ async function main() {
           `- ${announcementSummaryLine(announcement)}`,
           `- ${hoursLine}`,
           hoursVerificationLine ? `- ${hoursVerificationLine}` : null,
+          instagramMaterial.warning ? `- ⚠️ ${instagramMaterial.warning}` : null,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
           unconfirmedHintLine(),
         ]

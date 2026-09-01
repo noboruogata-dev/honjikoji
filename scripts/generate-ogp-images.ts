@@ -26,7 +26,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { appendStepSummary, readFrontmatter } from './lib/gemini-agents.js';
-import { renderOgpImage, type OgpContentType } from './lib/ogpImage.js';
+import { checkGlyphCoverage, renderOgpImage, type OgpContentType } from './lib/ogpImage.js';
 import { GUIDES } from '../src/lib/guides.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -166,6 +166,16 @@ async function main() {
     }
 
     try {
+      // フォントに無い文字（tofu box化して黙って「成功」してしまう）が
+      // 無いか、レンダリング前に検査する。あればcatch節と同じ失敗扱いに
+      // する（フォントに無い文字が理由でここに来る場合、satori自体は
+      // 例外を投げず「文字化けした画像」を返してしまうため、この事前検査が
+      // 唯一の検出手段）。
+      const missingChars = await checkGlyphCoverage({ type: item.type, title: item.title, label: item.label });
+      if (missingChars.length > 0) {
+        throw new Error(`フォントに無い文字が含まれています: ${missingChars.join('')}`);
+      }
+
       const png = await renderOgpImage({ type: item.type, title: item.title, label: item.label });
       await writeFile(outPath, png);
       newCache[key] = hash;

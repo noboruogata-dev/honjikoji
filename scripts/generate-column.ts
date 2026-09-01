@@ -331,7 +331,11 @@ export function buildColumnNewsMarkdown(slug: string, frontmatter: ColumnFrontma
   const newsSummary = `本寺小路夜話に「${frontmatter.title}」を公開しました。`;
   return [
     '---',
-    `title: ${toYamlString(`新しい夜話を公開しました｜${frontmatter.title}`)}`,
+    // 区切り文字は「｜」ではなく「／」を使う。「｜」（U+FF5C）はOGP画像
+    // 生成用フォント（Shippori Mincho）に元々グリフが存在せず、タイトルに
+    // 含まれるたびOGP画像生成が失敗しogp-default.pngにフォールバックして
+    // しまうため（scripts/lib/ogpImage.ts checkGlyphCoverage参照）。
+    `title: ${toYamlString(`新しい夜話を公開しました／${frontmatter.title}`)}`,
     `pubDate: ${frontmatter.pubDate}`,
     'category: NOTICE',
     `summary: ${toYamlString(newsSummary)}`,
@@ -501,9 +505,10 @@ async function main() {
       // Instagram投稿素材（文面・正方形画像・Slack通知）。--publishで実際に
       // 公開されたときのみ対象（dry-run・下書き保存では送らない）。例外を
       // 投げないため、失敗してもコラムの保存自体は成功のまま処理を続けられる。
+      let instagramWarning: string | null = null;
       if (options.publish && !options.dryRun) {
         const columnSlug = path.basename(saved.filePath, '.md');
-        await runInstagramMaterialAgent(ai, {
+        const instagramMaterial = await runInstagramMaterialAgent(ai, {
           type: 'column',
           contentLabel: 'コラム',
           slug: columnSlug,
@@ -514,6 +519,7 @@ async function main() {
           urlPath: `/columns/${columnSlug}/`,
           projectRoot: PROJECT_ROOT,
         });
+        instagramWarning = instagramMaterial.warning ?? null;
       }
 
       await appendStepSummary(
@@ -530,7 +536,10 @@ async function main() {
           // 2枚目（本文挿絵）の生成失敗など、非ブロッキング警告の中身が
           // ログを開かなくてもJob Summaryだけで分かるよう本文も残す。
           ...saved.warnings.map((warning) => `  - ${warning}`),
-        ].join('\n')
+          instagramWarning ? `- ⚠️ ${instagramWarning}` : null,
+        ]
+          .filter((line): line is string => line !== null)
+          .join('\n')
       );
       return;
     } catch (error) {

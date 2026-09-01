@@ -81,7 +81,11 @@ export const GUIDES: GuideDefinition[] = [
   },
   {
     slug: 'hashigo',
-    title: '本寺小路のハシゴ酒｜1軒目から〆まで',
+    // 区切り文字は「｜」ではなく「／」を使う。「｜」（U+FF5C）はOGP画像
+    // 生成用フォント（Shippori Mincho）に元々グリフが存在せず、OGP画像生成が
+    // 失敗しogp-default.pngにフォールバックしてしまうため
+    // （scripts/lib/ogpImage.ts checkGlyphCoverage参照）。
+    title: '本寺小路のハシゴ酒／1軒目から〆まで',
     shortLabel: 'ハシゴ酒コース',
     description:
       '本寺小路のはしご酒コースを1軒目・2軒目・〆で紹介。路地一本で夜を完結させる、三条ならではの飲み歩き方。',

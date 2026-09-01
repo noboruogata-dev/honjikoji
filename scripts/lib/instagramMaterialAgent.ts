@@ -14,7 +14,7 @@ import { GoogleGenAI } from '@google/genai';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { runInstagramCaptionAgent, type InstagramContentType } from './instagram-caption.js';
-import { renderInstagramSquareImage } from './ogpImage.js';
+import { checkGlyphCoverage, renderInstagramSquareImage } from './ogpImage.js';
 import { notifyInstagramMaterial } from './slackNotify.js';
 
 // astro.config.mjs の `site` と同じ値。
@@ -39,6 +39,12 @@ export interface InstagramMaterialInput {
 
 export interface InstagramMaterialResult {
   posted: boolean;
+  /**
+   * Job Summaryに残すべき警告（フォントの欠字検出など、運営者が気づく
+   * 必要のある事象）。無ければ設定しない。呼び出し元のappendStepSummaryに
+   * 含めること。
+   */
+  warning?: string;
 }
 
 export async function runInstagramMaterialAgent(
@@ -57,6 +63,16 @@ export async function runInstagramMaterialAgent(
     if (!caption) {
       console.warn(`${label} 文面の生成に失敗したため、Instagram素材の準備をスキップします。`);
       return { posted: false };
+    }
+
+    // フォントに無い文字（tofu box化して黙って「成功」してしまう）が無いか、
+    // レンダリング前に検査する。文字化けした画像をSlackへ送るくらいなら、
+    // 素材の準備自体をスキップする方が安全（ogpImage.ts checkGlyphCoverage参照）。
+    const missingChars = await checkGlyphCoverage({ type: input.type, title: input.title, label: input.imageLabel });
+    if (missingChars.length > 0) {
+      const warning = `Instagram素材: タイトル/ラベルにフォントに無い文字が含まれるため、正方形画像の準備をスキップしました（該当文字: ${missingChars.join('')}）。フォントのサブセット範囲を確認してください。`;
+      console.warn(`${label} ${warning}`);
+      return { posted: false, warning };
     }
 
     const imageDir = path.join(input.projectRoot, 'public/images/instagram');

@@ -14,6 +14,7 @@
 
 import satori from 'satori';
 import sharp from 'sharp';
+import { create as createFontkitFont, type Font as FontkitFont } from 'fontkit';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,6 +50,56 @@ async function loadFonts() {
     fontCache = { mincho, gothic };
   }
   return fontCache;
+}
+
+// ============================================================
+// グリフ有無の事前検査
+//
+// フォントに無い文字をsatoriで描画すると、例外にはならず.notdef
+// グリフ（tofu box、□）として黙って「成功」してしまう。サブセット
+// フォントをJIS X 0208全域まで広げても、それすら無い外字・異体字・
+// 絵文字等は存在しうるため、実際に描画する文字列を事前にfontkitで検査し、
+// 欠けている文字を検出できるようにする（renderOgpImage/
+// renderInstagramSquareImage自体には無害な描画を強制する手段が無いため、
+// 呼び出し側がこの関数の結果を見て生成をスキップする、という運用にする。
+// scripts/generate-ogp-images.ts・scripts/lib/instagramMaterialAgent.ts
+// の呼び出し箇所を参照）。
+// ============================================================
+
+let fontkitCache: { mincho: FontkitFont; gothic: FontkitFont } | undefined;
+
+async function loadFontkitFonts() {
+  if (!fontkitCache) {
+    const { mincho, gothic } = await loadFonts();
+    fontkitCache = {
+      mincho: createFontkitFont(mincho) as FontkitFont,
+      gothic: createFontkitFont(gothic) as FontkitFont,
+    };
+  }
+  return fontkitCache;
+}
+
+/** textのうち、fontに存在しないグリフの文字を重複無しで返す（空白類は除外）。 */
+function findMissingChars(text: string, font: FontkitFont): string[] {
+  const missing = new Set<string>();
+  for (const ch of text) {
+    if (/\s/.test(ch)) continue;
+    const codePoint = ch.codePointAt(0);
+    if (codePoint === undefined) continue;
+    if (!font.hasGlyphForCodePoint(codePoint)) missing.add(ch);
+  }
+  return [...missing];
+}
+
+/**
+ * renderOgpImage/renderInstagramSquareImageが実際に描画する文字列
+ * （title→Shippori Mincho、label→Noto Sans JP）について、フォントに
+ * 無い文字を検査する。空配列なら全文字が描画できる。例外は投げない。
+ */
+export async function checkGlyphCoverage(input: OgpImageInput): Promise<string[]> {
+  const { mincho, gothic } = await loadFontkitFonts();
+  const missing = new Set<string>([...findMissingChars(input.title, mincho), ...findMissingChars(input.label, gothic)]);
+  return [...missing];
 }
 
 async function loadLanternDataUri(): Promise<string> {
