@@ -23,10 +23,11 @@
  *
  * このエンドポイントはpublicにGET可能で、かつAPIキーを内部で使うため、
  * 任意のplaceIdに対する「無料のGoogle Places代理呼び出し」として悪用され
- * 得る。sec-fetch-siteヘッダで同一オリジンからの呼び出しかを緩く確認するが
- * これは詐称可能な軽い抑止に過ぎない。実質的な歯止めは、Google Cloud
- * Console側でこのAPIキーに設定する1日あたりのクォータ上限（悪用時の被害を
- * 上限で切るための最終防御線）。
+ * 得る。Origin（無ければRefererのorigin）で同一オリジンからの呼び出しかを
+ * 緩く確認するが、これは詐称可能な軽い抑止に過ぎない（checkOrigin参照。
+ * どちらのヘッダーも無ければ判定材料が無いため許可する）。実質的な歯止めは、
+ * Google Cloud Console側でこのAPIキーに設定する1日あたりのクォータ上限
+ * （悪用時の被害を上限で切るための最終防御線）。
  *
  * ログ方針: console.error に処理の各段階を記録する（Cloudflare Pages の
  * リアルタイムログ・Functions のログタブで確認できる）。APIキーの値は
@@ -66,6 +67,41 @@ function logError(stage: string, detail: Record<string, unknown>) {
   console.error(`[place-hours] ${stage}: ${JSON.stringify(detail)}`);
 }
 
+interface OriginCheckResult {
+  allowed: boolean;
+  reason: string;
+}
+
+/**
+ * 悪用抑止の軽い足切り（詐称可能なヘッダーに頼るため、あくまで補助。実質的な
+ * 歯止めはGoogle Cloud Console側の日次クォータ上限）。
+ *
+ * Sec-Fetch-Siteはブラウザ・状況によって送られない/期待と異なる値になり得る
+ * ため主判定にしない（誤検知で機能そのものが止まる方が実害が大きい）。
+ * より広くサポートされている Origin を優先し、無ければ Referer のoriginを見る。
+ * どちらも無ければ判定材料が無いため許可する。期待originは呼び出し元の
+ * リクエストURL自身（selfOrigin）から動的に算出し、本番ドメイン・Cloudflareの
+ * previewドメインのどちらでも追従できるようにする（ハードコードしない）。
+ */
+function checkOrigin(request: Request, selfOrigin: string): OriginCheckResult {
+  const origin = request.headers.get('origin');
+  if (origin !== null) {
+    return { allowed: origin === selfOrigin, reason: `origin=${origin}` };
+  }
+
+  const referer = request.headers.get('referer');
+  if (referer !== null) {
+    try {
+      const refererOrigin = new URL(referer).origin;
+      return { allowed: refererOrigin === selfOrigin, reason: `referer-origin=${refererOrigin}` };
+    } catch {
+      return { allowed: false, reason: `referer-unparseable=${referer}` };
+    }
+  }
+
+  return { allowed: true, reason: 'no-origin-no-referer' };
+}
+
 export async function onRequestGet(context: PagesFunctionContext): Promise<Response> {
   try {
     const { request, env } = context;
@@ -77,12 +113,14 @@ export async function onRequestGet(context: PagesFunctionContext): Promise<Respo
       return jsonResponse({ error: 'invalid placeId' }, 400);
     }
 
-    // 悪用抑止の軽い足切り（詐称可能なため、あくまで補助）。同一オリジンの
-    // fetchであれば通常 same-origin が送られる。ヘッダ自体が無い（curl等）
-    // 場合は判定できないため通す。
-    const secFetchSite = request.headers.get('sec-fetch-site');
-    if (secFetchSite && secFetchSite !== 'same-origin') {
-      logError('forbidden-sec-fetch-site', { secFetchSite });
+    const originCheck = checkOrigin(request, url.origin);
+    logError('origin-check', {
+      allowed: originCheck.allowed,
+      reason: originCheck.reason,
+      // 参考情報として残す（判定には使わない。値の傾向を見るため）。
+      secFetchSite: request.headers.get('sec-fetch-site'),
+    });
+    if (!originCheck.allowed) {
       return jsonResponse({ error: 'forbidden' }, 403);
     }
 
