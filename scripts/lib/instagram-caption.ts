@@ -14,6 +14,12 @@
  * 大きく外れた場合のみ1回だけ補正指示を添えて再試行し、それでも外れて
  * いれば字数はそのまま採用してlengthNoteに注記する（生成失敗にはしない）。
  *
+ * 改行はプロンプトで指示するだけでなく、formatCaptionLineBreaks()で
+ * 決定論的にも整形する（LLMは改行位置の制御が苦手なため、プロンプトの
+ * 指示だけでは不安定）。文単位（。！？で区切る）でしか改行しない
+ * （単語の途中で機械的に折り返すと不自然になるため、全角25〜30字は
+ * あくまで目安であり厳密な上限ではない）。
+ *
  * 例外は一切投げない。失敗時は null を返し、呼び出し元は「素材なし」として
  * 記事の公開自体は継続する。
  */
@@ -102,6 +108,10 @@ ${input.body}
 - サイトのトーン（明朝体で組む静かな夜の路地の空気、落ち着いた語り口）に合わせてください
 - captionの文末は「プロフィールのリンクから」という一文で、記事へのリンク導線を
   作ってください（URLそのものは書かなくてよい）
+- 改行は読みやすさを大きく左右します。次のルールを守ってください:
+  - 意味の切れ目（文の区切り）で改行すること。単語の途中で折り返さないこと
+  - 1行が全角25〜30字程度を超えたら、次の文は改行すること
+  - 話題が変わるところでは、行を1つ空けること（段落を分けること）
 - hashtagWord: この記事の内容に最もふさわしいハッシュタグを1つだけ、#を付けずに
   単語または短いフレーズで${correctiveNote ? `\n\n${correctiveNote}` : ''}`;
 }
@@ -118,6 +128,62 @@ export function sanitizeHashtagWord(word: string): string | null {
 export function buildHashtags(rawWord: string): string[] {
   const word = sanitizeHashtagWord(rawWord);
   return word ? [...FIXED_HASHTAGS, `#${word}`] : [...FIXED_HASHTAGS];
+}
+
+// 1行あたりの目安（全角25〜30字）の中間値。厳密な上限ではなく、これを
+// 超えたら次の文から改行する、という緩い目安として使う。
+const LINE_WIDTH_TARGET = 28;
+
+/**
+ * 「。」「！」「？」の直後で区切り、閉じ括弧（」』）等は直前の文に含める。
+ * テスト用にexportする。
+ */
+export function splitIntoSentences(text: string): string[] {
+  const sentences: string[] = [];
+  let current = '';
+  for (const ch of text) {
+    current += ch;
+    if (/[。！？]/.test(ch)) {
+      sentences.push(current);
+      current = '';
+    }
+  }
+  if (current) sentences.push(current);
+  return sentences.map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+/**
+ * LLMが生成したキャプション本文の改行を、決定論的に整形し直す。
+ * - 段落（空行区切り）はLLMの出力をそのまま尊重する
+ * - 各段落内は、文単位（splitIntoSentences）でしか改行しない
+ *   （単語の途中で機械的に折り返すと不自然になるため）
+ * - 1行が LINE_WIDTH_TARGET を超えたら、次の文から新しい行にする
+ *   （1文がそれ単体でLINE_WIDTH_TARGETを超える場合は、その1文だけの
+ *   行になる＝文の途中では折り返さない）
+ * テスト用にexportする。
+ */
+export function formatCaptionLineBreaks(caption: string): string {
+  const paragraphs = caption
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.replace(/\n+/g, '')) // 段落内の改行はいったん潰し、文単位で組み直す
+    .map((paragraph) => {
+      const sentences = splitIntoSentences(paragraph);
+      const lines: string[] = [];
+      let currentLine = '';
+      for (const sentence of sentences) {
+        if (currentLine && [...currentLine].length + [...sentence].length > LINE_WIDTH_TARGET) {
+          lines.push(currentLine);
+          currentLine = sentence;
+        } else {
+          currentLine += sentence;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+      return lines.join('\n');
+    })
+    .filter((paragraph) => paragraph.length > 0);
+
+  return paragraphs.join('\n\n');
 }
 
 async function requestCaption(
@@ -161,14 +227,16 @@ export async function runInstagramCaptionAgent(
       if (retried) final = retried;
     }
 
-    const finalLen = [...final.caption].length;
+    const hashtags = buildHashtags(final.hashtagWord);
+    const caption = formatCaptionLineBreaks(final.caption.trim());
+
+    // 改行の整形（\nの増減）で見た目の文字数がぶれないよう、改行を除いた
+    // 文字数で字数目安を判定する。
+    const finalLen = [...caption.replace(/\n/g, '')].length;
     const lengthNote =
       finalLen < TARGET_MIN || finalLen > TARGET_MAX
         ? `字数の目安（150〜250字）から外れています（実際: ${finalLen}字）。投稿前に調整してください。`
         : undefined;
-
-    const hashtags = buildHashtags(final.hashtagWord);
-    const caption = final.caption.trim();
 
     return {
       caption,

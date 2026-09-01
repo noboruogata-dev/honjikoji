@@ -62,6 +62,24 @@ describe('notifyInstagramMaterial', () => {
     expect(types).not.toContain('image');
   });
 
+  it('画像URL・記事URLは<url|url>形式を使わない（ラベルがURLと完全一致するとSlackがunfurlしない仕様のため。回帰テスト）', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
+    await notifyInstagramMaterial({ ...baseInput, webhookUrl: 'https://hooks.slack.com/services/xxx' }, fetchImpl);
+    const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    const serialized = JSON.stringify(body.blocks);
+    expect(serialized).not.toContain(`<${baseInput.imageUrl}|${baseInput.imageUrl}>`);
+    expect(serialized).not.toContain(`<${baseInput.articleUrl}|${baseInput.articleUrl}>`);
+    expect(serialized).toContain(`<${baseInput.imageUrl}>`);
+    expect(serialized).toContain(`<${baseInput.articleUrl}>`);
+  });
+
+  it('キャプション本文をコードブロック（```）で囲まない（Slackモバイルで横スクロールになるため）', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
+    await notifyInstagramMaterial({ ...baseInput, webhookUrl: 'https://hooks.slack.com/services/xxx' }, fetchImpl);
+    const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    expect(JSON.stringify(body.blocks)).not.toContain('```');
+  });
+
   it('lengthNoteがある場合はblocksに含める', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
     await notifyInstagramMaterial(
