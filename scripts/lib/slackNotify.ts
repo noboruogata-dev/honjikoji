@@ -5,13 +5,20 @@
  *
  * Incoming Webhook（環境変数 SLACK_WEBHOOK_URL）はファイルアップロードに
  * 対応していない（それにはBotトークンを使う files.getUploadURLExternal 系の
- * 別APIが必要で、今回はWebhook運用という方針のため使わない）。そのため
- * 画像はBlock Kitの image ブロックで本番URLを参照する形にする。
+ * 別APIが必要で、今回はWebhook運用という方針のため使わない）。
  *
- * このジョブがgit pushした直後は、Cloudflare Pagesのビルド・デプロイが
- * まだ完了していない可能性があり、Slackが画像や記事URLを取得しようとした
- * 瞬間だけ404で崩れて見えることがある（数分で解消する）。そのため
- * メッセージ冒頭に必ずその旨の注記を入れる。
+ * 画像はBlock Kitの `image` ブロックではなく、あえてただのリンク
+ * （sectionのmrkdwnリンク）として送る。`image` ブロックはSlack側が
+ * 送信時に image_url を同期的にダウンロード検証し、到達不能だと
+ * メッセージ全体を invalid_blocks（HTTP 400）で拒否する仕様がある
+ * （実際に発生を確認した）。このジョブがgit pushするのはNode
+ * スクリプトの実行が終わった後（ワークフローの別ステップ）で、かつ
+ * Cloudflare Pages側のビルド・デプロイはさらにその後に非同期で走るため、
+ * この関数が呼ばれる時点で本番URLはほぼ確実にまだ存在しない
+ * （＝いくら待っても間に合わない。呼び出し元のジョブ内でリトライしても
+ * 無意味）。plain textリンクであれば、Slack側の検証で通知全体が
+ * 失われることはなく、Slackの自動リンク展開が後から効けば画像も
+ * 表示される（効かなくても最低限リンクと文面は必ず届く）。
  *
  * SLACK_WEBHOOK_URL未設定時は送信をスキップし、ログに残す（例外を投げない）。
  */
@@ -54,7 +61,7 @@ export async function notifyInstagramMaterial(
       elements: [
         {
           type: 'mrkdwn',
-          text: '反映まで数分かかります。画像や記事リンクがすぐ開けない場合は、少し待ってから再度お試しください。',
+          text: '反映まで数分かかります。リンクがすぐ開けない場合は、少し待ってから再度お試しください。',
         },
       ],
     },
@@ -69,10 +76,12 @@ export async function notifyInstagramMaterial(
     ...(input.lengthNote
       ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: `⚠️ ${input.lengthNote}` }] }]
       : []),
+    // あえてimageブロックにしない（このファイル冒頭コメント参照）。
+    // リンクとして貼るだけなら、Slack側の到達性検証で通知全体が
+    // invalid_blocksになることはない。
     {
-      type: 'image',
-      image_url: input.imageUrl,
-      alt_text: input.title,
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*正方形画像*\n<${input.imageUrl}|${input.imageUrl}>` },
     },
   ];
 

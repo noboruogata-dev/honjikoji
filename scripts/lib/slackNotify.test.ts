@@ -54,6 +54,14 @@ describe('notifyInstagramMaterial', () => {
     expect(result).toEqual({ sent: false, reason: 'exception' });
   });
 
+  it('imageブロックは使わない（image_urlの到達性検証でメッセージ全体がinvalid_blocksになる実例を確認したため。回帰テスト）', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
+    await notifyInstagramMaterial({ ...baseInput, webhookUrl: 'https://hooks.slack.com/services/xxx' }, fetchImpl);
+    const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    const types = body.blocks.map((b: { type: string }) => b.type);
+    expect(types).not.toContain('image');
+  });
+
   it('lengthNoteがある場合はblocksに含める', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
     await notifyInstagramMaterial(
