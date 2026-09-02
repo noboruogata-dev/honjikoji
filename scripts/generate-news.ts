@@ -374,7 +374,7 @@ async function runQaAgent(
 
   const candidate: Record<string, unknown> = {
     title: writer.title,
-    pubDate: new Date().toISOString().slice(0, 10),
+    pubDate: todayInTokyo(),
     category: research.category,
     summary: writer.summary,
     relatedSpotSlug: research.relatedSpotSlug || undefined,

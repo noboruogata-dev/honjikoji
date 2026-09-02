@@ -76,6 +76,23 @@ export function pickRandom<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+/**
+ * 日本時間（Asia/Tokyo）での「今日」をYYYY-MM-DD形式で返す。
+ * GitHub ActionsのランナーはUTCで動くため、`new Date().toISOString()`を
+ * そのまま使うと日本時間の日付とズレる（特にJST 0:00〜9:00の間はUTC側が
+ * 前日になる。実例: 天婦羅割烹みや嶋の公開お知らせのpubDateが実際の
+ * 公開日の前日になっていた）。generate-spot.ts・generate-news.ts・
+ * generate-column.tsの pubDate 生成・「今日」判定は必ずこれを使うこと。
+ */
+export function todayInTokyo(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
 export function toYamlString(value: string): string {
   // JSON.stringify のダブルクオート＋エスケープは YAML のダブルクオート文字列としても
   // そのまま有効なので、同じ書式で安全にエスケープできる。

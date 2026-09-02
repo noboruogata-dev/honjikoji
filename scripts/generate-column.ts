@@ -28,6 +28,7 @@ import {
   normalizeText,
   parseJsonOrThrow,
   slugify,
+  todayInTokyo,
   toYamlString,
   uniqueSlug,
 } from './lib/gemini-agents.js';
@@ -100,15 +101,6 @@ function parseArgs(argv: string[]): CliOptions {
     noImage,
     publish,
   };
-}
-
-function todayInTokyo(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Tokyo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
 }
 
 async function loadProvidedMaterial(sourceFile?: string): Promise<string> {

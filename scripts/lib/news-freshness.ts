@@ -9,6 +9,13 @@
  * テストから安全にimportできるよう、ここに置いている。
  */
 
+import { todayInTokyo } from './gemini-agents.js';
+
+// generate-spot.ts・generate-column.tsからもimportされるため、ここでも
+// 再エクスポートする（正本はgemini-agents.ts。JST/UTCのズレを吸収する
+// 日付計算をscript全体で1箇所にまとめるため）。
+export { todayInTokyo };
+
 /** ニュースとして扱う出来事の鮮度上限（ヶ月）。 */
 export const FRESHNESS_LIMIT_MONTHS = 3;
 
@@ -26,21 +33,6 @@ export function isWithinFreshnessLimit(eventDateIso: string, now: Date = new Dat
   const limit = new Date(now);
   limit.setMonth(limit.getMonth() - FRESHNESS_LIMIT_MONTHS);
   return new Date(`${eventDateIso}T00:00:00Z`).getTime() >= limit.getTime();
-}
-
-/**
- * 日本時間（Asia/Tokyo）での「今日」をYYYY-MM-DD形式で返す。
- * GitHub ActionsのランナーはUTCで動くため、`new Date().toISOString()`を
- * そのまま使うと日本時間の日付とズレる（特にJST 0:00〜9:00の間はUTC側が
- * 前日になる）。scripts/generate-column.tsのtodayInTokyo()と同じ実装。
- */
-export function todayInTokyo(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Tokyo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now);
 }
 
 /**

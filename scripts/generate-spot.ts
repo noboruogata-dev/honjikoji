@@ -73,6 +73,7 @@ import {
   readFrontmatter,
   slugify,
   summarizeOutcomes,
+  todayInTokyo,
   toYamlString,
   uniqueSlug,
 } from './lib/gemini-agents.js';
@@ -693,7 +694,7 @@ async function runQaAgent(
     isIrregular: isIrregular || undefined,
     socialLinks: socialLinkResult.accepted.length > 0 ? socialLinkResult.accepted : undefined,
     description: writer.description,
-    pubDate: new Date().toISOString().slice(0, 10),
+    pubDate: todayInTokyo(),
   };
 
   const result = spotFrontmatterSchema.safeParse(candidate);
@@ -845,7 +846,7 @@ async function runAnnouncementAgent(spot: AnnouncementSource): Promise<Announcem
 
     const candidate: Record<string, unknown> = {
       title,
-      pubDate: new Date().toISOString().slice(0, 10),
+      pubDate: todayInTokyo(),
       category: 'NEW SPOT',
       summary,
       relatedSpotSlug: spot.slug,
