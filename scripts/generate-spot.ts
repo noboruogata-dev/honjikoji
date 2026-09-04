@@ -580,6 +580,8 @@ interface QaResult {
    * checked: false（照合自体を行っていない）。
    */
   hoursVerification: { checked: boolean; hasMismatch: boolean; maxDiffMinutes: number; mismatchedDays: string[] };
+  /** Place IDを解決できなかった場合のみ設定する（Job Summaryで原因を切り分けられるようにするため）。 */
+  placeIdWarning?: string;
 }
 
 /** SpotFrontmatterのhoursを、content.config.tsが期待するYAML行に変換する（無ければ空配列）。 */
@@ -615,13 +617,20 @@ async function runQaAgent(
 
   // 店名・住所からPlace IDを解決する（GOOGLE_PLACES_API_KEY未設定・該当なし・
   // APIエラーのいずれでも null。処理は継続し、placeIdは未設定のまま保存する）。
+  // 「キー未設定」と「キーはあるが該当なし/APIエラー」を区別してログ・Job
+  // Summaryに残す（ヨルサクラの件で原因切り分けにログ側の情報が不足していた
+  // ため、次回以降は再現作業なしで判別できるようにした）。
+  const placesApiKeyPresent = Boolean(process.env.GOOGLE_PLACES_API_KEY);
   const resolvedPlace = await resolvePlaceId(research.title, research.address, process.env.GOOGLE_PLACES_API_KEY);
+  let placeIdWarning: string | undefined;
   if (resolvedPlace) {
     console.log(`${label} Place IDを解決しました: ${resolvedPlace.placeId}`);
+  } else if (!placesApiKeyPresent) {
+    placeIdWarning = 'GOOGLE_PLACES_API_KEYが未設定のため、Place ID解決・営業時間検証をスキップしました。';
+    console.warn(`${label} ${placeIdWarning}`);
   } else {
-    console.warn(
-      `${label} Place IDを解決できませんでした（GOOGLE_PLACES_API_KEY未設定、または該当なし）。詳細ページのライブ営業時間表示は無効のまま保存します。`
-    );
+    placeIdWarning = 'Place IDを解決できませんでした（該当なし、またはAPIエラー）。詳細ページのライブ営業時間表示は無効のまま保存します。';
+    console.warn(`${label} ${placeIdWarning}`);
   }
 
   // openHours/regularHolidayから構造化hoursを決定論的に導出する（LLM不使用）。
@@ -773,7 +782,7 @@ async function runQaAgent(
   await writeFile(filePath, frontmatter + writer.body.trim() + '\n', 'utf-8');
 
   console.log(`${label} 完了。保存しました: ${path.relative(process.cwd(), filePath)}`);
-  return { filePath, hoursDerived: Boolean(fm.hours), hoursReason: hoursResult.reason, hoursVerification };
+  return { filePath, hoursDerived: Boolean(fm.hours), hoursReason: hoursResult.reason, hoursVerification, placeIdWarning };
 }
 
 // ============================================================
@@ -1521,7 +1530,7 @@ async function main() {
       }
 
       const writer = await runWriterAgent(ai, research);
-      const { filePath, hoursDerived, hoursReason, hoursVerification } = await runQaAgent(
+      const { filePath, hoursDerived, hoursReason, hoursVerification, placeIdWarning } = await runQaAgent(
         research,
         writer,
         existingSlugs
@@ -1576,6 +1585,7 @@ async function main() {
       console.log(` ${announcementSummaryLine(announcement)}`);
       console.log(` ${hoursLine}`);
       if (hoursVerificationLine) console.log(` ${hoursVerificationLine}`);
+      if (placeIdWarning) console.log(` ⚠️ ${placeIdWarning}`);
       console.log('============================================================');
 
       await appendStepSummary(
@@ -1588,6 +1598,7 @@ async function main() {
           `- ${announcementSummaryLine(announcement)}`,
           `- ${hoursLine}`,
           hoursVerificationLine ? `- ${hoursVerificationLine}` : null,
+          placeIdWarning ? `- ⚠️ ${placeIdWarning}` : null,
           instagramMaterial.warning ? `- ⚠️ ${instagramMaterial.warning}` : null,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
           unconfirmedHintLine(),
