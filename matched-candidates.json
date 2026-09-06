@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-30T23:02:39.382Z",
+  "generatedAt": "2026-09-06T23:03:55.839Z",
   "channel": "@TsubameSanjoTV",
   "candidates": [
     {
@@ -28,6 +28,33 @@
       "publishedAt": "2020-07-28T15:23:25Z",
       "confidence": "low",
       "reason": "店名のごく一部（連続4文字、店名の50%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "oden-bar-yorusakura",
+      "spotTitle": "ヨルサクラ",
+      "videoId": "qoQCI2G_j0k",
+      "videoTitle": "女性バーテンダーによる日本一のカクテルが飲めるBAR！ラスティーズセカンド【本寺小路】【燕三条TV】｜新潟県三条市",
+      "publishedAt": "2023-06-06T09:17:58Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続2文字、店名の40%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "oden-bar-yorusakura",
+      "spotTitle": "ヨルサクラ",
+      "videoId": "Q6siVmyRCmY",
+      "videoTitle": "【燕三条TV】「三平」元寿司職人のマスターによる絶品魚料理は必見！｜新潟県三条市",
+      "publishedAt": "2022-07-02T08:50:53Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続2文字、店名の40%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "oden-bar-yorusakura",
+      "spotTitle": "ヨルサクラ",
+      "videoId": "3iPhH-38Ogk",
+      "videoTitle": "二代目店主による七輪捌きは圧巻！もつ焼おとん【本寺小路】【燕三条TV】【新潟県三条市】",
+      "publishedAt": "2021-01-03T09:35:49Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続2文字、店名の40%）がタイトルに含まれる可能性"
     }
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-30T23:02:39.390Z",
+  "generatedAt": "2026-09-06T23:03:55.846Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
@@ -67,15 +67,6 @@
       "storeDisplay": "酒場カンテツ"
     },
     {
-      "videoId": "3iPhH-38Ogk",
-      "title": "二代目店主による七輪捌きは圧巻！もつ焼おとん【本寺小路】【燕三条TV】【新潟県三条市】",
-      "publishedAt": "2021-01-03T09:35:49Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "もつ焼おとん",
-      "storeDisplay": "もつ焼おとん"
-    },
-    {
       "videoId": "XN3kq_1podo",
       "title": "スタミナ料理焼肉ホルモン ニュー大丸（秘伝の味噌ダレで食べるホルモン最強説！）【本寺小路】【燕三条TV】【新潟県三条市】",
       "publishedAt": "2021-02-02T09:15:24Z",
@@ -119,24 +110,6 @@
       "store": null,
       "storeManual": "独歩",
       "storeDisplay": "独歩"
-    },
-    {
-      "videoId": "FkxMVC28auE",
-      "title": "究極の贅沢を味わえる天婦羅割烹 みや嶋！Japanese food tempura japan 三条市で唯一の天婦羅屋【本寺小路】【燕三条TV】",
-      "publishedAt": "2023-03-26T08:49:09Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "天婦羅割烹 みや嶋",
-      "storeDisplay": "天婦羅割烹 みや嶋"
-    },
-    {
-      "videoId": "qoQCI2G_j0k",
-      "title": "女性バーテンダーによる日本一のカクテルが飲めるBAR！ラスティーズセカンド【本寺小路】【燕三条TV】｜新潟県三条市",
-      "publishedAt": "2023-06-06T09:17:58Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "ラスティーズセカンド",
-      "storeDisplay": "ラスティーズセカンド"
     },
     {
       "videoId": "b_eTJURz5Nc",
@@ -254,15 +227,6 @@
       "store": "極上のジンギスカンが食べれる店「もつ焼 多しろ」",
       "storeManual": "もつ焼 多しろ",
       "storeDisplay": "もつ焼 多しろ"
-    },
-    {
-      "videoId": "Q6siVmyRCmY",
-      "title": "【燕三条TV】「三平」元寿司職人のマスターによる絶品魚料理は必見！｜新潟県三条市",
-      "publishedAt": "2022-07-02T08:50:53Z",
-      "area": "sanjo",
-      "store": "「三平」元寿司職人のマスターによる絶品魚料理は必見！",
-      "storeManual": "三平",
-      "storeDisplay": "三平"
     },
     {
       "videoId": "hXGbocxgz7I",
