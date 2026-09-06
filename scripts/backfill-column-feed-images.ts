@@ -4,8 +4,9 @@
  * 既存のコラム記事に、Instagram投稿用フィード画像（1080x1350、4:5、
  * public/images/columns/<slug>-feed.webp）を後付けする。
  *
- * eyecatchと同じ透過ソース（assets-src/columns/<slug>-source.png）から
- * 切り出すため、新たな画像生成APIコールは発生しない。ただし
+ * eyecatchと同じ生成ソース（assets-src/columns/<slug>-source.拡張子。
+ * 画像生成APIの返却フォーマット次第でpng/jpg等が混在する）から切り出す
+ * ため、新たな画像生成APIコールは発生しない。ただし
  * assets-src/ はGit管理外（.gitignore）で生成直後のジョブでしか
  * 存在しないため、ソースが見つからない記事はスキップする（別の画像を
  * 代用したりはしない）。既存のフィード画像は上書きしない。
@@ -47,8 +48,20 @@ function reasonLabel(reason: SkipReason): string {
     case 'already-exists':
       return '既にフィード画像があるため上書きしない';
     case 'no-source':
-      return `透過ソース（${path.relative(PROJECT_ROOT, SOURCE_DIR)}/<slug>-source.png）が見つからない（生成直後のジョブでしか残らないため）`;
+      return `生成ソース（${path.relative(PROJECT_ROOT, SOURCE_DIR)}/<slug>-source.*）が見つからない（生成直後のジョブでしか残らないため）`;
   }
+}
+
+// 画像生成APIの返却フォーマットは時期によって変わりうる（現状jpeg、
+// 以前はpng）ため、拡張子を決め打ちせず候補を順に探す。
+const SOURCE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+
+function findSourcePath(slug: string): string | null {
+  for (const ext of SOURCE_EXTENSIONS) {
+    const candidate = path.join(SOURCE_DIR, `${slug}-source.${ext}`);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
 }
 
 async function listSlugs(onlySlug: string | undefined): Promise<string[]> {
@@ -97,8 +110,8 @@ async function main() {
       continue;
     }
 
-    const sourcePath = path.join(SOURCE_DIR, `${slug}-source.png`);
-    if (!existsSync(sourcePath)) {
+    const sourcePath = findSourcePath(slug);
+    if (!sourcePath) {
       results.push({ slug, status: 'skipped', reason: 'no-source' });
       continue;
     }

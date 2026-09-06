@@ -1,6 +1,6 @@
 /**
- * 既存記事のアイキャッチ（1枚目）だけを、現在のパイプライン（透過QA・
- * ディザリングノイズ検出込み）で再生成する一回限りの復旧用スクリプト。
+ * 既存記事のアイキャッチ（1枚目）だけを、現在のパイプライン（背景色QA
+ * 込み）で再生成する一回限りの復旧用スクリプト。
  * regenerate-column-illust.ts のアイキャッチ版。本文・2枚目・frontmatterの
  * 他フィールドには一切触れず、同じファイルパスへ上書きし、altだけを
  * 新しいモチーフ由来のものに差し替える（モチーフ自体はtitle/summary由来
@@ -18,8 +18,9 @@ import {
   buildColumnImageAlt,
   buildColumnImagePrompt,
   createEyecatchImage,
-  generateTransparentSource,
+  generateColumnIllustration,
   MAX_PUBLIC_IMAGE_BYTES,
+  sourceFileExtension,
 } from './lib/column-images.js';
 import { columnFrontmatterSchema } from './lib/column-pipeline.js';
 
@@ -65,7 +66,7 @@ async function main() {
   const ai = new GoogleGenAI({ apiKey });
 
   console.log(`[regenerate-column-eyecatch] ${slug} のアイキャッチを再生成します。`);
-  const source = await generateTransparentSource(ai, buildColumnImagePrompt(imageInput));
+  const source = await generateColumnIllustration(ai, buildColumnImagePrompt(imageInput));
   const eyecatchBuffer = await createEyecatchImage(source);
   if (eyecatchBuffer.length > MAX_PUBLIC_IMAGE_BYTES) {
     console.warn(`[regenerate-column-eyecatch] アイキャッチが200KBを超えています（${Math.ceil(eyecatchBuffer.length / 1024)}KB）。`);
@@ -73,7 +74,7 @@ async function main() {
 
   const sourceDir = path.join(PROJECT_ROOT, 'assets-src/columns');
   await mkdir(sourceDir, { recursive: true });
-  const sourcePath = path.join(sourceDir, `${slug}-source.png`);
+  const sourcePath = path.join(sourceDir, `${slug}-source.${await sourceFileExtension(source)}`);
   await writeFile(sourcePath, source);
   await writeFile(eyecatchPath, eyecatchBuffer);
   console.log(`[regenerate-column-eyecatch] 画像を上書きしました: ${path.relative(process.cwd(), eyecatchPath)}`);

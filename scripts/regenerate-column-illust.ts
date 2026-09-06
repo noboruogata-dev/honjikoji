@@ -1,6 +1,6 @@
 /**
  * 既存記事の2枚目（本文中ほどの挿絵）だけを、現在のパイプライン
- * （透過QA・ディザリングノイズ検出込み）で再生成する一回限りの復旧用スクリプト。
+ * （背景色QA込み）で再生成する一回限りの復旧用スクリプト。
  *
  * 1枚目（アイキャッチ）・本文・frontmatterの他フィールドには一切触れない。
  * 挿入位置（findMidImageInsertion）は本文が変わっていなければ前回と同じ
@@ -21,8 +21,9 @@ import {
   buildColumnMidImagePrompt,
   createIllustrationImage,
   findMidImageInsertion,
-  generateTransparentSource,
+  generateColumnIllustration,
   MAX_PUBLIC_IMAGE_BYTES,
+  sourceFileExtension,
 } from './lib/column-images.js';
 import { columnFrontmatterSchema } from './lib/column-pipeline.js';
 
@@ -74,7 +75,7 @@ async function main() {
   const ai = new GoogleGenAI({ apiKey });
 
   console.log(`[regenerate-column-illust] ${slug} の2枚目を再生成します（挿入位置: ${insertion.contextAfter.slice(0, 30)}...）`);
-  const midSource = await generateTransparentSource(ai, buildColumnMidImagePrompt(imageInput, insertion));
+  const midSource = await generateColumnIllustration(ai, buildColumnMidImagePrompt(imageInput, insertion));
   const illustrationBuffer = await createIllustrationImage(midSource);
   if (illustrationBuffer.length > MAX_PUBLIC_IMAGE_BYTES) {
     console.warn(`[regenerate-column-illust] 本文挿絵が200KBを超えています（${Math.ceil(illustrationBuffer.length / 1024)}KB）。`);
@@ -82,7 +83,7 @@ async function main() {
 
   const sourceDir = path.join(PROJECT_ROOT, 'assets-src/columns');
   await mkdir(sourceDir, { recursive: true });
-  const midSourcePath = path.join(sourceDir, `${slug}-illust-source.png`);
+  const midSourcePath = path.join(sourceDir, `${slug}-illust-source.${await sourceFileExtension(midSource)}`);
   await writeFile(midSourcePath, midSource);
   await writeFile(illustPath, illustrationBuffer);
   console.log(`[regenerate-column-illust] 画像を上書きしました: ${path.relative(process.cwd(), illustPath)}`);

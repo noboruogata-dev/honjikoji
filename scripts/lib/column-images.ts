@@ -17,18 +17,6 @@ export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image';
 export const MAX_IMAGE_ATTEMPTS = 2;
 export const MAX_PUBLIC_IMAGE_BYTES = 200 * 1024;
 
-/** アルファ値がこれ以上急変する隣接画素ペアを「ノイズらしい」とみなす境界。
- *  境界線のアンチエイリアスは数px幅のなだらかな変化になるが、背景全体が
- *  ディザリングされているケースは0近辺⇔255近辺を1px単位で往復する。 */
-const ALPHA_NOISE_JUMP_THRESHOLD = 150;
-/**
- * 画像全体に占める「ノイズらしい隣接ペア」の比率のしきい値。
- * 実測値（japanese-sake-label-rules-illust.webp の背景ディザリング事故と、
- * 既存の正常画像2点）: 事故画像 7.8%（jump=150基準）、正常画像は0.0〜0.2%。
- * 大きな余裕を見て1%に設定する。
- */
-export const ALPHA_NOISE_RATIO_THRESHOLD = 0.01;
-
 /** 本文中ほどに2枚目の挿絵を入れるための最小要件。見出しが少ない、または
  *  本文が短い記事に無理に挿絵を挟むと窮屈になるため、どちらかを下回る記事は
  *  2枚目を生成せず、1枚目（アイキャッチ）だけで公開を続行する。 */
@@ -45,7 +33,7 @@ export interface ColumnImageInput {
 
 export interface ColumnImageResult {
   eyecatch: { src: string; alt: string };
-  /** Instagram投稿用のフィード画像（1080x1350、4:5）。eyecatchと同じ透過
+  /** Instagram投稿用のフィード画像（1080x1350、4:5）。eyecatchと同じ挿絵
    *  ソースから切り出すため、追加の画像生成APIコールは発生しない。 */
   feed: { src: string; alt: string };
   /** 本文中ほどの2枚目挿絵。findMidImageInsertionの条件を満たさない場合や、
@@ -85,17 +73,37 @@ export function chooseColumnMotif(input: ColumnImageInput): string {
   return motifFromText(input.category, `${input.title} ${input.summary}`);
 }
 
-/** 1枚目・2枚目共通の画風ロック。挿絵の見た目をサイト全体で統一するため、
- *  プロンプトを分けても必ずこの一文を含める。 */
+// サイトの基調色（暗い夜の路地）。挿絵はこの色を背景として直接描かせる
+// （後述のLOCKED_ART_DIRECTION参照）。合成先キャンバスの下地色とも揃える。
+const TARGET_BACKGROUND_HEX = '#14110f';
+const TARGET_BACKGROUND_RGB: [number, number, number] = [0x14, 0x11, 0x0f];
+
+/**
+ * 1枚目・2枚目共通の画風ロック。挿絵の見た目をサイト全体で統一するため、
+ * プロンプトを分けても必ずこの一文を含める。
+ *
+ * 以前は「透明背景（アルファチャンネル）」を指示し、生成後に背景を検出・
+ * 除去するQAパイプラインを組んでいたが、Gemini画像生成モデルはネイティブな
+ * アルファチャンネル出力に対応しておらず（Google側の既知の制約。透明の
+ * 指示をしても市松模様や単色で「描く」だけ）、かつ返却フォーマットが
+ * 実質的にJPEG固定になったことで、PNG前提の背景除去（色距離ベースの
+ * flood fill）が構造的に成立しなくなった（JPEGの非可逆圧縮ノイズで
+ * 背景色の均一性が崩れ、市松模様検出・アルファノイズ検出等が軒並み
+ * 誤検知するようになった）。
+ *
+ * そのため透明指定はやめ、モデルに最初からサイトの背景色（#14110f）で
+ * 単色背景を描かせる方式に変更した。背景除去は不要になり、生成画像を
+ * そのままリサイズして使う（詳細はgenerateColumnIllustration・
+ * createEyecatchImage・createFeedImage参照）。
+ */
 const LOCKED_ART_DIRECTION = `Locked art direction:
-- completely transparent background with a real alpha channel
-- transparency must be encoded in the alpha channel; never draw a checkerboard, transparency grid, gray-and-white squares, or placeholder background
+- solid, completely flat background filled with sumi black ${TARGET_BACKGROUND_HEX} — no gradient, no texture, no pattern, no vignette, no other background color
 - exactly one central subject or one compact still-life group
-- generous empty transparent margin around the subject
+- generous empty margin (filled with the same solid background color) around the subject
 - Japanese modern, restrained hand-drawn illustration
 - thin sumi-ink linework
 - flat shapes, minimal shading, no photorealism, no 3D, no anime style
-- use only these colors: sumi black #14110f, warm off-white #d8cbb8, lantern amber #f2b544, vermilion #c8412f
+- use only these colors: sumi black #14110f (background), warm off-white #d8cbb8, lantern amber #f2b544, vermilion #c8412f
 - no text, no letters, no numbers, no labels, no logos, no signatures, no border, no frame
 - do not depict a recognizable real person or reproduce a real storefront
 - for historical themes, create a symbolic scene rather than claiming an exact historical reconstruction`;
@@ -204,191 +212,35 @@ export function buildColumnMidImageAlt(input: ColumnImageInput, insertion: MidIm
   return `${input.title}の本文中盤、${chooseMidImageMotif(input, insertion)}を描いた和モダンな挿絵`;
 }
 
-interface AlphaStats {
-  hasAlpha: boolean;
-  transparentRatio: number;
-}
-
-export async function inspectAlpha(buffer: Buffer): Promise<AlphaStats> {
-  const metadata = await sharp(buffer).metadata();
-  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  let transparent = 0;
-  const pixels = info.width * info.height;
-  for (let offset = 3; offset < data.length; offset += 4) {
-    if (data[offset] < 250) transparent += 1;
-  }
-  return { hasAlpha: Boolean(metadata.hasAlpha), transparentRatio: pixels ? transparent / pixels : 0 };
-}
-
-export function needsBackgroundRemoval(transparentRatio: number): boolean {
-  return transparentRatio < 0.05;
-}
-
-/**
- * 透過を表す市松模様そのものが画素として描かれた画像を検出する。
- *
- * 「無彩色（グレースケール）」の判定にmin>120（明るいグレー〜白限定）を
- * 課していたが、実際に発生した事故では黒に近い市松（約20,20,20）や中間の
- * 濃さの市松（約50,50,50/105,105,105）もあり、いずれもこの下限に阻まれて
- * 検出をすり抜けていた（japanese-sake-label-rules記事のアイキャッチ・
- * 挿絵で確認）。下限を撤廃し、「無彩色（max-min<12）かつ不透明」だけを
- * 条件にする。墨線（thin ink strokes）は面積が小さく隣接ペア数が少ないため、
- * 誤検出防止は下限を課さなくても以下のneutralRatio/edgeRatioのしきい値で
- * 十分に効く（薄い輪郭線だけでは画像全体の55%やエッジ比0.15%を超えない）。
- */
-export async function hasRenderedTransparencyGrid(buffer: Buffer): Promise<boolean> {
-  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const total = info.width * info.height;
-  let opaqueNeutral = 0;
-  let semitransparentNeutral = 0;
-  let contrastEdges = 0;
-  let neighborPairs = 0;
-  const isOpaqueNeutral = (offset: number) => {
-    const max = Math.max(data[offset], data[offset + 1], data[offset + 2]);
-    const min = Math.min(data[offset], data[offset + 1], data[offset + 2]);
-    return data[offset + 3] >= 250 && max - min < 12;
-  };
-  const luminance = (offset: number) => (data[offset] + data[offset + 1] + data[offset + 2]) / 3;
-
-  for (let y = 0; y < info.height; y += 1) {
-    for (let x = 0; x < info.width; x += 1) {
-      const offset = (y * info.width + x) * 4;
-      if (isOpaqueNeutral(offset)) opaqueNeutral += 1;
-      const max = Math.max(data[offset], data[offset + 1], data[offset + 2]);
-      const min = Math.min(data[offset], data[offset + 1], data[offset + 2]);
-      if (data[offset + 3] > 0 && data[offset + 3] < 245 && max - min < 15) {
-        semitransparentNeutral += 1;
-      }
-      if (x + 1 < info.width) {
-        const next = offset + 4;
-        neighborPairs += 1;
-        if (isOpaqueNeutral(offset) && isOpaqueNeutral(next) && Math.abs(luminance(offset) - luminance(next)) > 50) contrastEdges += 1;
-      }
-      if (y + 1 < info.height) {
-        const next = offset + info.width * 4;
-        neighborPairs += 1;
-        if (isOpaqueNeutral(offset) && isOpaqueNeutral(next) && Math.abs(luminance(offset) - luminance(next)) > 50) contrastEdges += 1;
-      }
-    }
-  }
-
-  const neutralRatio = opaqueNeutral / total;
-  const semitransparentNeutralRatio = semitransparentNeutral / total;
-  const edgeRatio = contrastEdges / neighborPairs;
-  return semitransparentNeutralRatio > 0.1 || neutralRatio > 0.55 || (neutralRatio > 0.4 && edgeRatio > 0.0015);
-}
-
-/**
- * 隣接画素間でアルファ値が激しく往復している比率を測る（0〜1）。
- *
- * 背景が単色寄りでもRGBは揃ったまま「透明⇔不透明」がまだら状にディザリング
- * されるケースを検出するために作った。このケースは、色は均一なため
- * removeConnectedBackgroundの色距離ベースの背景推定にはほとんど引っかからず
- * （提灯部分の描画色と誤認したり、たまたま角の画素が透明で背景色推定自体を
- * 誤らせたりする）、hasRenderedTransparencyGrid（RGBの明度差で市松模様を
- * 検出する）にも引っかからない（RGBはほぼ同じ色のままでアルファだけが
- * 動くため、隣接画素間の明度差がほぼ0になる）。日本酒ラベルコラムの
- * 2枚目挿絵で実際に発生した事故（背景が白のまま、アルファだけが1px単位で
- * 0/255付近を往復）はこの手口で検出できる。
- */
-export async function alphaNoiseRatio(
-  buffer: Buffer,
-  jumpThreshold: number = ALPHA_NOISE_JUMP_THRESHOLD
-): Promise<number> {
-  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const { width, height } = info;
-  let noisyPairs = 0;
-  let pairs = 0;
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const offset = (y * width + x) * 4;
-      if (x + 1 < width) {
-        pairs += 1;
-        if (Math.abs(data[offset + 3] - data[offset + 4 + 3]) > jumpThreshold) noisyPairs += 1;
-      }
-      if (y + 1 < height) {
-        const next = offset + width * 4;
-        pairs += 1;
-        if (Math.abs(data[offset + 3] - data[next + 3]) > jumpThreshold) noisyPairs += 1;
-      }
-    }
-  }
-  return pairs ? noisyPairs / pairs : 0;
-}
-
-/**
- * 画像モデルが「透明」を半透明の無彩色格子として描いた場合、その画素だけを
- * 完全透明にする。彩色された半透明画素と、不透明な墨線・生成り面は保持する。
- */
-export async function removeRenderedTransparencyGrid(buffer: Buffer): Promise<Buffer> {
-  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  for (let offset = 0; offset < data.length; offset += 4) {
-    const alpha = data[offset + 3];
-    const max = Math.max(data[offset], data[offset + 1], data[offset + 2]);
-    const min = Math.min(data[offset], data[offset + 1], data[offset + 2]);
-    if (alpha > 0 && alpha < 245 && max - min < 15) data[offset + 3] = 0;
-  }
-  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
-}
-
 function colorDistance(r: number, g: number, b: number, bg: [number, number, number]): number {
   return Math.sqrt((r - bg[0]) ** 2 + (g - bg[1]) ** 2 + (b - bg[2]) ** 2);
 }
 
+// 角の背景色がTARGET_BACKGROUND_RGBからどれだけ離れていたら「背景指示を
+// 守っていない」とみなすか。JPEG圧縮のブロックノイズを吸収できる程度の
+// 余裕を持たせる（旧removeConnectedBackgroundの背景認定しきい値44よりは
+// 厳しく、単なる圧縮ノイズよりは緩い値として実測ベースで設定）。
+export const BACKGROUND_COLOR_TOLERANCE = 30;
+
 /**
- * 画像モデルが透明指定を守らず単色背景を返した場合だけ、外周につながる背景を
- * flood fillで透明化する。絵の内側にある生成り色は外周非連結なら保持される。
+ * 生成画像の四隅が指示通りTARGET_BACKGROUND_RGB（サイトの基調色）に
+ * 塗られているかを確認する。4隅のうち最も色が離れている値を返す
+ * （1箇所でも背景指示を外していれば検出したいため、平均ではなく最大値）。
+ *
+ * 以前の透過検出（市松模様・アルファノイズ等）と違い、判定はこれ1つだけに
+ * 単純化した。モデルがネイティブなアルファチャンネルに対応しておらず
+ * JPEG出力になったことで背景除去の前提が崩れたため、背景色そのものを
+ * 直接指示・直接検証する設計に変更した（LOCKED_ART_DIRECTIONのコメント
+ * 参照）。
  */
-export async function removeConnectedBackground(buffer: Buffer): Promise<Buffer> {
+export async function backgroundColorDistance(buffer: Buffer): Promise<number> {
   const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width, height } = info;
   const cornerOffsets = [0, (width - 1) * 4, (height - 1) * width * 4, (height * width - 1) * 4];
-  const rgbCorners: Array<[number, number, number]> = cornerOffsets.map((offset) => [
-    data[offset],
-    data[offset + 1],
-    data[offset + 2],
-  ]);
-  const sorted = (channel: number) => rgbCorners.map((rgb) => rgb[channel]).sort((a, b) => a - b);
-  const red = sorted(0);
-  const green = sorted(1);
-  const blue = sorted(2);
-  const background: [number, number, number] = [red[1], green[1], blue[1]];
-  const seen = new Uint8Array(width * height);
-  const queue = new Int32Array(width * height);
-  let head = 0;
-  let tail = 0;
-
-  const enqueue = (pixel: number) => {
-    if (seen[pixel]) return;
-    const offset = pixel * 4;
-    if (colorDistance(data[offset], data[offset + 1], data[offset + 2], background) > 44) return;
-    seen[pixel] = 1;
-    queue[tail++] = pixel;
-  };
-  for (let x = 0; x < width; x += 1) {
-    enqueue(x);
-    enqueue((height - 1) * width + x);
-  }
-  for (let y = 0; y < height; y += 1) {
-    enqueue(y * width);
-    enqueue(y * width + width - 1);
-  }
-
-  while (head < tail) {
-    const pixel = queue[head++];
-    const x = pixel % width;
-    const y = Math.floor(pixel / width);
-    const offset = pixel * 4;
-    const distance = colorDistance(data[offset], data[offset + 1], data[offset + 2], background);
-    // 背景近似色は完全透明、境界側はアルファを段階的に残してフリンジを抑える。
-    data[offset + 3] = distance <= 20 ? 0 : Math.round(((distance - 20) / 24) * data[offset + 3]);
-    if (x > 0) enqueue(pixel - 1);
-    if (x + 1 < width) enqueue(pixel + 1);
-    if (y > 0) enqueue(pixel - width);
-    if (y + 1 < height) enqueue(pixel + width);
-  }
-
-  return sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  const distances = cornerOffsets.map((offset) =>
+    colorDistance(data[offset], data[offset + 1], data[offset + 2], TARGET_BACKGROUND_RGB)
+  );
+  return Math.max(...distances);
 }
 
 async function ensureDoesNotExist(filePath: string) {
@@ -408,13 +260,27 @@ function extractImage(response: Awaited<ReturnType<GoogleGenAI['models']['genera
   return Buffer.from(data, 'base64');
 }
 
-/** 指定プロンプトから透過PNGを生成し、透過QA（背景除去・チェッカー柄検出・
- *  ディザリングノイズ検出・透明率検証）を通過するまで最大MAX_IMAGE_ATTEMPTS回
- *  試みる。1枚目・2枚目のどちらもこの関数を通す（プロンプトが違うだけで
- *  検証ロジックは共通）。生成し直しても直らない類のAPIエラーでない限り、
- *  QAに落ちた画像はそのまま公開せず再試行する（不透過のまま使うフォール
- *  バックは持たない）。 */
-export async function generateTransparentSource(ai: GoogleGenAI, prompt: string): Promise<Buffer> {
+/** 画像生成APIが実際に返したフォーマット（現状jpegだが将来変わっても
+ *  対応できるよう、拡張子固定にせずsharpで実測する）に合わせた拡張子。
+ *  デバッグ用の原画保存（assets-src/columns/）で、中身と拡張子が食い違う
+ *  ファイルを残さないために使う。 */
+export async function sourceFileExtension(buffer: Buffer): Promise<string> {
+  const { format } = await sharp(buffer).metadata();
+  return format ?? 'bin';
+}
+
+/**
+ * 指定プロンプトから、サイトの基調色（#14110f）を背景にした挿絵を生成する。
+ * 四隅がその背景色から大きく外れていないか（＝背景指示を守っているか）を
+ * 確認し、最大MAX_IMAGE_ATTEMPTS回まで試みる。1枚目・2枚目のどちらもこの
+ * 関数を通す（プロンプトが違うだけで検証ロジックは共通）。
+ *
+ * 返り値はモデルが返した画像をそのまま返す（現状JPEGだが、この関数は
+ * フォーマットに依存しない。呼び出し側のcreateEyecatchImage等がsharpで
+ * 読み込み・リサイズする際にフォーマットを問わず扱える）。透明背景を
+ * 前提にした背景除去は行わない（LOCKED_ART_DIRECTIONのコメント参照）。
+ */
+export async function generateColumnIllustration(ai: GoogleGenAI, prompt: string): Promise<Buffer> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_IMAGE_ATTEMPTS; attempt += 1) {
     try {
@@ -430,36 +296,18 @@ export async function generateTransparentSource(ai: GoogleGenAI, prompt: string)
           thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL, includeThoughts: false },
         },
       });
-      const original = extractImage(response);
-      const initial = await inspectAlpha(original);
-      // 最終QAと同じ5%を境界にする。以前は3%以上で背景除去を省略しつつ
-      // 最終QAで5%以上を要求していたため、3〜5%の画像が必ず失敗していた。
-      const backgroundNormalized = needsBackgroundRemoval(initial.transparentRatio)
-        ? await removeConnectedBackground(original)
-        : await sharp(original).png().toBuffer();
-      const normalized = await removeRenderedTransparencyGrid(backgroundNormalized);
-      const finalStats = await inspectAlpha(normalized);
-      if (!finalStats.hasAlpha || finalStats.transparentRatio < 0.05 || finalStats.transparentRatio > 0.98) {
-        throw new Error(`透明ピクセル率が基準外です: ${(finalStats.transparentRatio * 100).toFixed(1)}%`);
+      const image = extractImage(response);
+      const distance = await backgroundColorDistance(image);
+      if (distance > BACKGROUND_COLOR_TOLERANCE) {
+        throw new Error(`背景色が指示（#14110f）から外れています（色距離: ${distance.toFixed(1)}）。`);
       }
-      if (await hasRenderedTransparencyGrid(normalized)) {
-        throw new Error('透過チェッカー模様が画像として描き込まれています。');
-      }
-      // 背景除去後もなお、色は均一なままアルファだけがまだら状に残っていないかを
-      // 確認する（removeConnectedBackgroundは色距離ベースのため、このタイプの
-      // ノイズは背景色推定を誤らせて素通りしやすい。実例と検証はcolumn-images.
-      // test.tsを参照）。ここで弾いた画像は、上のcatchで再試行に回る。
-      const noiseRatio = await alphaNoiseRatio(normalized);
-      if (noiseRatio > ALPHA_NOISE_RATIO_THRESHOLD) {
-        throw new Error(`背景のアルファが斑点状のノイズとして残っています: ${(noiseRatio * 100).toFixed(1)}%`);
-      }
-      console.log(`[Agent5:ImageQA] 透明ピクセル率 ${(finalStats.transparentRatio * 100).toFixed(1)}% / ノイズ率 ${(noiseRatio * 100).toFixed(2)}%`);
-      return normalized;
+      console.log(`[Agent5:ImageQA] 背景色チェックOK（色距離: ${distance.toFixed(1)}）`);
+      return image;
     } catch (error) {
       lastError = error;
       console.warn(`[Agent4:Image] 試行${attempt}失敗: ${error instanceof Error ? error.message : error}`);
       // リクエスト設定・権限・課金など、画像を作り直しても解消しないAPIエラーは
-      // 無駄に再試行しない。透明度など生成結果の品質エラーだけ再試行する。
+      // 無駄に再試行しない。背景色など生成結果の品質エラーだけ再試行する。
       if (/parameter is only supported|invalid argument|permission denied|billing|api key/i.test(String(error))) {
         break;
       }
@@ -468,10 +316,14 @@ export async function generateTransparentSource(ai: GoogleGenAI, prompt: string)
   throw new Error(`画像生成が${MAX_IMAGE_ATTEMPTS}回ともQAを通過しませんでした: ${lastError}`);
 }
 
-/** QA済み透過PNGから、OGP・記事冒頭用のアイキャッチ（1200x630、装飾背景に合成）を作る。 */
+/**
+ * 生成した挿絵から、OGP・記事冒頭用のアイキャッチ（1200x630、装飾背景に
+ * 合成）を作る。挿絵自体が既にサイトの基調色（#14110f）を背景に持つため、
+ * 透過合成は不要（正方形の挿絵をそのまま中央に配置するだけ）。
+ */
 export async function createEyecatchImage(source: Buffer): Promise<Buffer> {
   const foreground = await sharp(source)
-    .resize(570, 570, { fit: 'contain', withoutEnlargement: true })
+    .resize(570, 570, { fit: 'contain', withoutEnlargement: true, background: TARGET_BACKGROUND_HEX })
     .png()
     .toBuffer();
   const background = Buffer.from(`<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
@@ -486,11 +338,12 @@ export async function createEyecatchImage(source: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-/** QA済み透過PNGから、本文中ほどに挿し込む挿絵（900x900、透過のまま）を作る。 */
+/** 生成した挿絵から、本文中ほどに挿し込む挿絵（900x900）を作る。正方形の
+ *  挿絵をそのままリサイズするだけ（背景は挿絵自体が既に持っている）。 */
 export async function createIllustrationImage(source: Buffer): Promise<Buffer> {
   return sharp(source)
-    .resize(900, 900, { fit: 'contain', withoutEnlargement: true })
-    .webp({ quality: 80, alphaQuality: 92 })
+    .resize(900, 900, { fit: 'contain', withoutEnlargement: true, background: TARGET_BACKGROUND_HEX })
+    .webp({ quality: 80 })
     .toBuffer();
 }
 
@@ -563,9 +416,9 @@ async function renderFeedTextLabel(text: string, height: number, fontSize: numbe
 }
 
 /**
- * QA済み透過PNGから、Instagram投稿用のフィード画像（1080x1350、4:5、
- * createEyecatchImageと同じ装飾背景に合成）を作る。透過のまま投稿すると
- * 透明部分が黒く潰れるプラットフォームがあるため、背景を敷いて書き出す。
+ * 生成した挿絵から、Instagram投稿用のフィード画像（1080x1350、4:5、
+ * createEyecatchImageと同じ装飾背景に合成）を作る。挿絵自体が既にサイトの
+ * 基調色（#14110f）を背景に持つため、透過合成は不要。
  * カテゴリ名（上）・サイト名（下）はsatoriでレンダリング（フォント内蔵、
  * CI環境のフォント有無に依存しない）。新規の画像生成API呼び出しは発生
  * しない（createEyecatchImageと同じsourceを共有する）。
@@ -578,7 +431,7 @@ async function renderFeedTextLabel(text: string, height: number, fontSize: numbe
  */
 export async function createFeedImage(source: Buffer, category: string): Promise<Buffer> {
   const foreground = await sharp(source)
-    .resize(FEED_ILLUSTRATION_SIZE, FEED_ILLUSTRATION_SIZE, { fit: 'contain', withoutEnlargement: true })
+    .resize(FEED_ILLUSTRATION_SIZE, FEED_ILLUSTRATION_SIZE, { fit: 'contain', withoutEnlargement: true, background: TARGET_BACKGROUND_HEX })
     .png()
     .toBuffer();
   // 左上・右下の点はゴミに見えるとの指摘を受けて削除し、上下の飾り罫線だけ
@@ -627,12 +480,17 @@ export async function generateColumnImages(
   await mkdir(sourceDir, { recursive: true });
   await mkdir(publicDir, { recursive: true });
 
-  const sourcePath = path.join(sourceDir, `${input.slug}-source.png`);
   const eyecatchPath = path.join(publicDir, `${input.slug}-eyecatch.webp`);
   const feedPath = path.join(publicDir, `${input.slug}-feed.webp`);
-  await Promise.all([sourcePath, eyecatchPath, feedPath].map(ensureDoesNotExist));
+  await Promise.all([eyecatchPath, feedPath].map(ensureDoesNotExist));
 
-  const source = await generateTransparentSource(ai, buildColumnImagePrompt(input));
+  const source = await generateColumnIllustration(ai, buildColumnImagePrompt(input));
+  // 画像生成APIが返す実際のフォーマット（現状JPEG）に合わせて拡張子を
+  // 決める。中身と拡張子が食い違うファイルを残さないため（デバッグ用
+  // アーティファクトとしてワークフローがアップロードするため人が開くこともある）。
+  const sourceExt = await sourceFileExtension(source);
+  const sourcePath = path.join(sourceDir, `${input.slug}-source.${sourceExt}`);
+  await ensureDoesNotExist(sourcePath);
   const eyecatch = await createEyecatchImage(source);
   // Instagram用フィード画像はeyecatchと同じsourceから切り出すため、
   // 追加の画像生成APIコールは発生しない。
@@ -665,10 +523,13 @@ export async function generateColumnImages(
   }
 
   const illustrationPath = path.join(publicDir, `${input.slug}-illust.webp`);
-  const midSourcePath = path.join(sourceDir, `${input.slug}-illust-source.png`);
+  let midSourcePath = '';
   try {
-    await Promise.all([illustrationPath, midSourcePath].map(ensureDoesNotExist));
-    const midSource = await generateTransparentSource(ai, buildColumnMidImagePrompt(input, insertion));
+    await ensureDoesNotExist(illustrationPath);
+    const midSource = await generateColumnIllustration(ai, buildColumnMidImagePrompt(input, insertion));
+    const midSourceExt = await sourceFileExtension(midSource);
+    midSourcePath = path.join(sourceDir, `${input.slug}-illust-source.${midSourceExt}`);
+    await ensureDoesNotExist(midSourcePath);
     const illustrationBuffer = await createIllustrationImage(midSource);
     if (illustrationBuffer.length > MAX_PUBLIC_IMAGE_BYTES) {
       warnings.push(`本文挿絵が200KBを超えています（${Math.ceil(illustrationBuffer.length / 1024)}KB）。`);
