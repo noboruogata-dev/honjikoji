@@ -317,13 +317,45 @@ export async function generateColumnIllustration(ai: GoogleGenAI, prompt: string
 }
 
 /**
+ * 正方形の挿絵の縁だけをなだらかに透過させる疑似ビネットマスク（dest-in用）。
+ *
+ * 挿絵は不透明な正方形としてAIから返る（LOCKED_ART_DIRECTION参照）ため、
+ * 装飾背景（光彩グラデーション）の上にそのまま重ねると、正方形の縁で
+ * 光彩が四角くぶつ切りになる（「箱」のように見える）。被写体自体は
+ * 十分な余白を持って中央に描かれる指示になっているので、縁の余白部分
+ * だけをこのマスクで滑らかに透過させれば、被写体を欠けさせずに背景の
+ * 光彩を縁まで自然に透けさせられる。
+ *
+ * 中心から70%の位置まで完全不透明、そこから100%（＝正方形の辺）まで
+ * 透明へフェードする円形グラデーション。
+ */
+async function createEdgeFeatherMask(size: number): Promise<Buffer> {
+  const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="m" cx="50%" cy="50%" r="60%">
+      <stop offset="70%" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient></defs>
+    <rect width="${size}" height="${size}" fill="url(#m)"/>
+  </svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+/**
  * 生成した挿絵から、OGP・記事冒頭用のアイキャッチ（1200x630、装飾背景に
- * 合成）を作る。挿絵自体が既にサイトの基調色（#14110f）を背景に持つため、
- * 透過合成は不要（正方形の挿絵をそのまま中央に配置するだけ）。
+ * 合成）を作る。挿絵自体が既にサイトの基調色（#14110f）を背景に持つため
+ * 透過合成そのものは不要だが、正方形の縁は上記createEdgeFeatherMaskで
+ * フェードさせ、装飾背景の光彩が縁まで自然に見えるようにする。
  */
 export async function createEyecatchImage(source: Buffer): Promise<Buffer> {
-  const foreground = await sharp(source)
-    .resize(570, 570, { fit: 'contain', withoutEnlargement: true, background: TARGET_BACKGROUND_HEX })
+  const size = 570;
+  const resized = await sharp(source)
+    .resize(size, size, { fit: 'contain', withoutEnlargement: true, background: TARGET_BACKGROUND_HEX })
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+  const mask = await createEdgeFeatherMask(size);
+  const foreground = await sharp(resized)
+    .composite([{ input: mask, blend: 'dest-in' }])
     .png()
     .toBuffer();
   const background = Buffer.from(`<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
@@ -430,8 +462,14 @@ async function renderFeedTextLabel(text: string, height: number, fontSize: numbe
  * とどめ、フォントサイズ・存在感ともイラストより明確に小さくしている。
  */
 export async function createFeedImage(source: Buffer, category: string): Promise<Buffer> {
-  const foreground = await sharp(source)
+  const resizedIllustration = await sharp(source)
     .resize(FEED_ILLUSTRATION_SIZE, FEED_ILLUSTRATION_SIZE, { fit: 'contain', withoutEnlargement: true, background: TARGET_BACKGROUND_HEX })
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+  const illustrationMask = await createEdgeFeatherMask(FEED_ILLUSTRATION_SIZE);
+  const foreground = await sharp(resizedIllustration)
+    .composite([{ input: illustrationMask, blend: 'dest-in' }])
     .png()
     .toBuffer();
   // 左上・右下の点はゴミに見えるとの指摘を受けて削除し、上下の飾り罫線だけ
