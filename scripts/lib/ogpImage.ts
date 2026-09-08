@@ -261,6 +261,30 @@ const FEED_HEIGHT = 1350;
 // 吸収する（提灯とサイト名は上下に固定、詳細はbuildFeedTree参照）。
 const FEED_HORIZONTAL_PADDING = 72;
 
+// 英数字の連続（店名に含まれるアルファベット表記・型番等）は、日本語の
+// 文字と違って1文字単位で改行してはいけない「単語」として扱う。
+// 例:「Beerhouse3」を文字数だけで機械的に9文字目で切ると
+// 「Beerhouse」「3」のような不自然な改行になる（実際に報告された不具合）。
+// そのため、折り返し処理に入る前にタイトルを「英数字の連続1語」または
+// 「それ以外の1文字（日本語の文字・記号・空白等、これまで通り1文字単位で
+// 改行してよい）」のトークン列に分解し、英数字の単語だけは分割不可能な
+// 1トークンとして扱う。
+interface WrapToken {
+  text: string;
+  /** 表示上の幅換算に使う文字数。英数字の単語は実際の文字数、それ以外は常に1。 */
+  len: number;
+}
+
+function tokenizeForWrap(title: string): WrapToken[] {
+  const tokens: WrapToken[] = [];
+  for (const segment of title.matchAll(/[A-Za-z0-9]+|./gsu)) {
+    const text = segment[0];
+    const isWord = /^[A-Za-z0-9]+$/.test(text);
+    tokens.push({ text, len: isWord ? [...text].length : 1 });
+  }
+  return tokens;
+}
+
 /**
  * 日本語の禁則処理を簡易的に行うタイトル折り返し。完全な形態素解析はせず、
  * 句読点・記号を優先的な改行位置として扱い、それが無い場合のみ文字数で
@@ -270,25 +294,37 @@ const FEED_HORIZONTAL_PADDING = 72;
  *   （優先的な改行位置が見つからない場合のみ効く。避けようとして
  *   行が短くなりすぎる＝1文字も入らなくなる場合は諦めて機械的に切る）
  * - 行頭に句読点・閉じ括弧が来ないようにする（標準的な禁則処理）
+ * - 英数字の単語（tokenizeForWrap参照）は分割せず、単語の途中で改行しない
  * テスト用にexportする。
  */
 export function wrapJapaneseTitle(title: string, maxCharsPerLine: number): string[] {
   const PREFERRED_BREAK_AFTER = /[。！？、」』）]/;
   const AVOID_BREAK_AFTER = /[とのでを]/;
   const FORBIDDEN_LINE_START = /[。！？、」』）]/;
+  // 禁則・助詞判定は「1文字トークン」にのみ意味を持つ（英数字の単語トークンは対象外）。
+  const isSingleChar = (token: WrapToken | undefined): token is WrapToken => !!token && token.len === 1 && [...token.text].length === 1;
 
-  const chars = [...title];
+  const tokens = tokenizeForWrap(title);
   const lines: string[] = [];
   let lineStart = 0;
 
-  while (lineStart < chars.length) {
-    let breakAt = Math.min(lineStart + maxCharsPerLine, chars.length);
+  while (lineStart < tokens.length) {
+    // 1トークン目は必ず含める（単語単体がmaxCharsPerLineを超える場合でも、
+    // 1文字も入れられないよりは1単語だけの行にする）。そこから先は
+    // maxCharsPerLineを超えない範囲で貪欲にトークンを詰める。
+    let breakAt = lineStart + 1;
+    let lineLen = tokens[lineStart].len;
+    while (breakAt < tokens.length && lineLen + tokens[breakAt].len <= maxCharsPerLine) {
+      lineLen += tokens[breakAt].len;
+      breakAt += 1;
+    }
 
-    if (breakAt < chars.length) {
-      // 1) breakAt以内で、直近の「優先的な改行位置」を後ろから探す。
+    if (breakAt < tokens.length) {
+      // 1) breakAt以内で、直近の「優先的な改行位置」（1文字トークン）を後ろから探す。
       let candidate = -1;
       for (let i = breakAt; i > lineStart; i -= 1) {
-        if (PREFERRED_BREAK_AFTER.test(chars[i - 1])) {
+        const token = tokens[i - 1];
+        if (isSingleChar(token) && PREFERRED_BREAK_AFTER.test(token.text)) {
           candidate = i;
           break;
         }
@@ -298,18 +334,23 @@ export function wrapJapaneseTitle(title: string, maxCharsPerLine: number): strin
       } else {
         // 2) 優先的な改行位置が無ければ、助詞の直後で終わるのを避ける
         //    （行が空にならない範囲でのみ）。
-        while (breakAt > lineStart + 1 && AVOID_BREAK_AFTER.test(chars[breakAt - 1])) {
+        while (breakAt > lineStart + 1 && isSingleChar(tokens[breakAt - 1]) && AVOID_BREAK_AFTER.test(tokens[breakAt - 1].text)) {
           breakAt -= 1;
         }
       }
       // 3) 禁則処理: 行頭に句読点・閉じ括弧が来る場合は、その文字も
       //    前の行に含める。
-      while (breakAt < chars.length && FORBIDDEN_LINE_START.test(chars[breakAt])) {
+      while (breakAt < tokens.length && isSingleChar(tokens[breakAt]) && FORBIDDEN_LINE_START.test(tokens[breakAt].text)) {
         breakAt += 1;
       }
     }
 
-    lines.push(chars.slice(lineStart, breakAt).join(''));
+    lines.push(
+      tokens
+        .slice(lineStart, breakAt)
+        .map((t) => t.text)
+        .join('')
+    );
     lineStart = breakAt;
   }
 

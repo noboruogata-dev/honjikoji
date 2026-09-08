@@ -49,4 +49,19 @@ describe('wrapJapaneseTitle', () => {
     const lines = wrapJapaneseTitle('あいうえとかきくけこ', 5);
     expect(lines[0].endsWith('と')).toBe(false);
   });
+
+  it('英数字の単語はmaxCharsPerLineをまたいでも途中で改行しない（実際に報告された不具合）', () => {
+    // 「Beerhouse3」(10文字)をmaxCharsPerLine=9で機械的に切ると
+    // 「Beerhouse」「3」に分かれてしまっていた。
+    const lines = wrapJapaneseTitle('Beerhouse3', 9);
+    expect(lines).toEqual(['Beerhouse3']);
+  });
+
+  it('英単語＋日本語が混在する場合も、英単語の途中では改行しない', () => {
+    // 単語「BAR」(3文字) + 「え」「び」(各1文字) = 5 <= 5 でちょうど1行目に収まり、
+    // 「す」を足すと5を超えるので2行目へ。
+    const lines = wrapJapaneseTitle('BARえびすまち', 5);
+    expect(lines[0]).toBe('BARえび');
+    expect(lines.join('')).toBe('BARえびすまち');
+  });
 });
