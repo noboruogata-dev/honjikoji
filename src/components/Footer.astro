@@ -20,15 +20,26 @@ const year = new Date().getFullYear();
 
     <div class="mt-6 flex flex-col items-center gap-2">
       <p class="text-[0.65rem] font-medium tracking-[0.16em] text-gold-100/55">OFFICIAL SNS</p>
-      <a
-        href="https://www.instagram.com/honji.koji/"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="inline-flex h-12 w-12 items-center justify-center rounded-full border border-night-600 bg-night-800/50 text-gold-100/65 transition hover:border-amber-deep/70 hover:bg-night-800 hover:text-amber-glow"
-        aria-label="本寺小路ガイド公式Instagramを開く（外部サイト）"
-      >
-        <SocialIcon platform="instagram" size={22} />
-      </a>
+      <div class="flex gap-3">
+        {
+          [
+            { platform: 'x' as const, href: 'https://x.com/honjikoji', label: 'X（旧Twitter）' },
+            { platform: 'instagram' as const, href: 'https://www.instagram.com/honji.koji/', label: 'Instagram' },
+            { platform: 'threads' as const, href: 'https://www.threads.com/@honji.koji?hl=ja', label: 'Threads' },
+            { platform: 'facebook' as const, href: 'https://www.facebook.com/profile.php?id=61594095175816', label: 'Facebook' },
+          ].map(({ platform, href, label }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex h-12 w-12 items-center justify-center rounded-full border border-night-600 bg-night-800/50 text-gold-100/65 transition hover:border-amber-deep/70 hover:bg-night-800 hover:text-amber-glow"
+              aria-label={`本寺小路ガイド公式${label}を開く（外部サイト）`}
+            >
+              <SocialIcon platform={platform} size={22} />
+            </a>
+          ))
+        }
+      </div>
     </div>
 
     <p class="mt-5 text-xs leading-relaxed text-gold-100/55">

@@ -1,7 +1,6 @@
 ---
 import {
   Beef,
-  ChefHat,
   CookingPot,
   Flame,
   GlassWater,
@@ -12,6 +11,7 @@ import {
   UtensilsCrossed,
 } from '@lucide/astro';
 import Illust from './Illust.astro';
+import KappoIcon from './icons/KappoIcon.astro';
 import { GENRE_ICON_MAP } from '../lib/genreIcons';
 
 interface Props {
@@ -35,9 +35,9 @@ const ICON_MAP: Record<string, typeof Store> = {
   Bar: Martini,
   バー: Martini,
   スナック: MicVocal,
-  割烹: ChefHat,
-  小料理: ChefHat,
-  小料理屋: ChefHat,
+  割烹: KappoIcon,
+  小料理: KappoIcon,
+  小料理屋: KappoIcon,
   焼き鳥: Flame,
   焼鳥: Flame,
   おでん: CookingPot,
