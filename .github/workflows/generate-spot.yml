@@ -38,12 +38,18 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: npm run generate:spot
 
+      # prebuild（generate-ogp-images.ts）が新規記事のOGP画像・
+      # ogp-image-cache.jsonを生成する。これをコミットせずに捨てると、
+      # 本番では新規記事のOGPがdefault画像のままになってしまう。
+      - name: Build published site
+        run: npm run build
+
       - name: Commit and push if there are changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add src/content/spots src/content/news public/images/instagram
+          git add src/content/spots src/content/news public/images/instagram public/images/ogp ogp-image-cache.json
 
           if git diff --cached --quiet; then
             echo "No new or changed spot articles. Skipping commit."
