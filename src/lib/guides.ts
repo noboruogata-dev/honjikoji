@@ -44,12 +44,21 @@ function closesAtOrAfterMidnight(hours: HourRule[] | undefined): boolean {
   });
 }
 
+/** カード見出しに添えるアイコンの種類。実際のアイコンコンポーネントへの
+ *  変換はsrc/pages/guides/index.astro側で行う（@lucide/astroはAstro
+ *  コンポーネントであり、このファイルはscripts/配下のNode向けスクリプト
+ *  （generate-guides-manifest.ts等、tsxで直接実行される）からも読み込まれる
+ *  ため、ここでAstroコンポーネントをimportすると壊れる）。 */
+export type GuideIconKey = 'moon' | 'footprints' | 'armchair' | 'utensils' | 'wallet';
+
 export interface GuideDefinition {
   slug: string;
   /** H1・<title>に使う正式タイトル。 */
   title: string;
   /** 一覧・ナビ用の短いラベル。 */
   shortLabel: string;
+  /** 店舗カード等と同じ「アイコン付きヘッダー」の文法に揃えるためのアイコン種別。 */
+  icon: GuideIconKey;
   /** meta description。 */
   description: string;
   /** 導入文（200〜300字、手書き）。2〜3段落に分割した配列で、各要素が1段落に対応する。
@@ -68,6 +77,7 @@ export const GUIDES: GuideDefinition[] = [
     slug: 'late-night',
     title: '本寺小路で深夜まで飲める店',
     shortLabel: '深夜まで飲める店',
+    icon: 'moon',
     description:
       '三条市本寺小路で深夜まで営業している飲食店・BARをまとめました。仕事帰りの一杯、飲み会の後のもう一軒に。',
     intro: [
@@ -87,6 +97,7 @@ export const GUIDES: GuideDefinition[] = [
     // （scripts/lib/ogpImage.ts checkGlyphCoverage参照）。
     title: '本寺小路のハシゴ酒／1軒目から〆まで',
     shortLabel: 'ハシゴ酒コース',
+    icon: 'footprints',
     description:
       '本寺小路のはしご酒コースを1軒目・2軒目・〆で紹介。路地一本で夜を完結させる、三条ならではの飲み歩き方。',
     intro: [
@@ -101,6 +112,7 @@ export const GUIDES: GuideDefinition[] = [
     slug: 'counter',
     title: '一人でも入りやすいカウンターの店',
     shortLabel: 'カウンターの店',
+    icon: 'armchair',
     description:
       '本寺小路でカウンター席のある、一人でも入りやすい店をまとめました。大将・女将との会話も楽しみのひとつ。',
     intro: [
@@ -116,6 +128,7 @@ export const GUIDES: GuideDefinition[] = [
     slug: 'shime',
     title: '飲んだあとの〆に寄る店',
     shortLabel: '〆に寄る店',
+    icon: 'utensils',
     description: '本寺小路で飲んだあとの〆に寄れる店をまとめました。静かに一杯、小腹を満たすラーメンやおでんも。',
     intro: [
       '飲み会がお開きになった後、まっすぐ帰るには少し名残惜しい夜がある。本寺小路には、そんな気分を受け止める最後の一軒がある。1軒目、2軒目と重ねてきた夜も、ここでは他の街まで足を延ばさず、路地の中だけで完結する。',
@@ -130,6 +143,7 @@ export const GUIDES: GuideDefinition[] = [
     slug: 'budget-3000',
     title: '予算3,000円台で飲める店',
     shortLabel: '予算3,000円台',
+    icon: 'wallet',
     description: '本寺小路で予算3,000円台から楽しめる店をまとめました。気取らず立ち寄れる、三条らしい価格感の一軒を。',
     intro: [
       '本寺小路は、無理をして着飾って行くような街ではない。金物と鍛冶の町として栄えた三条には、腕一本で稼いだ金を気取らず使う職人気質が今も息づいている。',

@@ -4,6 +4,8 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import SpotCard from '../components/SpotCard.astro';
 import SectionHeading from '../components/SectionHeading.astro';
+import NewsListItem from '../components/NewsListItem.astro';
+import ColumnCard from '../components/ColumnCard.astro';
 import AlleyNight from '../components/illustrations/AlleyNight.astro';
 import LanternIcon from '../components/illustrations/LanternIcon.astro';
 import RuleDivider from '../components/RuleDivider.astro';
@@ -32,12 +34,6 @@ const news = (await getCollection('news'))
 const columns = (await getCollection('columns', ({ data }) => !data.draft))
   .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
   .slice(0, 3);
-
-const CATEGORY_ACCENT: Record<string, 'amber' | 'vermilion'> = {
-  'NEW SPOT': 'vermilion',
-  EVENT: 'amber',
-  NOTICE: 'amber',
-};
 
 const siteUrl = new URL('/', Astro.site ?? Astro.url).toString();
 
@@ -182,59 +178,7 @@ const structuredData = [
       {
         news.length > 0 ? (
           <ul class="mt-5 divide-y divide-night-700 overflow-hidden rounded-xl border border-night-700 bg-night-900/50">
-            {news.map((item) => {
-              const accent = CATEGORY_ACCENT[item.data.category] ?? 'amber';
-              const relatedSpotSlug = item.data.relatedSpotSlug;
-              const relatedColumnSlug = item.data.relatedColumnSlug;
-              const dateStr = item.data.pubDate.toISOString().slice(0, 10);
-              const href = `/news/${item.id}/`;
-              return (
-                <li class="flex items-center gap-2.5 px-4 py-3 sm:gap-3">
-                  <time class="hidden shrink-0 text-xs tabular-nums text-gold-100/35 sm:block" datetime={dateStr}>
-                    {dateStr}
-                  </time>
-                  <span
-                    class:list={[
-                      'shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[0.6rem] font-semibold',
-                      accent === 'vermilion' ? 'bg-vermilion/15 text-vermilion' : 'bg-amber-glow/15 text-amber-glow',
-                    ]}
-                  >
-                    {item.data.category}
-                  </span>
-                  <a
-                    href={href}
-                    class="min-w-0 flex-1 truncate text-sm font-medium text-gold-100 underline-offset-4 transition hover:text-amber-glow hover:underline"
-                  >
-                    {item.data.title}
-                  </a>
-                  {relatedSpotSlug && (
-                    <a
-                      href={`/spots/${relatedSpotSlug}/`}
-                      class="hidden shrink-0 items-center gap-1 rounded-full border border-night-600 px-2 py-1 text-[0.6rem] text-gold-100/50 transition hover:border-amber-deep/60 hover:text-amber-glow sm:inline-flex"
-                    >
-                      <MapPin size={10} stroke-width={2} aria-hidden="true" />
-                      店舗
-                    </a>
-                  )}
-                  {relatedColumnSlug && (
-                    <a
-                      href={`/columns/${relatedColumnSlug}/`}
-                      class="hidden shrink-0 items-center gap-1 rounded-full border border-night-600 px-2 py-1 text-[0.6rem] text-gold-100/50 transition hover:border-amber-deep/60 hover:text-amber-glow sm:inline-flex"
-                    >
-                      <BookOpenText size={10} stroke-width={2} aria-hidden="true" />
-                      夜話
-                    </a>
-                  )}
-                  <a
-                    href={href}
-                    class="inline-flex shrink-0 items-center gap-1 rounded-full bg-night-800 px-2.5 py-1 text-[0.65rem] font-semibold text-amber-glow/90 transition hover:bg-amber-glow hover:text-night-950"
-                  >
-                    読む
-                    <ArrowRight size={10} stroke-width={2.5} aria-hidden="true" />
-                  </a>
-                </li>
-              );
-            })}
+            {news.map((item) => <NewsListItem item={item} />)}
           </ul>
         ) : (
           <p class="mt-5 rounded-xl border border-night-700 bg-night-900/50 px-4 py-6 text-center text-sm text-gold-100/40">
@@ -263,26 +207,7 @@ const structuredData = [
           </a>
         </div>
         <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {columns.map((column) => {
-            const image = column.data.imageStatus === 'reviewed' || column.data.imageStatus === 'qa-passed'
-              ? column.data.eyecatch
-              : undefined;
-            return (
-              <a
-                href={`/columns/${column.id}/`}
-                aria-label={`${column.data.title}を読む`}
-                class="group block overflow-hidden rounded-2xl border border-gold-100/15 bg-gold-100/[0.025] transition hover:-translate-y-0.5 hover:border-amber-glow/35 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-glow"
-              >
-                {image && <img src={image.src} alt="" width="1200" height="630" loading="lazy" decoding="async" class="aspect-[1200/630] w-full object-cover" />}
-                <div class="p-5">
-                  <div class="flex items-center gap-2 text-[0.65rem]"><span class="text-amber-glow">{column.data.category}</span><time class="text-gold-100/35" datetime={column.data.pubDate.toISOString().slice(0, 10)}>{column.data.pubDate.toISOString().slice(0, 10)}</time></div>
-                  <h3 class="mt-2 font-serif text-lg font-bold leading-relaxed text-gold-100 transition group-hover:text-amber-glow">{column.data.title}</h3>
-                  <p class="mt-2 line-clamp-3 text-sm leading-[1.8] text-gold-100/60">{column.data.summary}</p>
-                  <span class="mt-4 inline-flex items-center gap-1 text-xs text-amber-glow group-hover:underline group-hover:underline-offset-4">続きを読む <ArrowRight class="transition-transform group-hover:translate-x-0.5 motion-reduce:transform-none" size={12} aria-hidden="true" /></span>
-                </div>
-              </a>
-            );
-          })}
+          {columns.map((column) => <ColumnCard column={column} />)}
         </div>
         <div class="mt-5 text-center sm:hidden"><a href="/columns/" class="inline-flex items-center gap-1 text-sm text-amber-glow">本寺小路夜話をすべて読む <ArrowRight size={13} aria-hidden="true" /></a></div>
       </section>

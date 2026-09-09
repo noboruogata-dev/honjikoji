@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
+import ColumnCard from '../../components/ColumnCard.astro';
 import { ArrowRight, BookOpenText } from '@lucide/astro';
 import { getCollection } from 'astro:content';
 
@@ -35,20 +36,7 @@ const columns = (await getCollection('columns', ({ data }) => !data.draft)).sort
           <SectionHeading icon={BookOpenText} label="COLUMNS" accent="amber">夜話を読む</SectionHeading>
         </div>
         <div class="mt-6 grid gap-6 sm:grid-cols-2">
-          {columns.map((column) => {
-            const image = column.data.imageStatus === 'reviewed' || column.data.imageStatus === 'qa-passed' ? column.data.eyecatch : undefined;
-            return (
-              <article class="group overflow-hidden rounded-2xl border border-gold-100/15 bg-gold-100/[0.025] transition hover:border-amber-glow/35">
-                {image && <a href={`/columns/${column.id}/`} tabindex="-1" aria-hidden="true"><img src={image.src} alt="" width="1200" height="630" loading="lazy" decoding="async" class="aspect-[1200/630] w-full object-cover" /></a>}
-                <div class="p-5 sm:p-6">
-                  <div class="flex items-center gap-3 text-xs"><span class="text-amber-glow">{column.data.category}</span><time class="text-gold-100/40" datetime={column.data.pubDate.toISOString().slice(0, 10)}>{column.data.pubDate.toISOString().slice(0, 10)}</time></div>
-                  <h3 class="mt-3 font-serif text-xl font-bold leading-relaxed text-gold-100"><a href={`/columns/${column.id}/`} class="transition group-hover:text-amber-glow">{column.data.title}</a></h3>
-                  <p class="mt-3 line-clamp-3 text-sm leading-[1.8] text-gold-100/65">{column.data.summary}</p>
-                  <a href={`/columns/${column.id}/`} class="mt-5 inline-flex items-center gap-1 text-sm text-amber-glow hover:underline hover:underline-offset-4">続きを読む <ArrowRight size={14} aria-hidden="true" /></a>
-                </div>
-              </article>
-            );
-          })}
+          {columns.map((column) => <ColumnCard column={column} />)}
         </div>
       </section>
     ) : (

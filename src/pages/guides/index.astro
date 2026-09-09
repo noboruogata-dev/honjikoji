@@ -12,8 +12,19 @@ import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import Prose from '../../components/Prose.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
-import { Compass, ArrowRight } from '@lucide/astro';
-import { GUIDES, GUIDES_HUB_INTRO } from '../../lib/guides';
+import { Armchair, ArrowRight, Compass, Footprints, Moon, UtensilsCrossed, Wallet } from '@lucide/astro';
+import { GUIDES, GUIDES_HUB_INTRO, type GuideIconKey } from '../../lib/guides';
+
+// GuideIconKey（データ側の文字列）→ 実際のアイコンコンポーネント。
+// guides.ts自体はscripts/配下のNodeスクリプトからも読まれるため、
+// Astroコンポーネントの変換はこちら側だけで行う（guides.tsのコメント参照）。
+const GUIDE_ICON: Record<GuideIconKey, typeof Compass> = {
+  moon: Moon,
+  footprints: Footprints,
+  armchair: Armchair,
+  utensils: UtensilsCrossed,
+  wallet: Wallet,
+};
 ---
 
 <Layout
@@ -33,21 +44,30 @@ import { GUIDES, GUIDES_HUB_INTRO } from '../../lib/guides';
 
     <div class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
       {
-        GUIDES.map((guide) => (
-          <a
-            href={`/guides/${guide.slug}/`}
-            class="group flex flex-col gap-2 rounded-xl border border-night-700 bg-night-900/80 p-5 shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70"
-          >
-            <h2 class="font-serif text-lg font-bold text-gold-100 transition group-hover:text-amber-glow">
-              {guide.shortLabel}
-            </h2>
-            <p class="line-clamp-2 text-sm leading-relaxed text-gold-100/55">{guide.intro.join('')}</p>
-            <span class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-glow">
-              見る
-              <ArrowRight size={14} aria-hidden="true" />
-            </span>
-          </a>
-        ))
+        GUIDES.map((guide) => {
+          const Icon = GUIDE_ICON[guide.icon];
+          return (
+            <a
+              href={`/guides/${guide.slug}/`}
+              class="group flex flex-col overflow-hidden rounded-xl border border-night-700 bg-night-900/80 shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70"
+            >
+              <div class="flex items-center gap-1.5 border-b border-night-700 bg-night-800/50 px-4 py-2.5 text-xs font-medium tracking-wide text-amber-glow">
+                <Icon size={14} stroke-width={1.75} aria-hidden="true" />
+                GUIDE
+              </div>
+              <div class="flex flex-1 flex-col gap-2 p-5">
+                <h2 class="font-serif text-lg font-bold text-gold-100 transition group-hover:text-amber-glow">
+                  {guide.shortLabel}
+                </h2>
+                <p class="line-clamp-2 text-sm leading-relaxed text-gold-100/55">{guide.intro.join('')}</p>
+                <span class="mt-auto inline-flex items-center gap-1 pt-2 text-xs font-medium text-amber-glow">
+                  見る
+                  <ArrowRight size={14} aria-hidden="true" />
+                </span>
+              </div>
+            </a>
+          );
+        })
       }
     </div>
 
