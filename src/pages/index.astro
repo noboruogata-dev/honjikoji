@@ -139,9 +139,9 @@ const structuredData = [
         aria-label="新着店舗一覧"
       >
         {
-          featuredSpots.map((spot) => (
+          featuredSpots.map((spot, i) => (
             <div class="flex w-[82vw] max-w-[20rem] shrink-0 snap-start sm:w-auto sm:max-w-none">
-              <SpotCard spot={spot} />
+              <SpotCard spot={spot} revealIndex={i} />
             </div>
           ))
         }
@@ -200,7 +200,7 @@ const structuredData = [
           </a>
         </div>
         <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {columns.map((column) => <ColumnCard column={column} />)}
+          {columns.map((column, i) => <ColumnCard column={column} revealIndex={i} />)}
         </div>
         <div class="mt-5 text-center sm:hidden"><a href="/columns/" class="inline-flex items-center gap-1 text-sm text-amber-glow">本寺小路夜話をすべて読む <ArrowRight size={13} aria-hidden="true" /></a></div>
       </section>
@@ -239,10 +239,11 @@ const structuredData = [
         width="1330"
         height="523"
         alt="1軒目、2軒目、3杯目と暖簾をハシゴして本寺小路の門へ向かう、盃を手にしたイラスト"
+        data-reveal
         class="relative mx-auto w-full max-w-2xl object-contain drop-shadow-[0_0_28px_rgba(242,181,68,0.25)] sm:max-w-3xl"
         loading="lazy"
       />
-      <div class="mx-auto max-w-2xl px-2 pb-4 pt-2 text-center">
+      <div class="mx-auto max-w-2xl px-2 pb-4 pt-2 text-center" data-reveal style="--reveal-i:2">
         <p class="text-xs tracking-[0.3em] text-amber-glow/70">CULTURE COLUMN</p>
         <h2 class="mt-2 font-serif text-xl font-bold text-gold-100 sm:text-2xl">
           1軒目・2軒目・締め、ハシゴ酒のカルチャー

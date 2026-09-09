@@ -11,9 +11,13 @@ import type { CollectionEntry } from 'astro:content';
 
 interface Props {
   column: CollectionEntry<'columns'>;
+  /** 一覧内での並び順。指定するとスクロールで時間差をつけて浮かび上がる
+   *  （global.cssの[data-reveal]参照）。コラム一覧は表示・非表示を
+   *  JSで切り替えることが無いため、SpotCardと違い常に渡してよい。 */
+  revealIndex?: number;
 }
 
-const { column } = Astro.props;
+const { column, revealIndex } = Astro.props;
 
 const CATEGORY_ICON: Record<string, typeof GlassWater> = {
   'お酒の豆知識': GlassWater,
@@ -29,6 +33,8 @@ const dateStr = column.data.pubDate.toISOString().slice(0, 10);
 
 <a
   href={`/columns/${column.id}/`}
+  data-reveal={revealIndex !== undefined ? true : undefined}
+  style={revealIndex !== undefined ? `--reveal-i:${revealIndex}` : undefined}
   class="group flex flex-col overflow-hidden rounded-2xl border border-gold-100/15 bg-gold-100/[0.025] transition hover:-translate-y-0.5 hover:border-amber-glow/35 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-glow"
 >
   {image && <img src={image.src} alt="" width="1200" height="630" loading="lazy" decoding="async" class="aspect-[1200/630] w-full object-cover" />}

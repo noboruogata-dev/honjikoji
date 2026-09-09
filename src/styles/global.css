@@ -269,17 +269,23 @@ html {
   animation-iteration-count: infinite;
 }
 
-/* [data-reveal] の汎用スクロールイン演出（SectionHeading.astroのscript参照）。
+/* [data-reveal] の汎用スクロールイン演出（SectionHeading.astroのscript参照。
+   グローバルなdocument.querySelectorAllで拾うため、data-reveal属性さえ
+   付ければこのscriptを個別に書かなくても効く）。
    .reveal-pending はJSがIntersectionObserverをセットする直前にだけ付与する
-   ため、JS無効時は常に通常表示（隠れたままにはならない）。 */
+   ため、JS無効時は常に通常表示（隠れたままにはならない）。
+   --reveal-i を呼び出し側でカードのインデックスとして設定すると、
+   カード一覧がスクロールで1枚ずつ時間差をつけて浮かび上がる
+   （未設定なら0＝遅延なし、既存のSectionHeading等はそのまま）。 */
 [data-reveal] {
   transition:
-    opacity 0.6s ease,
-    transform 0.6s ease;
+    opacity 0.5s ease,
+    transform 0.5s ease;
+  transition-delay: calc(var(--reveal-i, 0) * 70ms);
 }
 [data-reveal].reveal-pending {
   opacity: 0;
-  transform: translateY(14px);
+  transform: translateY(20px);
 }
 [data-reveal].is-revealed {
   opacity: 1;

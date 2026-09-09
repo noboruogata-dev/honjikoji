@@ -36,7 +36,7 @@ const columns = (await getCollection('columns', ({ data }) => !data.draft)).sort
           <SectionHeading icon={BookOpenText} label="COLUMNS" accent="amber">夜話を読む</SectionHeading>
         </div>
         <div class="mt-6 grid gap-6 sm:grid-cols-2">
-          {columns.map((column) => <ColumnCard column={column} />)}
+          {columns.map((column, i) => <ColumnCard column={column} revealIndex={i} />)}
         </div>
       </section>
     ) : (
