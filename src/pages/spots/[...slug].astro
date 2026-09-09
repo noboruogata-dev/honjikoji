@@ -143,29 +143,29 @@ const socialPlatformLabels = {
 
       <dl class="mt-8 grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-night-700 bg-night-700 sm:grid-cols-2">
         <div class="bg-night-900 px-4 py-3 sm:col-span-2">
-          <dt class="text-xs text-gold-100/40">住所</dt>
+          <dt class="text-xs text-gold-100/55">住所</dt>
           <dd class="mt-1 text-sm text-gold-100/85">{address}</dd>
         </div>
         <div class="bg-night-900 px-4 py-3" data-static-open-hours>
           <div class="flex items-center justify-between gap-2">
-            <dt class="text-xs text-gold-100/40">営業時間</dt>
+            <dt class="text-xs text-gold-100/55">営業時間</dt>
             <OpenStatus hours={hours} isIrregular={isIrregular} size="sm" />
           </div>
           <dd class="mt-1 text-sm text-gold-100/85">{openHours}</dd>
           <TodayHoursBar hours={hours} />
         </div>
         <div class="bg-night-900 px-4 py-3" data-static-regular-holiday>
-          <dt class="text-xs text-gold-100/40">定休日</dt>
+          <dt class="text-xs text-gold-100/55">定休日</dt>
           <dd class="mt-1 text-sm text-gold-100/85">{regularHoliday}</dd>
         </div>
         <LivePlaceHours placeId={placeId} />
         <div class="bg-night-900 px-4 py-3 sm:col-span-2">
-          <dt class="text-xs text-gold-100/40">予算目安</dt>
+          <dt class="text-xs text-gold-100/55">予算目安</dt>
           <dd class="mt-1 text-sm text-gold-100/85">{budget}</dd>
         </div>
       </dl>
 
-      <div class="mt-3 flex flex-col gap-1 text-xs leading-relaxed text-gold-100/40 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+      <div class="mt-3 flex flex-col gap-1 text-xs leading-relaxed text-gold-100/55 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <p>営業時間・定休日・予算などは変更される場合があります。来店前に店舗の公式情報をご確認ください。</p>
         <p class="shrink-0">
           掲載日：<time datetime={pubDate.toISOString().slice(0, 10)}>{publishedDateLabel}</time>
@@ -175,7 +175,7 @@ const socialPlatformLabels = {
       {
         socialLinks && socialLinks.length > 0 && (
           <section class="mt-6" aria-labelledby="spot-social-heading">
-            <h2 id="spot-social-heading" class="text-xs font-medium tracking-wide text-gold-100/40">
+            <h2 id="spot-social-heading" class="text-xs font-medium tracking-wide text-gold-100/55">
               公式SNS
             </h2>
             <div class="mt-2 flex flex-wrap gap-2">
@@ -236,7 +236,7 @@ const socialPlatformLabels = {
       {
         matchingGuides.length > 0 && (
           <div class="mt-8 border-t border-night-700 pt-6">
-            <p class="text-xs font-medium tracking-wide text-gold-100/40">このお店が載っているガイド</p>
+            <p class="text-xs font-medium tracking-wide text-gold-100/55">このお店が載っているガイド</p>
             <div class="mt-3 flex flex-wrap gap-2">
               {matchingGuides.map((guide) => (
                 <a

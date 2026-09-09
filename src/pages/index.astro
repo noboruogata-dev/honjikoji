@@ -172,7 +172,7 @@ const structuredData = [
             {news.map((item) => <NewsListItem item={item} />)}
           </ul>
         ) : (
-          <p class="mt-5 text-center text-sm text-gold-100/40">
+          <p class="mt-5 text-center text-sm text-gold-100/55">
             現在お知らせはありません。
           </p>
         )
@@ -407,7 +407,7 @@ const structuredData = [
 
     const time = document.createElement('p');
     time.dataset.statusTime = '';
-    time.className = 'mt-3 text-xs text-gold-100/40';
+    time.className = 'mt-3 text-xs text-gold-100/55';
     time.textContent = `${snapshot.hh}:${snapshot.mm} 現在`;
 
     const link = buildLinkWithArrow('/spots/?open=now', '今夜の店を見る');
