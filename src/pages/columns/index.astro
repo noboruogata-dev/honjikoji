@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
 import { ArrowRight, BookOpenText } from '@lucide/astro';
 import { getCollection } from 'astro:content';
 
@@ -30,7 +31,9 @@ const columns = (await getCollection('columns', ({ data }) => !data.draft)).sort
 
     {columns.length > 0 ? (
       <section class="mt-12" aria-labelledby="column-list-heading">
-        <h2 id="column-list-heading" class="font-serif text-2xl font-bold text-gold-100">夜話を読む</h2>
+        <div id="column-list-heading">
+          <SectionHeading icon={BookOpenText} label="COLUMNS" accent="amber">夜話を読む</SectionHeading>
+        </div>
         <div class="mt-6 grid gap-6 sm:grid-cols-2">
           {columns.map((column) => {
             const image = column.data.imageStatus === 'reviewed' || column.data.imageStatus === 'qa-passed' ? column.data.eyecatch : undefined;

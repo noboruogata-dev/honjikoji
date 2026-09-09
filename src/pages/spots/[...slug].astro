@@ -6,6 +6,7 @@ import Prose from '../../components/Prose.astro';
 import Badge from '../../components/Badge.astro';
 import GenreIcon from '../../components/GenreIcon.astro';
 import MapEmbed from '../../components/MapEmbed.astro';
+import RuleDivider from '../../components/RuleDivider.astro';
 import OpenStatus from '../../components/OpenStatus.astro';
 import TodayHoursBar from '../../components/TodayHoursBar.astro';
 import LivePlaceHours from '../../components/LivePlaceHours.astro';
@@ -195,7 +196,9 @@ const socialPlatformLabels = {
         )
       }
 
-      <Prose class="mt-10">
+      <RuleDivider variant="ochoko" />
+
+      <Prose>
         <Content />
       </Prose>
 

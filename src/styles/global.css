@@ -87,13 +87,19 @@ html {
   color-scheme: dark;
 }
 
+/* サイト全体で共有する環境光。Hero等の個別演出を持たないページ
+   （店舗一覧・店舗詳細・ニュース一覧等）が真っ暗なだけに見えないよう、
+   どのページの上部にも同じ灯りの気配を敷く（「セクションごとに作り込んだ
+   飾りを足す」のではなく、既にあった環境光を全ページで気づける強さに
+   底上げする方針）。var(--glow)経由のため時間帯（dusk/night/latenight）
+   にも自動で追随する。 */
 body {
   background-color: var(--color-night-950);
   color: #ece5da;
   font-family: var(--font-sans);
   background-image:
-    radial-gradient(ellipse 70% 45% at 50% -10%, rgba(242, 181, 68, 0.09), transparent),
-    radial-gradient(ellipse 60% 40% at 85% 15%, rgba(226, 71, 47, 0.05), transparent),
+    radial-gradient(ellipse 75% 55% at 50% -5%, var(--glow), transparent),
+    radial-gradient(ellipse 60% 45% at 85% 10%, rgba(226, 71, 47, 0.1), transparent),
     repeating-linear-gradient(
       transparent,
       transparent 2px,

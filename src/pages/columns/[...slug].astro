@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import Prose from '../../components/Prose.astro';
+import RuleDivider from '../../components/RuleDivider.astro';
 import StructuredData from '../../components/StructuredData.astro';
 import ShareButton from '../../components/ShareButton.astro';
 import { ArrowLeft, ExternalLink } from '@lucide/astro';
@@ -52,7 +53,9 @@ const structuredData = {
 
       {reviewedEyecatch && <img src={reviewedEyecatch.src} alt={reviewedEyecatch.alt} width="1200" height="630" decoding="async" class="mt-8 aspect-[1200/630] w-full rounded-2xl border border-gold-100/15 object-cover" />}
 
-      <Prose class="mt-10"><Content /></Prose>
+      <RuleDivider variant="chochin" />
+
+      <Prose><Content /></Prose>
       {disclaimer && <p class="mt-10 rounded-xl border border-gold-100/15 bg-gold-100/[0.025] px-4 py-3 text-xs leading-relaxed text-gold-100/55">{disclaimer}</p>}
 
       {sources && sources.length > 0 && (
