@@ -7,6 +7,7 @@ import Badge from '../../components/Badge.astro';
 import GenreIcon from '../../components/GenreIcon.astro';
 import MapEmbed from '../../components/MapEmbed.astro';
 import OpenStatus from '../../components/OpenStatus.astro';
+import TodayHoursBar from '../../components/TodayHoursBar.astro';
 import LivePlaceHours from '../../components/LivePlaceHours.astro';
 import YouTubeEmbed from '../../components/YouTubeEmbed.astro';
 import StructuredData from '../../components/StructuredData.astro';
@@ -150,6 +151,7 @@ const socialPlatformLabels = {
             <OpenStatus hours={hours} isIrregular={isIrregular} size="sm" />
           </div>
           <dd class="mt-1 text-sm text-gold-100/85">{openHours}</dd>
+          <TodayHoursBar hours={hours} />
         </div>
         <div class="bg-night-900 px-4 py-3" data-static-regular-holiday>
           <dt class="text-xs text-gold-100/40">定休日</dt>

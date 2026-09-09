@@ -216,6 +216,38 @@ body {
   animation: status-pulse 2.4s ease-in-out infinite;
 }
 
+/* Hero（index.astro）の火の粉。街灯の下から立ちのぼり、ゆっくり漂いながら
+   薄れて消える。--drift-xで粒ごとに横方向の揺れを変え、animation-delayを
+   負の値にして「途中から始まっている」状態でループさせる（3粒が同時に
+   生まれ直す不自然さを避ける）。 */
+@keyframes ember-drift {
+  0% {
+    transform: translate(0, 0) scale(0.85);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.75;
+  }
+  80% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translate(var(--drift-x, 14px), -64px) scale(1.15);
+    opacity: 0;
+  }
+}
+.ember {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--color-amber-glow);
+  box-shadow: 0 0 6px 2px rgba(242, 181, 68, 0.55);
+  animation-name: ember-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
 /* [data-reveal] の汎用スクロールイン演出（SectionHeading.astroのscript参照）。
    .reveal-pending はJSがIntersectionObserverをセットする直前にだけ付与する
    ため、JS無効時は常に通常表示（隠れたままにはならない）。 */
@@ -512,5 +544,11 @@ body {
      頼らないが、二重の安全策としてtransitionそのものも止めておく。 */
   [data-reveal] {
     transition: none !important;
+  }
+
+  /* 火の粉は完全に装飾のためのループ移動なので、止めて留まらせるより
+     非表示にする（凍った粒が浮いたままの方が不自然なため）。 */
+  .ember {
+    display: none !important;
   }
 }

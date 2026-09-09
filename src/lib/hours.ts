@@ -186,6 +186,64 @@ export function getOpenStatus(
   return { state: 'closed', label: '営業時間外' };
 }
 
+export interface TodayHoursWindow {
+  /** 今日0:00を基準(0)とした営業開始（分）。日またぎの持ち越し中は前日開始のため負値になりうる。 */
+  openMinutes: number;
+  /** 今日0:00を基準とした営業終了（分）。24を超える表記可（例: 翌1:30なら1530）。 */
+  closeMinutes: number;
+  /** 現在時刻（今日0:00を基準とした分、常に0以上1440未満）。 */
+  nowMinutes: number;
+  /** true: 現在この窓の営業時間内（open/closing-soon）。false: 今日これから開店する予定（まだ開店前）。 */
+  isOpenNow: boolean;
+}
+
+/**
+ * TodayHoursBar.astro（営業時間バー）用に、「今日」の営業窓を1本だけ返す。
+ * getOpenStatusと同じ3段階の探索（当日営業中→前日からの持ち越し→本日これから
+ * 開店）を行うが、ラベル文字列ではなく分単位の生の窓を返す点だけが違う
+ * （表示側で位置を計算するため）。判定ロジックそのものはgetOpenStatusと
+ * 意図的に同じ順序・条件にしてあり、二つの関数で状態判定がずれないよう
+ * 注意すること（変更する際は両方を見直す）。
+ * 該当する窓が無ければ（定休日・完全に営業時間外で本日の予定も無い等）nullを返す。
+ */
+export function getTodayHoursWindow(hours: HourRule[] | undefined, now: Date = new Date()): TodayHoursWindow | null {
+  if (!hours || hours.length === 0) return null;
+
+  const validRules = toValidRules(hours);
+  if (validRules.length === 0) return null;
+
+  const tokyoNow = getTokyoNow(now);
+  if (!tokyoNow) return null;
+
+  const { weekday: todayWeekday, minutesOfDay: todayMinutes } = tokyoNow;
+  const yesterdayWeekday = (todayWeekday + 6) % 7;
+
+  for (const rule of validRules) {
+    if (!rule.days.includes(todayWeekday)) continue;
+    if (todayMinutes >= rule.openMinutes && todayMinutes < rule.closeMinutes) {
+      return { openMinutes: rule.openMinutes, closeMinutes: rule.closeMinutes, nowMinutes: todayMinutes, isOpenNow: true };
+    }
+  }
+
+  for (const rule of validRules) {
+    if (!rule.days.includes(yesterdayWeekday)) continue;
+    if (rule.closeMinutes <= 24 * 60) continue;
+    const spillEnd = rule.closeMinutes - 24 * 60;
+    if (todayMinutes < spillEnd) {
+      return { openMinutes: rule.openMinutes - 24 * 60, closeMinutes: spillEnd, nowMinutes: todayMinutes, isOpenNow: true };
+    }
+  }
+
+  const upcomingToday = validRules
+    .filter((rule) => rule.days.includes(todayWeekday) && todayMinutes < rule.openMinutes)
+    .sort((a, b) => a.openMinutes - b.openMinutes)[0];
+  if (upcomingToday) {
+    return { openMinutes: upcomingToday.openMinutes, closeMinutes: upcomingToday.closeMinutes, nowMinutes: todayMinutes, isOpenNow: false };
+  }
+
+  return null;
+}
+
 function buildOpenResult(remainingMinutes: number, closeAtMinutes: number): OpenStatusResult {
   const nextChange = formatMinutes(closeAtMinutes);
   if (remainingMinutes <= CLOSING_SOON_THRESHOLD_MINUTES) {

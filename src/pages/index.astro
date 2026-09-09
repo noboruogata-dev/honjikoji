@@ -78,6 +78,14 @@ const structuredData = [
       >
       </div>
 
+      <!-- 街灯からこぼれる火の粉が路地をゆっくり漂う演出。装飾のみで
+           情報を持たないためaria-hidden、CSSのみで動く（JS不要）。 -->
+      <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <span class="ember" style={{ left: '10%', top: '68%', animationDuration: '8.5s', animationDelay: '0s', '--drift-x': '16px' }}></span>
+        <span class="ember" style={{ left: '44%', top: '52%', animationDuration: '11s', animationDelay: '-3.5s', '--drift-x': '-12px' }}></span>
+        <span class="ember" style={{ left: '80%', top: '62%', animationDuration: '9.5s', animationDelay: '-6.5s', '--drift-x': '20px' }}></span>
+      </div>
+
       <div class="relative grid grid-cols-1 items-center gap-5 px-5 py-6 sm:grid-cols-2 sm:gap-10 sm:px-10 sm:py-14">
         <div class="text-center sm:text-left">
           <h1 class="font-serif text-[1.65rem] font-bold leading-[1.45] text-gold-100 text-glow sm:text-3xl">

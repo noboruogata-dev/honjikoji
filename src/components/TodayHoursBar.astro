@@ -1,0 +1,90 @@
+---
+// 「今日」の営業時間を24時間の横バーとして可視化する。OpenStatus.astroの
+// テキストバッジ（営業中／まもなく閉店等）を補う視覚的な一手で、文言では
+// 伝わりにくい「今が開店直後なのか閉店間際なのか」を一目で示す。
+//
+// OpenStatus.astroと同じ方針: 判定は必ずクライアント側scriptで行う
+// （静的ビルド時点の判定は閲覧時には古くなるため）。窓が存在しない
+// （定休日・今日の予定なし等）場合は何も描画しない（誤情報を出すより
+// 何も出さない方が安全）。テキストラベルは持たせず（OpenStatusバッジ側で
+// 既に「営業中（25:30）」等を表示済みのため）、純粋に視覚的な補助とする。
+import type { HourRule } from '../lib/hours';
+
+interface Props {
+  hours?: HourRule[];
+}
+
+const { hours } = Astro.props;
+---
+
+<div
+  class="today-hours-bar relative mt-2 h-1.5 w-full overflow-visible rounded-full bg-night-800 empty:hidden"
+  data-today-hours-bar
+  data-hours={JSON.stringify(hours ?? null)}
+  aria-hidden="true"
+></div>
+
+<script>
+  import { getTodayHoursWindow, type HourRule } from '../lib/hours';
+
+  const DAY_MINUTES = 24 * 60;
+
+  function parseHours(raw: string | undefined): HourRule[] | undefined {
+    if (!raw) return undefined;
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  function clampPct(minutes: number): number {
+    return Math.min(100, Math.max(0, (minutes / DAY_MINUTES) * 100));
+  }
+
+  function render(el: HTMLElement) {
+    const hours = parseHours(el.dataset.hours);
+    const window = getTodayHoursWindow(hours);
+
+    if (!window) {
+      el.replaceChildren();
+      return;
+    }
+
+    const startPct = clampPct(window.openMinutes);
+    const endPct = clampPct(window.closeMinutes);
+    const nowPct = clampPct(window.nowMinutes);
+
+    const segment = document.createElement('span');
+    segment.className = [
+      'absolute inset-y-0 rounded-full',
+      window.isOpenNow ? 'bg-amber-glow/45' : 'bg-gold-100/15',
+    ].join(' ');
+    segment.style.left = `${startPct}%`;
+    segment.style.width = `${Math.max(endPct - startPct, 0.5)}%`;
+
+    const marker = document.createElement('span');
+    marker.className = [
+      'absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-night-950',
+      window.isOpenNow ? 'bg-amber-glow status-pulse' : 'bg-gold-100/40',
+    ].join(' ');
+    marker.style.left = `${nowPct}%`;
+
+    el.replaceChildren(segment, marker);
+  }
+
+  function renderAll() {
+    document.querySelectorAll<HTMLElement>('[data-today-hours-bar]').forEach(render);
+  }
+
+  // OpenStatus.astroと同じ「古いタイマーをclearしてから張り直す」方式で
+  // ページ遷移をまたいだ多重登録を防ぐ。
+  let intervalId: ReturnType<typeof setInterval> | undefined;
+
+  document.addEventListener('astro:page-load', () => {
+    renderAll();
+    if (intervalId !== undefined) clearInterval(intervalId);
+    intervalId = setInterval(renderAll, 60_000);
+  });
+</script>

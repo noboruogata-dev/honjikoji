@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getOpenStatus, type HourRule } from './hours';
+import { getOpenStatus, getTodayHoursWindow, type HourRule } from './hours';
 
 /**
  * Asia/Tokyo のローカル日時 (y, m, d, h, min) を表す Date を作る。
@@ -160,5 +160,36 @@ describe('getOpenStatus: 曜日ごとに異なる営業時間', () => {
     const result = getOpenStatus(hours, jst(2026, 8, 30, 20, 0));
     expect(result.state).toBe('closed');
     expect(result.label).toBe('本日は定休日です');
+  });
+});
+
+describe('getTodayHoursWindow: 営業時間バー用の窓', () => {
+  it('hours未指定ならnull', () => {
+    expect(getTodayHoursWindow(undefined, jst(2026, 8, 27, 20, 0))).toBeNull();
+  });
+
+  it('当日営業中: 木曜19:00-24:00で木曜20:00はisOpenNow=trueの窓を返す', () => {
+    const hours: HourRule[] = [{ days: [4], open: '19:00', close: '24:00' }];
+    const window = getTodayHoursWindow(hours, jst(2026, 8, 27, 20, 0));
+    expect(window).toEqual({ openMinutes: 19 * 60, closeMinutes: 24 * 60, nowMinutes: 20 * 60, isOpenNow: true });
+  });
+
+  it('日またぎの持ち越し中: 木曜19:00-翌2:00(26:00)で金曜0:30はopenMinutesが負値になる', () => {
+    const hours: HourRule[] = [{ days: [4], open: '19:00', close: '26:00' }];
+    const window = getTodayHoursWindow(hours, jst(2026, 8, 28, 0, 30));
+    // 今日(金曜)0:00基準で見ると、開始は前日19:00 = -5:00 = -300分。
+    expect(window).toEqual({ openMinutes: -5 * 60, closeMinutes: 2 * 60, nowMinutes: 30, isOpenNow: true });
+  });
+
+  it('本日これから開店: 木曜18:00開店・現在17:00はisOpenNow=falseの窓を返す', () => {
+    const hours: HourRule[] = [{ days: [4], open: '18:00', close: '24:00' }];
+    const window = getTodayHoursWindow(hours, jst(2026, 8, 27, 17, 0));
+    expect(window).toEqual({ openMinutes: 18 * 60, closeMinutes: 24 * 60, nowMinutes: 17 * 60, isOpenNow: false });
+  });
+
+  it('定休日で本日・前日持ち越しとも該当ruleが無ければnull', () => {
+    // 2026-08-30 は日曜。ruleは火曜のみ。
+    const hours: HourRule[] = [{ days: [2], open: '18:00', close: '24:00' }];
+    expect(getTodayHoursWindow(hours, jst(2026, 8, 30, 20, 0))).toBeNull();
   });
 });
