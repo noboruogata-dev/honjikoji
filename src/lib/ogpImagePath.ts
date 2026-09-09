@@ -15,8 +15,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 // process.cwd()基準で解決する（import.meta.url相対だと、ビルド時にこの
-// モジュールがsrc/とは異なる場所へ再配置されて解決に失敗するため。
-// src/pages/map/index.astro と同じ理由・同じ対策）。
+// モジュールがsrc/とは異なる場所へ再配置されて解決に失敗するため）。
 const OGP_DIR = path.resolve(process.cwd(), 'public/images/ogp');
 
 export type OgpContentType = 'spot' | 'news' | 'column' | 'guide';

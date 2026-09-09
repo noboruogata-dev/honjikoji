@@ -13,7 +13,7 @@ import StructuredData from '../../components/StructuredData.astro';
 import SocialIcon from '../../components/SocialIcon.astro';
 import ShareButton from '../../components/ShareButton.astro';
 import { getCollection, render } from 'astro:content';
-import { ExternalLink, Map as MapIcon } from '@lucide/astro';
+import { ExternalLink } from '@lucide/astro';
 import { getSpotSchemaType } from '../../lib/spotSchemaType';
 import { buildGoogleMapsUrl, buildOpeningHoursSpecification, buildSpotAddress } from '../../lib/structuredData';
 import { resolveOgpImage } from '../../lib/ogpImagePath';
@@ -246,19 +246,12 @@ const socialPlatformLabels = {
         )
       }
 
-      <nav class="mt-12 flex flex-col gap-3 border-t border-night-700 pt-6 sm:flex-row sm:items-center sm:justify-between" aria-label="店舗ページの次の行き先">
+      <nav class="mt-12 border-t border-night-700 pt-6" aria-label="店舗ページの次の行き先">
         <a
           href="/spots/"
           class="inline-flex min-h-11 items-center gap-1 text-sm text-gold-100/60 transition hover:text-amber-glow"
         >
           ← 本寺小路の店舗一覧に戻る
-        </a>
-        <a
-          href="/map/"
-          class="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-amber-glow transition hover:underline hover:underline-offset-4"
-        >
-          <MapIcon size={15} stroke-width={1.8} aria-hidden="true" />
-          路地マップで店を探す
         </a>
       </nav>
     </article>
