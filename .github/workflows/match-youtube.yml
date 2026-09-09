@@ -3,8 +3,16 @@ name: Auto-match YouTube videos
 on:
   schedule:
     # 毎週月曜日 08:00 JST (= 前日日曜 23:00 UTC)
+    # 新着YouTube動画側の変化（既存店舗に後から動画が上がるケース）を
+    # 拾うためのフォールバック。店舗記事追加直後はworkflow_runの方で動く。
     - cron: '0 23 * * 0'
   workflow_dispatch: {}
+  # 店舗記事の自動生成（Auto-generate spot article）が完了した直後に
+  # 追いかけて実行する。新規記事があってもマッチングは週次まで待たされて
+  # いたため、生成直後に反映されるようにする。
+  workflow_run:
+    workflows: ['Auto-generate spot article']
+    types: [completed]
 
 permissions:
   contents: write
@@ -15,6 +23,8 @@ concurrency:
 
 jobs:
   match:
+    # workflow_run発火の場合、上流（記事生成）が失敗した実行では走らせない。
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
