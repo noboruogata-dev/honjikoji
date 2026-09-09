@@ -122,14 +122,28 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
           // パス・クエリが変わらない（ページ内ハッシュ移動等）は対象外。
           if (url.pathname === location.pathname && url.search === location.search) return;
           pendingScrollReset = true;
+          (window as any).__dbg = ((window as any).__dbg || []).concat(`click href=${link.href}@${Date.now()}`);
         },
         true
       );
 
+      (window as any).__dbg = ((window as any).__dbg || []).concat(`module-eval@${Date.now()}`);
+
+      let scrollLogArmed = false;
+      window.addEventListener('scroll', () => {
+        if (!scrollLogArmed) return;
+        (window as any).__dbg = ((window as any).__dbg || []).concat(`scroll-event y=${window.scrollY}@${Date.now()}`);
+      });
+
       document.addEventListener('astro:page-load', () => {
+        (window as any).__dbg = ((window as any).__dbg || []).concat(
+          `page-load pending=${pendingScrollReset} y=${window.scrollY} path=${location.pathname}@${Date.now()}`
+        );
+        scrollLogArmed = true;
         if (!pendingScrollReset) return;
         pendingScrollReset = false;
         window.scrollTo({ top: 0, left: 0 });
+        (window as any).__dbg = ((window as any).__dbg || []).concat(`after-scrollTo y=${window.scrollY}@${Date.now()}`);
       });
     </script>
 
