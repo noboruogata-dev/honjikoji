@@ -96,6 +96,17 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
       通常のscript（is:inlineではない）のため、このモジュール自体は初回の
       1回しか評価されない（ClientRouterでの遷移はモジュールを再実行しない）
       = window フラグでの二重登録防止は不要。
+
+      低速回線下では、この直後の1回のリセットだけでは不十分なことが分かって
+      いる（global.cssでhtml { overflow-anchor: none } により大半のケースは
+      解消したが、それでもWebフォントの読み込み確定など遷移直後の遅れた
+      再レイアウトが、リセット後にもう一度スクロール位置をずらすことが
+      本番環境で確認された）。原因（何が・いつずらすか）を個別に潰すのではなく、
+      直後・次フレーム・120ms後・400ms後の複数タイミングで同じリセットを
+      再度当てることで、どのタイミングで再レイアウトが起きても確実に先頭へ
+      戻るようにする。ページ自体は既に先頭にあるため、ずれが実際に起きて
+      いない大多数のケースでは追加のscrollTo呼び出しは無害（見た目上の
+      ちらつき無し）。
     -->
     <script>
       let pendingScrollReset = false;
@@ -122,28 +133,18 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
           // パス・クエリが変わらない（ページ内ハッシュ移動等）は対象外。
           if (url.pathname === location.pathname && url.search === location.search) return;
           pendingScrollReset = true;
-          (window as any).__dbg = ((window as any).__dbg || []).concat(`click href=${link.href}@${Date.now()}`);
         },
         true
       );
 
-      (window as any).__dbg = ((window as any).__dbg || []).concat(`module-eval@${Date.now()}`);
-
-      let scrollLogArmed = false;
-      window.addEventListener('scroll', () => {
-        if (!scrollLogArmed) return;
-        (window as any).__dbg = ((window as any).__dbg || []).concat(`scroll-event y=${window.scrollY}@${Date.now()}`);
-      });
-
       document.addEventListener('astro:page-load', () => {
-        (window as any).__dbg = ((window as any).__dbg || []).concat(
-          `page-load pending=${pendingScrollReset} y=${window.scrollY} path=${location.pathname}@${Date.now()}`
-        );
-        scrollLogArmed = true;
         if (!pendingScrollReset) return;
         pendingScrollReset = false;
-        window.scrollTo({ top: 0, left: 0 });
-        (window as any).__dbg = ((window as any).__dbg || []).concat(`after-scrollTo y=${window.scrollY}@${Date.now()}`);
+        const resetToTop = () => window.scrollTo({ top: 0, left: 0 });
+        resetToTop();
+        requestAnimationFrame(resetToTop);
+        setTimeout(resetToTop, 120);
+        setTimeout(resetToTop, 400);
       });
     </script>
 
