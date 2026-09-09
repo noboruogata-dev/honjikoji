@@ -457,6 +457,27 @@ const structuredData = [
     return eyebrow;
   }
 
+  // 初回のcount状態表示だけ、0から実数へごく短時間（420ms）でカウントアップ
+  // する。数字は表示直後から動き始めるため「演出のせいで待たされる」感は
+  // 出ない（＝buildCountState呼び出し時点の「即座に確定値を出す」方針は
+  // 崩していない）。60秒毎の再評価による更新（軒数が変わった時）は
+  // status-fadeの短いフェードのみのまま変更しない（renderの別経路）。
+  function animateCount(el: HTMLElement, to: number) {
+    if (to <= 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      el.textContent = String(to);
+      return;
+    }
+    const duration = 420;
+    const start = performance.now();
+    function tick(now: number) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - (1 - progress) ** 3; // ease-out cubic
+      el.textContent = String(Math.round(eased * to));
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
   function buildCountState(snapshot: Snapshot): HTMLElement[] {
     const label = document.createElement('p');
     label.className = 'mt-1 text-sm text-gold-100/60';
@@ -468,7 +489,7 @@ const structuredData = [
     const countSpan = document.createElement('span');
     countSpan.dataset.statusCount = '';
     countSpan.className = 'text-[3rem] font-bold tabular-nums text-amber-glow sm:text-[3.5rem]';
-    countSpan.textContent = String(snapshot.openCount);
+    animateCount(countSpan, snapshot.openCount);
     const unitSpan = document.createElement('span');
     unitSpan.className = 'text-[1.25rem] text-gold-100/70';
     unitSpan.textContent = '軒';

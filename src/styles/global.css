@@ -199,6 +199,40 @@ body {
   animation: status-fade 400ms ease;
 }
 
+/* OpenStatus.astroの「営業中」ドット用。生放送の「LIVE」表示のような、
+   輪が外側へ広がって消える鼓動（box-shadowのみ・レイアウト影響なし）。
+   「まもなく閉店」の.lantern-flicker（明滅で急を伝える）とは意図的に
+   別の動きにし、「今まさに開いている」ことを穏やかに伝える。 */
+@keyframes status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(242, 181, 68, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(242, 181, 68, 0);
+  }
+}
+.status-pulse {
+  animation: status-pulse 2.4s ease-in-out infinite;
+}
+
+/* [data-reveal] の汎用スクロールイン演出（SectionHeading.astroのscript参照）。
+   .reveal-pending はJSがIntersectionObserverをセットする直前にだけ付与する
+   ため、JS無効時は常に通常表示（隠れたままにはならない）。 */
+[data-reveal] {
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s ease;
+}
+[data-reveal].reveal-pending {
+  opacity: 0;
+  transform: translateY(14px);
+}
+[data-reveal].is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* 提灯アイコン（LanternIcon.astro）。点灯・消灯・「主」演出・呼吸グローの
    4状態をクラスで切り替える。色は3役割にCSS変数化してある:
    --lantern-band（胴の朱帯）・--lantern-fill（灯り＝本体の塗り）。
@@ -430,6 +464,7 @@ body {
   .status-fade,
   .lantern-icon.is-breathing,
   .lantern-icon.is-inviting,
+  .status-pulse,
   ::view-transition-group(root),
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -469,6 +504,13 @@ body {
   .ill-tint,
   .ill-glow,
   .hero-status-number {
+    transition: none !important;
+  }
+
+  /* [data-reveal]: SectionHeading.astro側のJSがreduceMotion判定で
+     reveal-pendingを付けずis-revealedを直接付与するため通常はここに
+     頼らないが、二重の安全策としてtransitionそのものも止めておく。 */
+  [data-reveal] {
     transition: none !important;
   }
 }

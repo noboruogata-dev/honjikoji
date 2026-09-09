@@ -324,6 +324,24 @@ const seatTypes = [
   // 張り直す」方式で多重登録を防ぐ。
   let popStateHandler: ((event: PopStateEvent) => void) | undefined;
 
+  // ユーザーの明示的な操作（フィルタ切替・戻る/進む）によるカード表示の
+  // 変化を、View Transitions APIで包む。ページ遷移（noren-drop/
+  // noren-fade-out、global.css参照）と同じ::view-transition-old/new(root)
+  // を流用するため、追加のCSSは不要（新しいアニメーションを作るのではなく、
+  // 既にある「暖簾が下りる」演出を同一ページ内の状態変化にも適用する）。
+  // 初期表示（restoreFromUrl直後）と60秒毎の自動再評価は対象外
+  // （前者は初回描画を待たせない方針、後者はユーザー操作ではなく背後で
+  // 静かに更新すべきもののため）。未対応ブラウザ・reduced-motionでは
+  // 通常のフィルタ関数と全く同じ挙動にフォールバックする。
+  function withViewTransition(applyChanges: () => void) {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion || typeof document.startViewTransition !== 'function') {
+      applyChanges();
+      return;
+    }
+    document.startViewTransition(applyChanges);
+  }
+
   function init() {
     // 遷移のたびにDOMが差し替わるため、要素は毎回このスコープで取り直す。
     const groups = document.querySelectorAll<HTMLElement>('[data-filter-group]');
@@ -493,7 +511,7 @@ const seatTypes = [
         button.addEventListener('click', () => {
           buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
           button.setAttribute('aria-pressed', 'true');
-          applyFilters();
+          withViewTransition(applyFilters);
           scheduleUrlPush();
         });
       });
@@ -502,14 +520,14 @@ const seatTypes = [
     openToggle?.addEventListener('click', () => {
       const active = isOpenToggleActive();
       openToggle.setAttribute('aria-pressed', String(!active));
-      applyFilters();
+      withViewTransition(applyFilters);
       scheduleUrlPush();
     });
 
     videoToggle?.addEventListener('click', () => {
       const active = isVideoToggleActive();
       videoToggle.setAttribute('aria-pressed', String(!active));
-      applyFilters();
+      withViewTransition(applyFilters);
       scheduleUrlPush();
     });
 
@@ -529,7 +547,7 @@ const seatTypes = [
     if (popStateHandler) window.removeEventListener('popstate', popStateHandler);
     popStateHandler = () => {
       restoreFromUrl();
-      applyFilters();
+      withViewTransition(applyFilters);
     };
     window.addEventListener('popstate', popStateHandler);
   }

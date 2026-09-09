@@ -20,7 +20,7 @@ const LABEL_CLASS: Record<string, string> = {
 };
 ---
 
-<div class="flex items-center gap-3">
+<div class="flex items-center gap-3" data-reveal>
   <span
     class:list={[
       'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border',
@@ -36,3 +36,42 @@ const LABEL_CLASS: Record<string, string> = {
     </Heading>
   </div>
 </div>
+
+<script>
+  // 画面内に入った瞬間、下からふわっと浮かび上がる汎用の「reveal」演出。
+  // [data-reveal] を持つ要素なら（SectionHeading以外でも）拾えるよう汎用に
+  // 作ってある。JS無効時は reveal-pending クラス自体が付かないため常に
+  // 通常表示のまま（隠す処理はJSが動いた時だけ発生する = no-JSで消えたままに
+  // ならない安全側のフォールバック）。
+  // ページ内に既に見えている要素にも一応observeするため一瞬（1フレーム程度）
+  // 不可視になる可能性があるが、IntersectionObserverの初回コールバックは
+  // 次の描画直後に来るため体感できるほどのちらつきにはならない。
+  function initScrollReveal() {
+    const els = document.querySelectorAll<HTMLElement>('[data-reveal]:not(.reveal-init)');
+    if (els.length === 0) return;
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      els.forEach((el) => el.classList.add('reveal-init', 'is-revealed'));
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add('is-revealed');
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.2, rootMargin: '0px 0px -10% 0px' }
+    );
+
+    els.forEach((el) => {
+      el.classList.add('reveal-init', 'reveal-pending');
+      observer.observe(el);
+    });
+  }
+
+  document.addEventListener('astro:page-load', initScrollReveal);
+</script>
