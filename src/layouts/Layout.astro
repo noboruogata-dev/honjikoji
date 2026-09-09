@@ -85,6 +85,54 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
       })();
     </script>
 
+    <!--
+      フッター等、常時DOM上に残る要素（transition:persist）や固定要素の中の
+      リンクからClientRouterで別ページへ遷移すると、ブラウザによっては遷移前の
+      スクロール位置がそのまま残ってしまうことがある（モバイルメニュー
+      （[data-mobile-menu]、Header.astro）で最初に見つかった不具合と同種で、
+      フッターでも発生することが分かった）。ページ遷移を伴うリンククリックを
+      検知しておき、遷移完了後（astro:page-load）に必ず先頭へスクロールし
+      直すことで、どこからのリンクでも確実にページ先頭に戻れるようにする。
+      通常のscript（is:inlineではない）のため、このモジュール自体は初回の
+      1回しか評価されない（ClientRouterでの遷移はモジュールを再実行しない）
+      = window フラグでの二重登録防止は不要。
+    -->
+    <script>
+      let pendingScrollReset = false;
+
+      function isPlainLeftClick(event: MouseEvent): boolean {
+        return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+      }
+
+      document.addEventListener(
+        'click',
+        (event) => {
+          if (!isPlainLeftClick(event)) return;
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const link = target.closest('a[href]');
+          if (!link || link.target === '_blank') return;
+          let url: URL;
+          try {
+            url = new URL(link.href, location.href);
+          } catch {
+            return;
+          }
+          if (url.origin !== location.origin) return;
+          // パス・クエリが変わらない（ページ内ハッシュ移動等）は対象外。
+          if (url.pathname === location.pathname && url.search === location.search) return;
+          pendingScrollReset = true;
+        },
+        true
+      );
+
+      document.addEventListener('astro:page-load', () => {
+        if (!pendingScrollReset) return;
+        pendingScrollReset = false;
+        window.scrollTo({ top: 0, left: 0 });
+      });
+    </script>
+
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
