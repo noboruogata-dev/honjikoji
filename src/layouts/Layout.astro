@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { ClientRouter } from 'astro:transitions';
 import OmikujiButton from '../components/OmikujiButton.astro';
+import AlleyNight from '../components/illustrations/AlleyNight.astro';
 
 interface Props {
   title: string;
@@ -187,6 +188,20 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
     <ClientRouter />
   </head>
   <body class="min-h-screen antialiased">
+    <!--
+      ページ全体を貫く路地の背景。以前はページごとに個別のHero/特集ボックスが
+      自分の中だけにAlleyNightを閉じ込めて持っていたため、サイト全体が
+      「箱を積み重ねたダッシュボード」に見えていた（トップページで先行して
+      解消済み。ここに置くことで全ページへ広げる）。position: fixedで
+      ビューポート下端に据え、スクロールしても常に路地の中に立っている
+      感覚を保つ。z-indexは使わない（DOM順で最初に置くだけで、
+      Header(z-50)・後続の通常コンテンツより自然に背面へ回る。負の
+      z-indexはbodyの背景に隠れてしまう場合があるため避ける）。 -->
+    <div class="pointer-events-none fixed inset-x-0 bottom-0 h-[65vh] overflow-hidden sm:h-[55vh]" aria-hidden="true">
+      <AlleyNight ignite="load" class="absolute inset-x-0 bottom-0 h-full w-full opacity-[0.14]" />
+      <div class="absolute inset-0 bg-[radial-gradient(ellipse_90%_60%_at_50%_100%,var(--glow),transparent)]"></div>
+    </div>
+
     <slot />
     <OmikujiButton />
   </body>

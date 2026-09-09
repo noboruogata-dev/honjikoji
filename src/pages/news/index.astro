@@ -24,13 +24,11 @@ const news = (await getCollection('news')).sort(
 
     {
       news.length > 0 ? (
-        <ul class="mt-6 divide-y divide-night-700 overflow-hidden rounded-xl border border-night-700 bg-night-900/50">
+        <ul class="mt-6 divide-y divide-night-700">
           {news.map((item) => <NewsListItem item={item} />)}
         </ul>
       ) : (
-        <div class="mt-6 rounded-xl border border-night-700 bg-night-900/50">
-          <EmptyState message="現在お知らせはありません。" />
-        </div>
+        <EmptyState message="現在お知らせはありません。" class="mt-6" />
       )
     }
   </main>

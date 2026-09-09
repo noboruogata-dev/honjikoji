@@ -119,40 +119,36 @@ const manners = [
   <Header showBackLink />
 
   <main class="mx-auto max-w-4xl px-4 py-10">
-    <!-- Hero -->
-    <section class="relative mb-16 overflow-hidden rounded-2xl border border-night-700 bg-night-900/60 px-5 py-10 sm:px-10 sm:py-14">
-      <div
-        class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_20%_0%,rgba(242,181,68,0.14),transparent),radial-gradient(ellipse_50%_50%_at_100%_100%,rgba(226,71,47,0.12),transparent)]"
-      >
-      </div>
-      <div class="relative">
-        <p class="text-xs tracking-[0.3em] text-amber-glow/80">OUR STORY</p>
-        <h1 class="mt-3 max-w-2xl font-serif text-3xl font-bold leading-snug text-gold-100 text-glow sm:text-4xl">
-          鍛冶の町が育んだ、夜の社交場。
-        </h1>
-        <p class="mt-6 max-w-2xl leading-loose text-gold-100/70">
-          新潟県三条市。金物の町として知られるこの街の中心部に、今も灯りを絶やさぬ小さな路地があります。本寺小路——地元の人々が「ほんじ」と親しみを込めて呼ぶこの一角は、腕一本で身を立てた職人と商人の街が育んだ「大人の社交場」です。ここでは、その成り立ちと今に受け継がれる魅力、そして初めて訪れる方への歩き方をご紹介します。
-        </p>
-        <div class="mt-7 flex flex-wrap gap-2.5">
-          <a
-            href="#roots"
-            class="rounded-full border border-amber-deep/50 bg-amber-glow/10 px-3.5 py-1.5 text-xs font-medium text-amber-glow transition hover:bg-amber-glow/20"
-          >
-            鍛冶職人の町
-          </a>
-          <a
-            href="#timeline"
-            class="rounded-full border border-vermilion/50 bg-vermilion/10 px-3.5 py-1.5 text-xs font-medium text-vermilion transition hover:bg-vermilion/20"
-          >
-            夜の歓楽街の成り立ち
-          </a>
-          <a
-            href="#hashigo"
-            class="rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-          >
-            ハシゴ酒の心得
-          </a>
-        </div>
+    <!-- Hero。以前は専用の枠線ボックス+光彩を持っていたが、Layout.astroの
+         全ページ共通背景（路地のシルエット）と役割が重複するため外し、
+         共有背景の上にテキストを直接浮かせる。 -->
+    <section class="relative mb-16">
+      <p class="text-xs tracking-[0.3em] text-amber-glow/80">OUR STORY</p>
+      <h1 class="mt-3 max-w-2xl font-serif text-3xl font-bold leading-snug text-gold-100 text-glow sm:text-4xl">
+        鍛冶の町が育んだ、夜の社交場。
+      </h1>
+      <p class="mt-6 max-w-2xl leading-loose text-gold-100/70">
+        新潟県三条市。金物の町として知られるこの街の中心部に、今も灯りを絶やさぬ小さな路地があります。本寺小路——地元の人々が「ほんじ」と親しみを込めて呼ぶこの一角は、腕一本で身を立てた職人と商人の街が育んだ「大人の社交場」です。ここでは、その成り立ちと今に受け継がれる魅力、そして初めて訪れる方への歩き方をご紹介します。
+      </p>
+      <div class="mt-7 flex flex-wrap gap-2.5">
+        <a
+          href="#roots"
+          class="rounded-full border border-amber-deep/50 bg-amber-glow/10 px-3.5 py-1.5 text-xs font-medium text-amber-glow transition hover:bg-amber-glow/20"
+        >
+          鍛冶職人の町
+        </a>
+        <a
+          href="#timeline"
+          class="rounded-full border border-vermilion/50 bg-vermilion/10 px-3.5 py-1.5 text-xs font-medium text-vermilion transition hover:bg-vermilion/20"
+        >
+          夜の歓楽街の成り立ち
+        </a>
+        <a
+          href="#hashigo"
+          class="rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+        >
+          ハシゴ酒の心得
+        </a>
       </div>
     </section>
 
@@ -348,7 +344,7 @@ const manners = [
     </section>
 
     <!-- CTA -->
-    <section class="mt-14 rounded-2xl border border-night-700 bg-night-900/60 p-6 text-center sm:p-8">
+    <section class="mt-14 text-center">
       <Coins size={24} stroke-width={1.5} class="mx-auto text-amber-glow" />
       <p class="mt-3 font-serif text-lg font-bold text-gold-100">
         さあ、今夜の一軒を探しに
