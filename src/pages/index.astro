@@ -725,12 +725,21 @@ const structuredData = [
   }
   @media (prefers-reduced-motion: no-preference) {
     @supports (animation-timeline: view()) {
-      .hero-keyvisual-parallax {
-        animation-name: hero-kv-drift;
-        animation-timing-function: linear;
-        animation-fill-mode: both;
-        animation-timeline: --hero-scroll;
-        animation-range: exit 0% exit 100%;
+      /*
+        キービジュアル自体のパララックス（scale+translate）はモバイルで
+        やめる（提灯の「手前を通り過ぎる」演出だけ残す）。640px以上
+        （Tailwindのsmと同じ基準）でのみ有効化する。モバイルはアニメー
+        ションが付かないぶん、常にtransformなし＝元のサイズ（w-full）の
+        まま表示される（アクセス直後から最大幅で見える、を兼ねる）。
+      */
+      @media (min-width: 640px) {
+        .hero-keyvisual-parallax {
+          animation-name: hero-kv-drift;
+          animation-timing-function: linear;
+          animation-fill-mode: both;
+          animation-timeline: --hero-scroll;
+          animation-range: exit 0% exit 100%;
+        }
       }
       .hero-lantern-stream {
         /* animation-range は各インスタンスの style属性で個別に指定する
