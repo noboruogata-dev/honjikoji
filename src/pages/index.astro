@@ -109,19 +109,6 @@ const structuredData = [
     色は固定の16進値のみを使い、[data-time]が変えるCSS変数（--glow等）には
     一切触れていないため、時間帯変化とは独立して両方が同時に効く。
   -->
-  <!--
-    【一時デバッグ表示】実機でHeroキービジュアルのパララックス有無が
-    画像の種類によって変わって見える／変わらないように見える、という
-    報告が食い違ったため、印象に頼らず実際の値を画面に直接文字で出す。
-    確認が終わり次第、このdiv・下のscript（initParallaxDebugBadge）ごと
-    削除すること。
-  -->
-  <div
-    id="debug-parallax-badge"
-    style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#000;color:#0f0;font:10px/1.4 monospace;padding:6px 8px;white-space:pre-wrap;word-break:break-all;"
-    aria-hidden="true"
-  >
-  </div>
   <main class="relative">
     <!--
       Hero: テキスト部はSPOTS/ハシゴ酒と同じ考え方で内側にmax-w-5xlの
@@ -160,20 +147,26 @@ const structuredData = [
 
       <!--
         キービジュアル: keyvisual.png（実寸804x702、ほぼ正方形）。
-        モバイルは33dvh→42dvhに拡大（イラストを主役にする指示のため）。
+
+        モバイルの高さ指定は h-[42dvh] をやめ h-auto（幅基準）にした。
+        実機のSafariで「スクロールするとキービジュアルが動いて見える」
+        報告が続いていたが、画面上に実測値を表示するデバッグバッジで
+        確認したところ animationName=none / transform=none （＝
+        .hero-keyvisual-parallaxのCSSアニメーションは動いていない）
+        だった。原因はアニメーションではなく、iOS Safariがスクロールで
+        アドレスバー/ツールバーを開閉するたびに dvh（動的ビューポート
+        高さ）が変化し、h-[42dvh]で指定していた高さ＝画像の見た目の
+        サイズがそのたびに変わって見えていたこと（transformを使わない、
+        純粋なレイアウトサイズの変化）だったと判断した。
+        幅（w-full）はツールバー開閉の影響を受けないため、高さ指定を
+        やめて幅基準にすることでこの揺れを解消する。42dvh時点でも
+        ほぼ画面幅いっぱいになる計算だったため、見た目のサイズは
+        ほぼ変わらない。
         sm以上は既存のmax-h指定のまま（正方形素材は幅基準のままだと
         デスクトップで縦に間延びするため、変更していない）。
 
         灯りの表現（3段構成）・パララックス（案B、keyvisual自体の
-        scale+translate）は変更なし。
-
-        （画像だけをkeyvisual2.webpへ一時差し替えた際、実機で
-        「パララックスが無くなった」と見えたが、画像を戻すと
-        「パララックスが戻った」とも報告された。パララックスを制御する
-        CSS（.hero-keyvisual-parallaxのanimation-timeline等）は画像src
-        と完全に独立しているため、本来この2つは連動しないはずで、
-        見た目の印象（横長の絵だと動きが目立たない等）による誤認の
-        可能性が高いと判断し、下に一時デバッグ表示を追加して実測する。）
+        scale+translate、640px以上でのみ有効）は変更なし。
       -->
       <div class="hero-keyvisual-parallax relative mt-2 sm:mt-6">
         <div
@@ -186,7 +179,7 @@ const structuredData = [
           width="804"
           height="702"
           alt="赤提灯と「本寺小路」ののれんが灯る路地の様子。居酒屋やスナックの看板が並び、行き交う人影が見える夜の情景。"
-          class="keyvisual-fade relative mx-auto h-[42dvh] w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
+          class="keyvisual-fade relative mx-auto h-auto w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
           loading="eager"
         />
         <img
@@ -196,7 +189,7 @@ const structuredData = [
           alt=""
           aria-hidden="true"
           loading="eager"
-          class="keyvisual-bloom pointer-events-none absolute inset-0 mx-auto h-[42dvh] w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
+          class="keyvisual-bloom pointer-events-none absolute inset-0 mx-auto h-auto w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
         />
       </div>
 
@@ -712,34 +705,6 @@ const structuredData = [
   }
 
   document.addEventListener('astro:page-load', initHeroStatus);
-
-  // 【一時デバッグ】画面上部に実際のcomputed styleを文字で出す。
-  // 確認が終わり次第、このブロックとindex.astro先頭の#debug-parallax-badge
-  // ごと削除すること。
-  function updateParallaxDebugBadge() {
-    const badge = document.getElementById('debug-parallax-badge');
-    const kv = document.querySelector<HTMLElement>('.hero-keyvisual-parallax');
-    const lantern = document.querySelector<HTMLElement>('.hero-lantern-stream');
-    if (!badge || !kv) return;
-    const kvCs = getComputedStyle(kv);
-    const lanternCs = lantern ? getComputedStyle(lantern) : null;
-    badge.textContent =
-      `w=${window.innerWidth} dpr=${window.devicePixelRatio} ` +
-      `reduceMotion=${window.matchMedia('(prefers-reduced-motion: reduce)').matches} ` +
-      `supportsVT=${CSS.supports('animation-timeline: view()')}\n` +
-      `kv.animationName=${kvCs.animationName}\n` +
-      `kv.animationTimeline=${kvCs.animationTimeline}\n` +
-      `kv.transform=${kvCs.transform}\n` +
-      `lantern.animationName=${lanternCs?.animationName ?? 'n/a'} opacity=${lanternCs?.opacity ?? 'n/a'}`;
-  }
-
-  function initParallaxDebugBadge() {
-    updateParallaxDebugBadge();
-    window.addEventListener('scroll', updateParallaxDebugBadge, { passive: true });
-    window.addEventListener('resize', updateParallaxDebugBadge);
-  }
-
-  document.addEventListener('astro:page-load', initParallaxDebugBadge);
 </script>
 
 <style>
