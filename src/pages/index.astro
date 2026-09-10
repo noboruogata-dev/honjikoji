@@ -756,6 +756,18 @@ const structuredData = [
   // 中での相対位置、0〜1）をその窓へ写像してanimation-rangeに反映する。
   // ビューポート高がどんな値でも、hero-statusエリアが実際に画面から
   // 消えていく間だけ提灯が流れるようになる。
+  //
+  // LEAD_VH_FRACTION / TRAIL_VH_FRACTION: hero-status-wrap自体の実高さ
+  // （上端〜下端）だけを窓にすると絶対px幅が狭く（実測200px前後）、
+  // 「もっとゆっくり長い時間提灯を出したい」という要望に対して短すぎた。
+  // 窓の前後にビューポート高に比例した余白を足すことで、hero-statusが
+  // まだ画面内にあるうち（早め）から流れ始め、完全に消えた後も少し
+  // 余韻が残る、ゆったりした尺に広げている。vh比例にしているのは、
+  // 固定pxだとまた同じ「ビューポート高で体感が変わる」問題を再発させて
+  // しまうため（この関数冒頭のコメント参照）。
+  const LEAD_VH_FRACTION = 0.4;
+  const TRAIL_VH_FRACTION = 0.2;
+
   let lanternResizeHandler: (() => void) | undefined;
 
   function calibrateLanternRanges() {
@@ -776,8 +788,8 @@ const structuredData = [
     const exitEndDocY = heroRect.bottom + scrollY;
     const progressAt = (docY: number) => Math.min(1, Math.max(0, (docY - exitEndDocY) / vh + 1));
 
-    const windowStart = progressAt(wrapRect.top + scrollY) * 100;
-    const windowEnd = progressAt(wrapRect.bottom + scrollY) * 100;
+    const windowStart = progressAt(wrapRect.top + scrollY - vh * LEAD_VH_FRACTION) * 100;
+    const windowEnd = progressAt(wrapRect.bottom + scrollY + vh * TRAIL_VH_FRACTION) * 100;
     const span = windowEnd - windowStart;
 
     lanterns.forEach((el) => {
