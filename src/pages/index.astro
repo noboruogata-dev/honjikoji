@@ -256,9 +256,22 @@ const structuredData = [
         aria-label="新着店舗一覧"
       >
         {
-          featuredSpots.map((spot, i) => (
+          /*
+            revealIndexは渡さない（= data-revealのスクロール連動フェードイン
+            を使わない）。SPOTSは横スクロール行のため、2枚目以降は右端に
+            「一部だけ覗く」状態で初期表示される。SectionHeading.astroの
+            IntersectionObserverはthreshold:0.2（面積20%以上の交差）で
+            revealするが、覗いているのは幅の約18%程度しかなく閾値を
+            永遠に超えられない＝2枚目以降がopacity:0のまま固まって消えて
+            見える不具合が本番で発生していたため。SpotCard.astro自身の
+            コメントが警告する「フィルタ付き一覧では指定しない」と同じ
+            クラスの問題（IntersectionObserverの前提が崩れるケース）。
+          */
+        }
+        {
+          featuredSpots.map((spot) => (
             <div class="flex w-[78vw] max-w-[20rem] shrink-0 snap-start sm:w-72 lg:w-80">
-              <SpotCard spot={spot} revealIndex={i} />
+              <SpotCard spot={spot} />
             </div>
           ))
         }
@@ -713,7 +726,9 @@ const structuredData = [
   @media (prefers-reduced-motion: no-preference) {
     @supports (animation-timeline: view()) {
       .hero-keyvisual-parallax {
-        animation: hero-kv-drift linear both;
+        animation-name: hero-kv-drift;
+        animation-timing-function: linear;
+        animation-fill-mode: both;
         animation-timeline: --hero-scroll;
         animation-range: exit 0% exit 100%;
       }
@@ -721,7 +736,9 @@ const structuredData = [
         /* animation-range は各インスタンスの style属性で個別に指定する
            （手前ほど早く・大きく動く＝「奥/中景/手前」の速度差を
            1つのkeyframeのまま範囲だけずらして表現するため）。 */
-        animation: hero-lantern-stream linear both;
+        animation-name: hero-lantern-stream;
+        animation-timing-function: linear;
+        animation-fill-mode: both;
         animation-timeline: --hero-scroll;
         will-change: transform, opacity;
       }
