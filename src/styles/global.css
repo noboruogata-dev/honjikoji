@@ -198,6 +198,7 @@ html {
     drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 16px var(--glow));
 }
 
+
 /*
  * RuleDivider.astroのスクロール連動演出。animation-timeline: view()対応
  * ブラウザのみ有効化する（Hero側index.astroの@supports (animation-timeline:

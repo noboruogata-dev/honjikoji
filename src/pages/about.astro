@@ -34,7 +34,7 @@ const timeline = [
     icon: Anvil,
     accent: 'amber',
     keywords: ['鍛冶職人', 'ものづくりの町'],
-    image: '/images/timeline/era-edo.png',
+    image: '/images/timeline/era-edo.webp',
     imageAlt: '江戸時代、鍛冶職人が金物を打つ工房の情景',
   },
   {
@@ -44,7 +44,7 @@ const timeline = [
     icon: Landmark,
     accent: 'vermilion',
     keywords: ['商談の場', '花街の最盛期'],
-    image: '/images/timeline/era-meiji-taisho.png',
+    image: '/images/timeline/era-meiji-taisho.webp',
     imageAlt: '明治・大正期、赤い暖簾を掛けた商家の店構えの情景',
   },
   {
@@ -54,7 +54,7 @@ const timeline = [
     icon: Users,
     accent: 'amber',
     keywords: ['代替わり', '受け継がれる暖簾'],
-    image: '/images/timeline/era-heisei.png',
+    image: '/images/timeline/era-heisei.webp',
     imageAlt: '平成期、シャッターの目立つ路地に、ぽつぽつと灯りがともる情景',
   },
   {
@@ -64,7 +64,7 @@ const timeline = [
     icon: Lamp,
     accent: 'vermilion',
     keywords: ['大人の社交街', '今も灯る路地'],
-    image: '/images/timeline/era-reiwa.png',
+    image: '/images/timeline/era-reiwa.webp',
     imageAlt: '令和の今、提灯の灯りが並ぶ本寺小路の夜の情景',
   },
 ];
@@ -203,28 +203,33 @@ const manners = [
                       i % 2 === 0 ? 'sm:pr-10' : 'sm:ml-auto sm:pl-10',
                     ]}
                   >
-                    <div class="rounded-xl border border-night-700 bg-night-900/60 p-5">
-                      <div class="sm:grid sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center sm:gap-5">
-                        <Illust
-                          src={item.image}
-                          mode="tint"
-                          size={160}
-                          alt={item.imageAlt}
-                          class="mx-auto mb-4 w-36 rounded-lg sm:mb-0 sm:w-40"
-                        />
-                        <div class="text-center sm:text-left">
-                          <p
-                            class:list={[
-                              'text-xs font-medium tracking-[0.2em]',
-                              isVermilion ? 'text-vermilion/90' : 'text-amber-glow/80',
-                            ]}
-                          >
-                            {item.era}
-                          </p>
-                          <h3 class="mt-1 font-serif text-lg font-bold leading-relaxed text-gold-100">{item.label}</h3>
-                        </div>
-                      </div>
-                      <p class="mt-2 leading-loose text-gold-100/65">{item.body}</p>
+                    <!--
+                      年表の挿絵: 元は assets-src/images/timeline/ の
+                      1254x1254高解像度原版から、境界フラッドフィル（背景色に
+                      近い画素の連結成分を検出し、外周非連結の「空」の孤立領域
+                      も含めて透過する方式）で背景を除去し、800x800のWebPで
+                      書き出し直したもの（public/images/timeline/*.webp、
+                      一回限りの変換で.pngから差し替え済み）。以前使っていた
+                      200x200px・地色付き・円形ヴィネットでごまかす方式から、
+                      本物の透過＋高解像度に置き換えたため、ヴィネット
+                      （era-illust-fade）は不要になり外した。
+                      カード全体の暖色背景（挿絵と同系統の墨色）は維持。
+                      挿絵をできるだけ大きく見せるため、「カード上部いっぱいの
+                      帯画像→その下にテキスト」という縦積み構成にしている。
+                    -->
+                    <div class="overflow-hidden rounded-xl border border-[#3a2f22]/70 bg-[#241f1a]/85">
+                      <Illust src={item.image} mode="tint" size={480} alt={item.imageAlt} class="w-full" />
+                      <div class="p-5">
+                        <p
+                          class:list={[
+                            'text-xs font-medium tracking-[0.2em]',
+                            isVermilion ? 'text-vermilion/90' : 'text-amber-glow/80',
+                          ]}
+                        >
+                          {item.era}
+                        </p>
+                        <h3 class="mt-1 font-serif text-lg font-bold leading-relaxed text-gold-100">{item.label}</h3>
+                        <p class="mt-2 leading-loose text-gold-100/65">{item.body}</p>
                       <div class="mt-3 flex flex-wrap gap-1.5">
                         {item.keywords.map((keyword) => (
                           <span
@@ -238,6 +243,7 @@ const manners = [
                             {keyword}
                           </span>
                         ))}
+                      </div>
                       </div>
                     </div>
                   </div>
