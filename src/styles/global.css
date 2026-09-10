@@ -199,6 +199,22 @@ html {
 }
 
 /*
+ * about.astro年表(era-*.png)専用。透過PNGではなく、地色（生成り〜
+ * セピア）が焼き込まれた角丸四角形の素材で、不透明領域の境界がほぼ
+ * ノーアンチエイリアスの硬い輪郭線になっている（実測: 中心から約4pxで
+ * alphaが0↔255に切り替わる）。カード側の地の色を挿絵と同系統の暖色に
+ * 揃えても、この硬い輪郭線自体は残って「シールを貼ったような境目」に
+ * 見えてしまうため、円形のヴィネット（mask-image）でその輪郭をぼかし、
+ * カードへ自然に溶け込ませる。画像ファイル自体は書き換えない。
+ * 数値（55%で不透明を保ち、90%までに完全透明）はPillowで実際に4枚の
+ * 素材へ適用して目視確認した値。
+ */
+.era-illust-fade {
+  -webkit-mask-image: radial-gradient(circle at center, #000 55%, transparent 90%);
+  mask-image: radial-gradient(circle at center, #000 55%, transparent 90%);
+}
+
+/*
  * RuleDivider.astroのスクロール連動演出。animation-timeline: view()対応
  * ブラウザのみ有効化する（Hero側index.astroの@supports (animation-timeline:
  * view())と同じ判定を再利用）。未対応ブラウザではこのルール自体が
