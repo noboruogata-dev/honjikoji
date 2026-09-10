@@ -34,7 +34,7 @@ const timeline = [
     icon: Anvil,
     accent: 'amber',
     keywords: ['鍛冶職人', 'ものづくりの町'],
-    image: '/images/timeline/era-edo.png',
+    image: '/images/timeline/era-edo.webp',
     imageAlt: '江戸時代、鍛冶職人が金物を打つ工房の情景',
   },
   {
@@ -44,7 +44,7 @@ const timeline = [
     icon: Landmark,
     accent: 'vermilion',
     keywords: ['商談の場', '花街の最盛期'],
-    image: '/images/timeline/era-meiji-taisho.png',
+    image: '/images/timeline/era-meiji-taisho.webp',
     imageAlt: '明治・大正期、赤い暖簾を掛けた商家の店構えの情景',
   },
   {
@@ -54,7 +54,7 @@ const timeline = [
     icon: Users,
     accent: 'amber',
     keywords: ['代替わり', '受け継がれる暖簾'],
-    image: '/images/timeline/era-heisei.png',
+    image: '/images/timeline/era-heisei.webp',
     imageAlt: '平成期、シャッターの目立つ路地に、ぽつぽつと灯りがともる情景',
   },
   {
@@ -64,7 +64,7 @@ const timeline = [
     icon: Lamp,
     accent: 'vermilion',
     keywords: ['大人の社交街', '今も灯る路地'],
-    image: '/images/timeline/era-reiwa.png',
+    image: '/images/timeline/era-reiwa.webp',
     imageAlt: '令和の今、提灯の灯りが並ぶ本寺小路の夜の情景',
   },
 ];
@@ -204,28 +204,21 @@ const manners = [
                     ]}
                   >
                     <!--
-                      年表の挿絵(era-*.png)は透過ではなく、セピア調の地色が
-                      焼き込まれた素材（column挿絵等の「墨色背景」規格より前の
-                      もの）。囲み全体を挿絵と同系統の暖色にして色相の不一致を
-                      解消し、era-illust-fade（global.css、円形ヴィネット）で
-                      不透明領域の硬い輪郭もぼかしてある。
-                      挿絵をできるだけ大きく見せるため、以前の「160px固定幅の
-                      サムネイルをテキストの横に添える」構成から、「カード上部
-                      いっぱいの帯画像→その下にテキスト」という縦積み構成に
-                      変更した（sm:gridでの横並びをやめる）。
-                      注記: 元素材は200x200pxのため、カード幅（PCではおよそ
-                      350〜400px前後）まで拡大するとやや粗さが出る。線画自体は
-                      崩れないが、精細さを求めるなら高解像度版の作り直しが
-                      望ましい。
+                      年表の挿絵: 元は assets-src/images/timeline/ の
+                      1254x1254高解像度原版から、境界フラッドフィル（背景色に
+                      近い画素の連結成分を検出し、外周非連結の「空」の孤立領域
+                      も含めて透過する方式）で背景を除去し、800x800のWebPで
+                      書き出し直したもの（public/images/timeline/*.webp、
+                      一回限りの変換で.pngから差し替え済み）。以前使っていた
+                      200x200px・地色付き・円形ヴィネットでごまかす方式から、
+                      本物の透過＋高解像度に置き換えたため、ヴィネット
+                      （era-illust-fade）は不要になり外した。
+                      カード全体の暖色背景（挿絵と同系統の墨色）は維持。
+                      挿絵をできるだけ大きく見せるため、「カード上部いっぱいの
+                      帯画像→その下にテキスト」という縦積み構成にしている。
                     -->
                     <div class="overflow-hidden rounded-xl border border-[#3a2f22]/70 bg-[#241f1a]/85">
-                      <Illust
-                        src={item.image}
-                        mode="tint"
-                        size={480}
-                        alt={item.imageAlt}
-                        class="era-illust-fade w-full"
-                      />
+                      <Illust src={item.image} mode="tint" size={480} alt={item.imageAlt} class="w-full" />
                       <div class="p-5">
                         <p
                           class:list={[
