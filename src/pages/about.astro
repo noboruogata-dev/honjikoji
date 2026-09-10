@@ -206,38 +206,37 @@ const manners = [
                     <!--
                       年表の挿絵(era-*.png)は透過ではなく、セピア調の地色が
                       焼き込まれた素材（column挿絵等の「墨色背景」規格より前の
-                      もの）。囲み全体を挿絵と同系統の暖色（このセッションで
-                      bandセクションに使ったのと同じ暖色比率の墨色）にして
-                      色相の不一致は解消したが、それでも挿絵自体の不透明
-                      領域の輪郭がほぼノーアンチエイリアスの硬い線のため、
-                      「シールを貼ったような境目」が残っていた。
-                      era-illust-fade（global.css）でその輪郭を円形の
-                      ヴィネットでぼかし、カードへ自然に溶け込ませる
-                      （画像ファイル自体は書き換えない）。輪郭が滲むので
-                      ring-1の縁取りは外した（縁取りと滲ませは両立しない）。
+                      もの）。囲み全体を挿絵と同系統の暖色にして色相の不一致を
+                      解消し、era-illust-fade（global.css、円形ヴィネット）で
+                      不透明領域の硬い輪郭もぼかしてある。
+                      挿絵をできるだけ大きく見せるため、以前の「160px固定幅の
+                      サムネイルをテキストの横に添える」構成から、「カード上部
+                      いっぱいの帯画像→その下にテキスト」という縦積み構成に
+                      変更した（sm:gridでの横並びをやめる）。
+                      注記: 元素材は200x200pxのため、カード幅（PCではおよそ
+                      350〜400px前後）まで拡大するとやや粗さが出る。線画自体は
+                      崩れないが、精細さを求めるなら高解像度版の作り直しが
+                      望ましい。
                     -->
-                    <div class="rounded-xl border border-[#3a2f22]/70 bg-[#241f1a]/85 p-5">
-                      <div class="sm:grid sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center sm:gap-5">
-                        <Illust
-                          src={item.image}
-                          mode="tint"
-                          size={160}
-                          alt={item.imageAlt}
-                          class="era-illust-fade mx-auto mb-4 w-36 sm:mb-0 sm:w-40"
-                        />
-                        <div class="text-center sm:text-left">
-                          <p
-                            class:list={[
-                              'text-xs font-medium tracking-[0.2em]',
-                              isVermilion ? 'text-vermilion/90' : 'text-amber-glow/80',
-                            ]}
-                          >
-                            {item.era}
-                          </p>
-                          <h3 class="mt-1 font-serif text-lg font-bold leading-relaxed text-gold-100">{item.label}</h3>
-                        </div>
-                      </div>
-                      <p class="mt-2 leading-loose text-gold-100/65">{item.body}</p>
+                    <div class="overflow-hidden rounded-xl border border-[#3a2f22]/70 bg-[#241f1a]/85">
+                      <Illust
+                        src={item.image}
+                        mode="tint"
+                        size={480}
+                        alt={item.imageAlt}
+                        class="era-illust-fade w-full"
+                      />
+                      <div class="p-5">
+                        <p
+                          class:list={[
+                            'text-xs font-medium tracking-[0.2em]',
+                            isVermilion ? 'text-vermilion/90' : 'text-amber-glow/80',
+                          ]}
+                        >
+                          {item.era}
+                        </p>
+                        <h3 class="mt-1 font-serif text-lg font-bold leading-relaxed text-gold-100">{item.label}</h3>
+                        <p class="mt-2 leading-loose text-gold-100/65">{item.body}</p>
                       <div class="mt-3 flex flex-wrap gap-1.5">
                         {item.keywords.map((keyword) => (
                           <span
@@ -251,6 +250,7 @@ const manners = [
                             {keyword}
                           </span>
                         ))}
+                      </div>
                       </div>
                     </div>
                   </div>
