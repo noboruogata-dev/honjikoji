@@ -153,7 +153,7 @@ const manners = [
     </section>
 
     <!-- Section: ルーツ -->
-    <section id="roots" class="mb-16 scroll-mt-8">
+    <section id="roots" class="mb-16 scroll-mt-32">
       <SectionHeading icon={Anvil} label="ROOTS" accent="amber">
         鍛冶職人の街としてのルーツ
       </SectionHeading>
@@ -170,7 +170,7 @@ const manners = [
     <RuleDivider variant="chochin" />
 
     <!-- Timeline -->
-    <section id="timeline" class="mb-16 scroll-mt-8">
+    <section id="timeline" class="mb-16 scroll-mt-32">
       <SectionHeading icon={Landmark} label="TIMELINE" accent="amber">
         本寺小路のあゆみ
       </SectionHeading>
@@ -289,8 +289,15 @@ const manners = [
 
     <RuleDivider variant="ochoko" />
 
-    <!-- Section: 本寺小路の歩き方（ハシゴ酒の心得） -->
-    <section id="hashigo" class="mb-6 scroll-mt-8">
+    <!--
+      Section: 本寺小路の歩き方（ハシゴ酒の心得）
+      scroll-mt-8（32px）だと、モバイルのsticky header（showBackLink分の
+      戻るリンク行込みで実測109px）にアンカー後の見出しがまるごと隠れて
+      「タイトルが見切れる」不具合になっていた。#roots/#timelineも同じ
+      headerの下にあるため合わせてscroll-mt-32（128px、ヘッダー109pxに
+      余白を持たせた値）へ引き上げた。
+    -->
+    <section id="hashigo" class="mb-6 scroll-mt-32">
       <SectionHeading icon={Footprints} label="HOW TO ENJOY" accent="amber">
         本寺小路の歩き方（ハシゴ酒の心得）
       </SectionHeading>
