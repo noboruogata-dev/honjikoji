@@ -146,20 +146,18 @@ const structuredData = [
       </div>
 
       <!--
-        【一時的な動作確認用】本番反映の切り分けのため、keyvisual.png
-        （実寸804x702、正方形）を一時的にkeyvisual2.webp（実寸1672x941、
-        横長・文字なし）に差し替えている。実機で見た目が変わっていれば
-        デプロイ自体は届いている、変わっていなければ実機側の表示問題
-        （デスクトップサイト表示設定等）と切り分けられる。
-        確認が済み次第、keyvisual.png（804x702）に戻すこと。
-
-        以下は本来の内容（差し替え解除時に参照）:
         キービジュアル: keyvisual.png（実寸804x702、ほぼ正方形）。
         モバイルは33dvh→42dvhに拡大（イラストを主役にする指示のため）。
         sm以上は既存のmax-h指定のまま（正方形素材は幅基準のままだと
         デスクトップで縦に間延びするため、変更していない）。
+
         灯りの表現（3段構成）・パララックス（案B、keyvisual自体の
         scale+translate）は変更なし。
+
+        （本番反映確認のためkeyvisual2.webpへ一時的に差し替えていたが、
+        実機で「画像は差し替わり、パララックスは正しく無効」を確認できた
+        ため、この画像に戻した。以前実機で見えていたのはデプロイ未反映
+        ではなく古いキャッシュの残留だったと判断している。）
       -->
       <div class="hero-keyvisual-parallax relative mt-2 sm:mt-6">
         <div
@@ -168,17 +166,17 @@ const structuredData = [
         >
         </div>
         <img
-          src="/images/keyvisual2.webp"
-          width="1672"
-          height="941"
+          src="/images/keyvisual.png"
+          width="804"
+          height="702"
           alt="赤提灯と「本寺小路」ののれんが灯る路地の様子。居酒屋やスナックの看板が並び、行き交う人影が見える夜の情景。"
           class="keyvisual-fade relative mx-auto h-[42dvh] w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
           loading="eager"
         />
         <img
-          src="/images/keyvisual2.webp"
-          width="1672"
-          height="941"
+          src="/images/keyvisual.png"
+          width="804"
+          height="702"
           alt=""
           aria-hidden="true"
           loading="eager"
