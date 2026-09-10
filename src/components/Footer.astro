@@ -6,8 +6,17 @@ const year = new Date().getFullYear();
 
 <footer class="border-t border-night-700 bg-night-900" transition:persist transition:name="site-footer">
   <div class="mx-auto max-w-5xl px-4 py-8 text-center">
-    <div class="flex justify-center">
-      <Logo size="md" showTagline={false} />
+    <!--
+      以前はLogo側の「バッジ+縦2行(本寺小路/英字ワードマーク)」構成を
+      showTagline=falseのまま流用していたが、英字1行が長く右側の縦積みが
+      窮屈だった。ここでは compact でLogoから英字を切り離し（バッジ+
+      「本寺小路」の1行のみ）、英字は独立した行として全体の下段に
+      小さく配置する。 -->
+    <div class="flex flex-col items-center gap-2">
+      <Logo size="lg" compact />
+      <p class="text-[0.65rem] tracking-[0.2em] text-gold-100/40">
+        HONJIKOJI <span class="text-vermilion/60">|</span> SANJO NIGHT GUIDE
+      </p>
     </div>
 
     <nav aria-label="フッターナビゲーション" class="mt-5 flex flex-wrap justify-center gap-5 text-xs">

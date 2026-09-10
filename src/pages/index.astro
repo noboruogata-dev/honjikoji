@@ -4,13 +4,13 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import SpotCard from '../components/SpotCard.astro';
 import SectionHeading from '../components/SectionHeading.astro';
-import NewsListItem from '../components/NewsListItem.astro';
 import ColumnCard from '../components/ColumnCard.astro';
 import LanternIcon from '../components/illustrations/LanternIcon.astro';
+import AlleyNight from '../components/illustrations/AlleyNight.astro';
 import RuleDivider from '../components/RuleDivider.astro';
 import StructuredData from '../components/StructuredData.astro';
 import { getCollection } from 'astro:content';
-import { ArrowRight, BookOpenText, Landmark, MapPin, Megaphone } from '@lucide/astro';
+import { ArrowRight, MapPin } from '@lucide/astro';
 
 // 新着店舗: isNewを優先し、次点でpubDate降順。先頭6件のみトップに出す
 // （全件・フィルタ付きの一覧は /spots/ へ移設済み）。Hero内の「何軒中何軒が
@@ -61,19 +61,46 @@ const structuredData = [
   <StructuredData data={structuredData} />
   <Header />
 
-  <main class="relative mx-auto max-w-5xl px-4 py-6 sm:py-10">
-    <!-- Hero -->
-    <section class="relative mb-10 sm:mb-14">
-      <!-- 街灯からこぼれる火の粉が路地をゆっくり漂う演出。装飾のみで
-           情報を持たないためaria-hidden、CSSのみで動く（JS不要）。 -->
-      <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-        <span class="ember" style={{ left: '10%', top: '68%', animationDuration: '8.5s', animationDelay: '0s', '--drift-x': '16px' }}></span>
-        <span class="ember" style={{ left: '44%', top: '52%', animationDuration: '11s', animationDelay: '-3.5s', '--drift-x': '-12px' }}></span>
-        <span class="ember" style={{ left: '80%', top: '62%', animationDuration: '9.5s', animationDelay: '-6.5s', '--drift-x': '20px' }}></span>
-      </div>
+  <!--
+    以前はmain自体にmax-w-5xlをかけ、全セクションが同じ幅を共有していた。
+    今回はセクションごとに幅を変える（SPOTSは全幅、FEATURE/NEWSは狭幅の
+    読み物幅）ため、幅の制約はmainからは外し、セクション単位で個別に
+    mx-auto max-w-*を当てる。
+  -->
+  <!--
+    背景の明暗（band-*）について:
+    「暗く始まり、中盤（ハシゴ酒）で最も明るくなり、また暗く終わる」という
+    明暗の流れを、ページ長に依存しない形で付ける。1本の巨大なグラデーションを
+    main全体にvh/％で敷くと、記事が増減してセクションの相対的な高さ比率が
+    変わるたびに「どの明るさがどのセクションに乗るか」がズレてしまうため
+    採用しなかった。代わりに、セクションをband-*でグループ化し、各bandが
+    「自分の高さの0%〜100%」を基準にした自分専用のグラデーションを持つ
+    （中身が増えてbandの実高さが変わっても、bandの中でのグラデーションの
+    掛かり方自体は常に同じ比率のまま追従する）。
+    band間の境目が線に見えないよう、前後のセクション間の余白（本来はmb/mt）は
+    band wrapper自身のpadding-top/bottomに移し替えてある（band wrapperの
+    背景がその余白部分ごと塗るため、隙間から素のbody背景が覗かない）。
+    色は固定の16進値のみを使い、[data-time]が変えるCSS変数（--glow等）には
+    一切触れていないため、時間帯変化とは独立して両方が同時に効く。
+  -->
+  <main class="relative">
+    <!--
+      Hero: テキスト部はSPOTS/ハシゴ酒と同じ考え方で内側にmax-w-5xlの
+      ラッパーを持つが、キービジュアルはそこから外に出して画面幅いっぱいに
+      広げる（sectionそのものはmax-wの外＝mainの直下、テキストだけを
+      内側のdivでmax-w-5xlに収める）。
+    -->
+    <section class="band band-hero relative pb-10 pt-3 sm:pb-14 sm:pt-10">
+      <div class="mx-auto max-w-5xl px-4">
+        <!-- 街灯からこぼれる火の粉が路地をゆっくり漂う演出。装飾のみで
+             情報を持たないためaria-hidden、CSSのみで動く（JS不要）。 -->
+        <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+          <span class="ember" style={{ left: '10%', top: '68%', animationDuration: '8.5s', animationDelay: '0s', '--drift-x': '16px' }}></span>
+          <span class="ember" style={{ left: '44%', top: '52%', animationDuration: '11s', animationDelay: '-3.5s', '--drift-x': '-12px' }}></span>
+          <span class="ember" style={{ left: '80%', top: '62%', animationDuration: '9.5s', animationDelay: '-6.5s', '--drift-x': '20px' }}></span>
+        </div>
 
-      <div class="relative grid grid-cols-1 items-center gap-5 px-1 py-6 sm:grid-cols-2 sm:gap-10 sm:px-2 sm:py-14">
-        <div class="text-center sm:text-left">
+        <div class="relative px-1 py-3 text-center sm:px-2 sm:py-14 sm:text-left">
           <h1 class="font-serif text-[1.65rem] font-bold leading-[1.45] text-gold-100 text-glow sm:text-3xl">
             灯りともる路地で、<br />今夜の一軒を。
           </h1>
@@ -88,66 +115,110 @@ const structuredData = [
             <ArrowRight class="transition-transform duration-150 group-hover:translate-x-1 motion-reduce:transform-none" size={16} stroke-width={2.25} aria-hidden="true" />
           </a>
         </div>
+      </div>
 
-        <div>
-          <div
-            class="relative overflow-hidden rounded-2xl border border-night-700/60 bg-gradient-to-br from-night-800/50 to-transparent p-2 sm:p-6"
-          >
-            <div
-              class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_30%_20%,var(--glow),transparent)]"
-            >
-            </div>
-            <img
-              src="/images/keyvisual.png"
-              width="804"
-              height="702"
-              alt="赤提灯と「本寺小路」ののれんが灯る路地の様子。居酒屋やスナックの看板が並び、行き交う人影が見える夜の情景。"
-              class="relative mx-auto max-h-[20rem] w-full max-w-sm object-contain drop-shadow-[0_0_32px_rgba(242,181,68,0.3)] sm:max-h-none sm:max-w-none"
-              loading="eager"
-            />
-          </div>
+      <!--
+        キービジュアル: keyvisual.png（実寸804x702、ほぼ正方形）に差し戻し。
+        keyvisual2.webp（横長）はタッチが他の挿絵（提灯・暖簾・年表挿絵）と
+        揃わないこと、本寺小路の実際の狭い路地感には正方形寄りの構図の方が
+        合っていることから不採用。ファイル自体はpublic/images/に残置。
+
+        サイズ: モバイルはh-[33dvh]を維持するが、正方形素材は33dvh幅の
+        枠より横に余るため、object-coverではなくobject-containにして
+        高さ基準で収める（左右に余った分は透過PNG＋keyvisual-fadeの
+        mask-fadeでそのまま背景に溶ける）。sm以上は以前（keyvisual.png
+        採用時）と同じmax-h指定に戻す（正方形素材は幅基準のままだと
+        デスクトップで縦に間延びするため）。
+
+        灯りの表現（3段構成）は前回作ったものをそのまま流用するが、
+        全体が白く発光し「昼に見える」ほど強すぎたため、強度を半分程度に
+        絞った。今後の微調整がしやすいよう、.keyvisual-bloomの強度は
+        CSS変数（--kv-bloom-*）にまとめてある。
+      -->
+      <div class="relative mt-3 sm:mt-8">
+        <div
+          class="pointer-events-none absolute inset-0 opacity-50 bg-[radial-gradient(ellipse_38%_46%_at_50%_40%,var(--glow),transparent_58%),radial-gradient(ellipse_85%_95%_at_50%_40%,var(--glow),transparent_85%)]"
+          aria-hidden="true"
+        >
         </div>
+        <img
+          src="/images/keyvisual.png"
+          width="804"
+          height="702"
+          alt="赤提灯と「本寺小路」ののれんが灯る路地の様子。居酒屋やスナックの看板が並び、行き交う人影が見える夜の情景。"
+          class="keyvisual-fade relative mx-auto h-[33dvh] w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
+          loading="eager"
+        />
+        <img
+          src="/images/keyvisual.png"
+          width="804"
+          height="702"
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          class="keyvisual-bloom pointer-events-none absolute inset-0 mx-auto h-[33dvh] w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
+        />
       </div>
     </section>
 
+    <!--
+      営業状況ステータス〜新着店舗: 同じ明るさの帯としてグループ化
+      （営業状況は箱を持たない小さな表示なので、単独でband化するほどの
+      まとまりが無く、SPOTSと地続きの明るさでよい）。
+    -->
+    <div class="band band-status-spots">
     <!--
       営業状況ステータス。Heroの世界観と主要CTAを先に見せ、その直後に
       リアルタイム情報を置く。JS無効時は空要素のまま非表示。箱で囲わず、
       共有の背景の上にそのまま浮かせることでHeroからの連続性を保つ。
     -->
-    <section
-      data-hero-status
-      class="relative mb-14 px-6 py-4 text-center empty:hidden"
-      data-spots-hours={JSON.stringify(allSpots.map((s) => s.data.hours ?? null))}
-      aria-live="polite"
-    />
-    <template data-lantern-icon-template><LanternIcon /></template>
+    <div class="mx-auto max-w-5xl px-4">
+      <section
+        data-hero-status
+        class="relative mb-14 px-6 py-4 text-center empty:hidden"
+        data-spots-hours={JSON.stringify(allSpots.map((s) => s.data.hours ?? null))}
+        aria-live="polite"
+      />
+      <template data-lantern-icon-template><LanternIcon /></template>
+    </div>
 
-    <!-- 新着店舗: サイトの主目的なので、リアルタイム営業状況の直後に配置 -->
-    <section id="spots" class="scroll-mt-8" aria-labelledby="spots-heading">
-      <div class="flex items-baseline justify-between" id="spots-heading">
+    <!--
+      新着店舗: サイトの主目的なので、リアルタイム営業状況の直後に配置。
+      唯一「SPOTS」の英字ラベルを残すセクション。全幅に広げ、PC・SPを問わず
+      横スクロールにする。見出しだけmax-w-5xlに揃え、カード列は画面幅
+      いっぱいまで伸ばして右端でカードが切れる＝まだ続く、を伝える。
+    -->
+    <section id="spots" class="scroll-mt-8 pb-16 sm:pb-24" aria-labelledby="spots-heading">
+      <div class="mx-auto flex max-w-5xl items-end justify-between gap-4 px-4" id="spots-heading">
         <SectionHeading icon={MapPin} label="SPOTS" accent="amber">新着店舗</SectionHeading>
+        <a
+          href="/spots/"
+          class="hidden shrink-0 items-center gap-1 text-xs text-gold-100/50 transition hover:text-amber-glow sm:inline-flex"
+        >
+          すべて見る
+          <ArrowRight size={12} aria-hidden="true" />
+        </a>
       </div>
 
-      <p class="mt-4 flex items-center justify-end gap-1 text-xs text-gold-100/45 sm:hidden" aria-hidden="true">
-        横にスワイプして見る
-        <ArrowRight size={13} stroke-width={2.25} />
-      </p>
-
       <div
-        class="-mx-4 mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-4 pb-3 scroll-pl-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:mt-6 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3"
+        class="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-3 pl-4 pr-4 scroll-pl-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-5 sm:pl-[max(1rem,calc(50vw-32rem+1rem))]"
         aria-label="新着店舗一覧"
       >
         {
           featuredSpots.map((spot, i) => (
-            <div class="flex w-[82vw] max-w-[20rem] shrink-0 snap-start sm:w-auto sm:max-w-none">
+            <div class="flex w-[78vw] max-w-[20rem] shrink-0 snap-start sm:w-72 lg:w-80">
               <SpotCard spot={spot} revealIndex={i} />
             </div>
           ))
         }
       </div>
 
-      <div class="mt-6 text-center">
+      <p class="mt-3 flex items-center justify-end gap-1 px-4 text-xs text-gold-100/45 sm:hidden" aria-hidden="true">
+        横にスワイプして見る
+        <ArrowRight size={13} stroke-width={2.25} />
+      </p>
+
+      <div class="mt-4 px-4 text-center sm:hidden">
         <a
           href="/spots/"
           class="inline-flex items-center gap-1.5 rounded-full border border-night-600 bg-night-800/60 px-5 py-2.5 text-sm font-medium text-gold-100/80 transition hover:border-amber-deep/60 hover:text-amber-glow"
@@ -157,109 +228,164 @@ const structuredData = [
         </a>
       </div>
     </section>
+    </div>
 
-    <RuleDivider variant="ochoko" />
-
-    <!-- News / Updates -->
-    <section class="mb-14" aria-labelledby="news-heading">
-      <div id="news-heading">
-        <SectionHeading icon={Megaphone} label="NEWS" accent="vermilion">お知らせ</SectionHeading>
-      </div>
-
-      {
-        news.length > 0 ? (
-          <ul class="mt-5 divide-y divide-night-700">
-            {news.map((item) => <NewsListItem item={item} />)}
-          </ul>
-        ) : (
-          <p class="mt-5 text-center text-sm text-gold-100/55">
-            現在お知らせはありません。
+    <!--
+      鍛冶職人の町が育んだ、夜の文化 + 直後のRuleDivider(noren)をまとめて
+      1つの帯にする。以前は6番目（末尾寄り）だったが、サイトの性格を早い
+      段階で伝えるためSPOTSの直後に移動。英字ラベルは外し、SectionHeadingも
+      使わず素の見出しにする（他の見出しと形を揃えない）。狭いmax-w-2xlの
+      まま＝読み物らしさを保ち、背景にだけAlleyNightを薄く敷いて「ここは
+      読ませるセクション」という質感を出す。箱（border/背景色）は付けない
+      ＝共有の背景の上に直接浮かせる方針は維持。
+    -->
+    <div class="band band-craft pb-px">
+    <div class="mx-auto max-w-2xl px-4">
+      <section class="relative py-10 text-center sm:py-14">
+        <!-- 背景を先に置き、コンテンツ側に relative を付けて上に重ねる
+             （Heroの火の粉演出と同じ順序。absolute配置の背景はz-index:auto
+             でも非配置の通常フロー要素より後に描画されるため、コンテンツ側も
+             positionedにしないと背景がテキストの上に乗ってしまう）。 -->
+        <div class="pointer-events-none absolute inset-0 opacity-[0.16]" aria-hidden="true">
+          <AlleyNight ignite="scroll" class="h-full w-full object-cover" />
+        </div>
+        <div class="relative">
+          <h2 class="font-serif text-xl font-bold text-gold-100 sm:text-2xl" data-reveal>
+            鍛冶職人の町が育んだ、夜の文化
+          </h2>
+          <p class="mt-4 leading-loose text-gold-100/70" data-reveal style="--reveal-i:1">
+            三条は古くから鍛冶職人の技で知られる「ものづくりの町」。商談に訪れる商人や職人たちが一杯かわす社交場として、本寺小路は生まれました。昭和には料亭やスナックが軒を連ねる最盛期を迎え、令和の今も「一見さんとも常連ともなく、みんなが顔なじみになっていく」独特の距離感を受け継いでいます。
           </p>
-        )
-      }
-
-      <div class="mt-4 text-right">
-        <a
-          href="/news/"
-          class="inline-flex items-center gap-1 text-xs font-medium text-gold-100/50 transition hover:text-amber-glow"
-        >
-          ニュース一覧を見る
-          <ArrowRight size={12} stroke-width={2.25} aria-hidden="true" />
-        </a>
-      </div>
-    </section>
-
-    <RuleDivider variant="chochin" />
-
-    {columns.length > 0 && (
-      <section class="mb-14" aria-labelledby="columns-heading">
-        <div class="flex items-end justify-between gap-4" id="columns-heading">
-          <SectionHeading icon={BookOpenText} label="YOBANASHI" accent="amber">本寺小路夜話</SectionHeading>
-          <a href="/columns/" class="hidden items-center gap-1 text-xs text-gold-100/50 transition hover:text-amber-glow sm:inline-flex">
-            すべて読む <ArrowRight size={12} aria-hidden="true" />
-          </a>
+          <div class="mt-6 flex flex-wrap justify-center gap-3" data-reveal style="--reveal-i:2">
+            <a
+              href="/about/"
+              class="inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-4 py-2 text-xs font-semibold text-night-950 transition hover:brightness-110 sm:text-sm"
+            >
+              本寺小路について詳しく読む
+              <ArrowRight size={14} stroke-width={2.25} aria-hidden="true" />
+            </a>
+          </div>
         </div>
-        <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {columns.map((column, i) => <ColumnCard column={column} revealIndex={i} />)}
-        </div>
-        <div class="mt-5 text-center sm:hidden"><a href="/columns/" class="inline-flex items-center gap-1 text-sm text-amber-glow">本寺小路夜話をすべて読む <ArrowRight size={13} aria-hidden="true" /></a></div>
       </section>
-    )}
+    </div>
 
+    <!--
+      罫線は暖簾（noren）1回のみに絞る。ここから先はハシゴ酒の大きな帯＝
+      視覚的な山場に入るので、「雰囲気が変わる」合図として唯一残す。
+      band-craftの帯にそのまま含める（境目をこの罫線の手前ではなく
+      罫線の直後＝ハシゴ酒の頭に置くことで、「暖簾をくぐったら明るくなる」
+      演出と合わせる）。
+    -->
     <RuleDivider variant="noren" />
+    </div>
 
-    <!-- 特集バナー: 本寺小路とは。以前は専用の小さなAlleyNightを箱の中に
-         持っていたが、ページ全体を貫く背景（上部で1度だけ配置）と役割が
-         重複するため外した。テキストを共有の背景に直接浮かせ、暖簾の
-         区切り絵からそのまま読み進められる1カラム構成にする。 -->
-    <section class="mb-14 mx-auto max-w-2xl text-center">
-      <SectionHeading icon={Landmark} label="FEATURE" accent="amber">
-        鍛冶職人の町が育んだ、夜の文化
-      </SectionHeading>
-      <p class="mt-4 leading-loose text-gold-100/70">
-        三条は古くから鍛冶職人の技で知られる「ものづくりの町」。商談に訪れる商人や職人たちが一杯かわす社交場として、本寺小路は生まれました。昭和には料亭やスナックが軒を連ねる最盛期を迎え、令和の今も「一見さんとも常連ともなく、みんなが顔なじみになっていく」独特の距離感を受け継いでいます。
-      </p>
-      <div class="mt-6 flex flex-wrap justify-center gap-3">
-        <a
-          href="/about/"
-          class="inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-4 py-2 text-xs font-semibold text-night-950 transition hover:brightness-110 sm:text-sm"
+    <!--
+      ハシゴ酒のカルチャー: 罫線（暖簾）の直後にイラストを続けると、絵が
+      2つ連続して見た目がうるさくなるため、テキスト→イラストの順に変更。
+      「読んだあとに情景が浮かぶ」流れを意図している。2カラム化はやめ、
+      モバイル・PCとも同じ縦の流れ（見出し→本文→CTA→イラスト）に統一。
+      イラストは元の画角のまま欠けなく見せる（object-contain）。
+      band-hashigoはページ全体で最も明るい帯（山場）にする。
+    -->
+    <section class="band band-hashigo relative pb-16 sm:pb-24" aria-labelledby="hashigo-heading">
+      <div class="mx-auto max-w-2xl px-4 text-center" data-reveal>
+        <h2
+          id="hashigo-heading"
+          class="font-serif text-2xl font-bold text-gold-100 [line-break:strict] sm:text-3xl"
         >
-          本寺小路について詳しく読む
-          <ArrowRight size={14} stroke-width={2.25} aria-hidden="true" />
-        </a>
-      </div>
-    </section>
-
-    <RuleDivider variant="ochoko" />
-
-    <!-- Culture Column: 小路の歩き方 -->
-    <section class="mt-2">
-      <img
-        src="/images/hasigozake.png"
-        width="1330"
-        height="523"
-        alt="1軒目、2軒目、3杯目と暖簾をハシゴして本寺小路の門へ向かう、盃を手にしたイラスト"
-        data-reveal
-        class="relative mx-auto w-full max-w-2xl object-contain drop-shadow-[0_0_28px_rgba(242,181,68,0.25)] sm:max-w-3xl"
-        loading="lazy"
-      />
-      <div class="mx-auto max-w-2xl px-2 pb-4 pt-2 text-center" data-reveal style="--reveal-i:2">
-        <p class="text-xs tracking-[0.3em] text-amber-glow/70">CULTURE COLUMN</p>
-        <h2 class="mt-2 font-serif text-xl font-bold text-gold-100 sm:text-2xl">
-          1軒目・2軒目・締め、ハシゴ酒のカルチャー
+          1軒目・2軒目・締め、<br class="sm:hidden" />ハシゴ酒のカルチャー
         </h2>
-        <p class="mx-auto mt-3 max-w-2xl leading-loose text-gold-100/65">
+        <p class="mt-4 leading-loose text-gold-100/70">
           居酒屋で軽く始め、BARやスナックでじっくり語らい、ラーメンやおでんで締めくくる——本寺小路には、路地一本でハシゴが完結する独特の密度があります。初めての方も、その日の気分で自由に組み立ててみてください。
         </p>
         <a
           href="/about/#hashigo"
-          class="mt-5 inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-4 py-2 text-xs font-semibold text-night-950 transition hover:brightness-110 sm:text-sm"
+          class="mt-6 inline-flex items-center gap-1.5 rounded-full bg-amber-glow px-5 py-2.5 text-sm font-semibold text-night-950 transition hover:brightness-110"
         >
           ハシゴ酒の心得を読む
           <ArrowRight size={14} stroke-width={2.25} aria-hidden="true" />
         </a>
       </div>
+      <img
+        src="/images/hasigozake.png"
+        width="1330"
+        height="523"
+        alt="1軒目、2軒目、3杯目と暖簾をハシゴして本寺小路の門へ向かう、盃を手にしたイラスト"
+        loading="lazy"
+        class="relative mx-auto mt-8 w-full max-w-2xl object-contain drop-shadow-[0_0_28px_rgba(242,181,68,0.25)] sm:mt-10 sm:max-w-3xl"
+      />
     </section>
+
+    <!--
+      本寺小路夜話〜お知らせ: ハシゴ酒の山場を通り過ぎ、再び静かな明るさに
+      落とす帯。columnsが0件でもband自体は常に存在させる（お知らせだけの
+      時にband-tailが消えてしまわないように、条件分岐はband wrapperの
+      内側に置く）。
+    -->
+    <div class="band band-tail pb-6 sm:pb-10">
+    <!-- 本寺小路夜話: 現状維持（カードgrid）。英字ラベルは外し、日本語見出しのみ。 -->
+    {
+      columns.length > 0 && (
+        <div class="mx-auto max-w-5xl px-4">
+          <section class="mb-16 sm:mb-20" aria-labelledby="columns-heading">
+            <div class="flex items-end justify-between gap-4" id="columns-heading">
+              <h2 class="font-serif text-xl font-bold text-gold-100 sm:text-2xl">本寺小路夜話</h2>
+              <a href="/columns/" class="hidden items-center gap-1 text-xs text-gold-100/50 transition hover:text-amber-glow sm:inline-flex">
+                すべて読む <ArrowRight size={12} aria-hidden="true" />
+              </a>
+            </div>
+            <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {columns.map((column, i) => <ColumnCard column={column} revealIndex={i} />)}
+            </div>
+            <div class="mt-5 text-center sm:hidden"><a href="/columns/" class="inline-flex items-center gap-1 text-sm text-amber-glow">本寺小路夜話をすべて読む <ArrowRight size={13} aria-hidden="true" /></a></div>
+          </section>
+        </div>
+      )
+    }
+
+    <!--
+      お知らせ: 更新情報は主役ではないため末尾に移動。英字ラベルを外し、
+      見出しも小さく。カードやアイコンバッジを持たない、日付+タイトルだけの
+      簡素なリストにして「ここはおまけ」という重みの軽さを見た目でも示す。
+    -->
+    <div class="mx-auto max-w-2xl px-4">
+      <section aria-labelledby="news-heading">
+        <h2 id="news-heading" class="text-sm font-semibold tracking-wide text-gold-100/60">お知らせ</h2>
+
+        {
+          news.length > 0 ? (
+            <ul class="mt-3 divide-y divide-night-800">
+              {news.map((item) => (
+                <li class="flex items-center gap-3 py-2.5 text-sm">
+                  <time class="shrink-0 text-xs tabular-nums text-gold-100/40" datetime={item.data.pubDate.toISOString().slice(0, 10)}>
+                    {item.data.pubDate.toISOString().slice(0, 10)}
+                  </time>
+                  <a
+                    href={`/news/${item.id}/`}
+                    class="min-w-0 flex-1 truncate text-gold-100/70 underline-offset-4 transition hover:text-amber-glow hover:underline"
+                  >
+                    {item.data.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="mt-3 text-center text-sm text-gold-100/55">現在お知らせはありません。</p>
+          )
+        }
+
+        <div class="mt-3 text-right">
+          <a
+            href="/news/"
+            class="inline-flex items-center gap-1 text-xs font-medium text-gold-100/50 transition hover:text-amber-glow"
+          >
+            ニュース一覧を見る
+            <ArrowRight size={12} stroke-width={2.25} aria-hidden="true" />
+          </a>
+        </div>
+      </section>
+    </div>
+    </div>
   </main>
 
   <Footer />
@@ -494,3 +620,118 @@ const structuredData = [
 
   document.addEventListener('astro:page-load', initHeroStatus);
 </script>
+
+<style>
+  /*
+    セクション背景の明暗（band-*）。各bandは「自分自身の高さ」を基準にした
+    to-bottomの2〜3色グラデーションを持ち、隣接するbandの境界色を
+    ぴったり一致させることで、bandの実際の高さ（＝中のコンテンツ量）が
+    変わってもグラデーションが必ず連続して見えるようにしてある
+    （--band-from/--band-toをbandごとに変えるだけの構造にして、
+    今後の色調整もこの変数だけ触ればよいようにした）。
+    値はすべて固定の16進色で、[data-time]が書き換える--sky-*/--glowには
+    一切依存しないため、時間帯変化と独立に働く（両方が同時に効いても、
+    このグラデーションは--glow等の値を参照していないので破綻しない）。
+  */
+  .band {
+    background-repeat: no-repeat;
+  }
+  /*
+    色は全bandで同じ暖色比率（#14110fのR:G:B比、おおよね1.33:1.13:1）を
+    保った墨・生成り寄りの暖色グレーのみを使い、明度（lightness）だけを
+    上げ下げする。Tailwindの--color-night-*スケール（濃紺〜漆黒、Bチャンネル
+    が最大の寒色系）は今回のグラデーションでは一切使わない
+    ＝このサイトの配色（墨・生成り・朱・行灯の黄）から外れた紫〜藍に
+    転ばないようにするため。 */
+  .band-hero {
+    /* 最も暗く。#14110fはkeyvisualの発光を最大限見せるための墨色
+       （column挿絵のロック背景色と同じ値を流用）。 */
+    background-image: linear-gradient(to bottom, #14110f, #1a1613);
+  }
+  .band-status-spots {
+    /* やや明るく。 */
+    background-image: linear-gradient(to bottom, #1a1613, #221d18);
+  }
+  .band-craft {
+    /* 中間。 */
+    background-image: linear-gradient(to bottom, #221d18, #2c251f);
+  }
+  .band-hashigo {
+    /* 最も明るく（山場）。自分自身の中でentry→peak(50%)→exitと
+       盛り上がって落ちる、他のbandとは違う3色グラデーションにしている。
+       ピークの#362d25は提灯の灯りが差し込んで少し温まった程度の明るさに
+       留め、白っぽくなり過ぎない範囲に収めた。 */
+    background-image: linear-gradient(to bottom, #2c251f, #362d25 50%, #241f1a);
+  }
+  .band-tail {
+    /* 再び暗く。Hero起点の#14110fにそのまま帰着させ、始まりと呼応させる。 */
+    background-image: linear-gradient(to bottom, #241f1a, #14110f);
+  }
+
+  /*
+    Heroキービジュアルの四辺を背景色へ溶け込ませるマスク。
+    Illust.astroの.ill-maskと同じく-webkit-mask-*とmask-*を両方書く
+    （非対応ブラウザではmask-imageが単に無視され、通常表示にフォール
+    バックするので@supportsでの分岐は不要）。
+    フェード区間は狭め（左右6-94%・下10-82%）にしてある。以前は下辺の
+    フェードを38%地点から溶かしていたが、絵の大半が薄く消えて
+    「小さく収まって見える」原因になっていたため、この狭い区間に
+    揃えた（keyvisual.png/keyvisual2.webpのどちらでも共通）。
+  */
+  .keyvisual-fade {
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 10%, #000 82%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 10%, #000 82%, transparent 100%);
+    mask-composite: intersect;
+
+    /*
+      brightness/contrast: 墨色背景に対して生成り色の線が沈んで見える
+      対策。線自体は元々そこまで明るくないため、白飛びしない範囲で
+      控えめに持ち上げる。
+      drop-shadow x3: 提灯の色が「付いているだけ」で灯って見えない
+      問題への対応。同じ色を半径違いで3枚重ねるのは、単発のdrop-shadowが
+      1回の半透明合成にとどまり弱い光にしかならないため（CSSでの疑似
+      ブルーム表現の定石）。色は--glow（AlleyNightの街灯グローと同じ
+      変数、[data-time]で時間帯ごとに色相・強度が変わる）をそのまま使い、
+      提灯の色でなく「その場の時間帯の灯り」に連動させる。
+      前回4段重ねにしたところ全体が白っぽく発光し「夜でなく昼」に
+      見えてしまったため、半径・段数を約半分に戻した
+      （暗がりの中に灯りがある、というコントラストを優先する）。
+    */
+    filter:
+      brightness(1.18) contrast(1.1)
+      drop-shadow(0 0 12px var(--glow))
+      drop-shadow(0 0 30px var(--glow))
+      drop-shadow(0 0 65px var(--glow));
+  }
+
+  /*
+    keyvisual-fadeと同じ画像をもう1枚、絶対配置で重ねた「発光レイヤー」。
+    drop-shadowは画像全体のシルエットに対して均一な光暈を足すだけなので、
+    「提灯の色が付いているだけ」問題（個々の光源が発光して見えない）は
+    解決しない。ここでは彩度・明るさを上げてからぼかし、
+    mix-blend-mode:screenで下のレイヤーに合成する。screenは暗い色
+    （黒に近い線画・背景）にはほとんど作用せず、明るく彩度の高い画素
+    （提灯・行灯の朱色〜琥珀色）だけを持ち上げるため、結果として
+    提灯・行灯の位置だけがにじんで光って見える。マスクは適用しない
+    （ぼかしが元の輪郭より外側へにじみ出ることこそが「光が漏れる」
+    表現になるため）。
+
+    強度は前回（saturate 2.6 / brightness 1.55 / blur 14px / opacity 0.85）
+    だと全体が白く発光し昼のように見えたため、CSS変数にして半分程度
+    まで落とした。今後の微調整はこの変数群だけを触ればよい。
+  */
+  .keyvisual-bloom {
+    --kv-bloom-saturate: 1.7;
+    --kv-bloom-brightness: 1.25;
+    --kv-bloom-blur: 9px;
+    --kv-bloom-opacity: 0.42;
+    filter: saturate(var(--kv-bloom-saturate)) brightness(var(--kv-bloom-brightness)) blur(var(--kv-bloom-blur));
+    mix-blend-mode: screen;
+    opacity: var(--kv-bloom-opacity);
+  }
+</style>
