@@ -43,13 +43,21 @@ const columns = (await getCollection('columns', ({ data }) => !data.draft))
 // CSS変数（vhStart/vhEnd/peakScale）とanimation-range（幅が狭いほど＝
 // Heroの同じスクロール距離をより短時間で駆け抜ける＝手前・速い）で
 // パラメータ化している。
+//
+// rangeStart/rangeEndは元々0%付近（スクロール開始直後）から始まっていたが、
+// 「キービジュアルが消えかかったあたりから提灯を流し始めたい」という
+// 指示を受け、開始位置を後ろへずらした。band-heroのview-timeline
+// （exit 0%〜exit 100%）を基準に、Playwrightで実測したところ
+// キービジュアルの上端が画面外へ切れ始めるのがexit進捗 約29%、完全に
+// 消えるのが約92%だった。旧レンジ（最小0%〜最大78%）を[29%, 100%]へ
+// 線形に写像し直し、6個の相対的な速度差（レンジ幅）はそのまま保っている。
 const HERO_STREAM_LANTERNS = [
-  { left: '8%', size: 40, peakScale: 1.3, vhStart: 55, vhEnd: 50, rangeStart: 0, rangeEnd: 55 },
-  { left: '24%', size: 30, peakScale: 1.15, vhStart: 45, vhEnd: 40, rangeStart: 8, rangeEnd: 68 },
-  { left: '42%', size: 46, peakScale: 1.4, vhStart: 60, vhEnd: 55, rangeStart: 2, rangeEnd: 50 },
-  { left: '60%', size: 26, peakScale: 1.1, vhStart: 40, vhEnd: 35, rangeStart: 14, rangeEnd: 78 },
-  { left: '78%', size: 42, peakScale: 1.35, vhStart: 58, vhEnd: 52, rangeStart: 4, rangeEnd: 54 },
-  { left: '94%', size: 32, peakScale: 1.2, vhStart: 48, vhEnd: 42, rangeStart: 12, rangeEnd: 70 },
+  { left: '8%', size: 40, peakScale: 1.3, vhStart: 55, vhEnd: 50, rangeStart: 30, rangeEnd: 79 },
+  { left: '24%', size: 30, peakScale: 1.15, vhStart: 45, vhEnd: 40, rangeStart: 37, rangeEnd: 91 },
+  { left: '42%', size: 46, peakScale: 1.4, vhStart: 60, vhEnd: 55, rangeStart: 32, rangeEnd: 75 },
+  { left: '60%', size: 26, peakScale: 1.1, vhStart: 40, vhEnd: 35, rangeStart: 43, rangeEnd: 100 },
+  { left: '78%', size: 42, peakScale: 1.35, vhStart: 58, vhEnd: 52, rangeStart: 34, rangeEnd: 78 },
+  { left: '94%', size: 32, peakScale: 1.2, vhStart: 48, vhEnd: 42, rangeStart: 41, rangeEnd: 93 },
 ];
 
 const siteUrl = new URL('/', Astro.site ?? Astro.url).toString();
