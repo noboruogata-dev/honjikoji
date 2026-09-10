@@ -198,6 +198,73 @@ html {
     drop-shadow(0 0 6px var(--glow)) drop-shadow(0 0 16px var(--glow));
 }
 
+/*
+ * RuleDivider.astroのスクロール連動演出。animation-timeline: view()対応
+ * ブラウザのみ有効化する（Hero側index.astroの@supports (animation-timeline:
+ * view())と同じ判定を再利用）。未対応ブラウザではこのルール自体が
+ * 一切マッチしないため、通常表示（常時フル不透明・transformなし）に
+ * 自然にフォールバックする（AlleyNight.street-glowと違い、こちらは
+ * @supports外に「見える状態」を明示する必要がない＝そもそも@supports外で
+ * opacity:0にする宣言をどこにも置いていないため）。
+ *
+ * reveal: 下から現れる（entry 0%〜55%でopacity/translateYが解決する）。
+ * sway: 暖簾・提灯だけに常時ゆらぎを重ねる（吊り下げ/布は風で揺れるが、
+ * 猪口は器なので現れるだけに留める＝「それぞれの性質に合った動き」）。
+ * ochokoだけ、現れ際にごく軽いオーバーシュート（据え置かれる質感）を
+ * 別のeasingで付ける。
+ */
+@supports (animation-timeline: view()) {
+  .rule-motion {
+    animation-name: rule-reveal;
+    animation-duration: 1s;
+    animation-timing-function: ease-out;
+    animation-fill-mode: both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 55%;
+  }
+  .rule-motion--ochoko {
+    animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .rule-motion--noren,
+  .rule-motion--chochin {
+    /* reveal(translateY)とsway(rotate)はどちらもtransformを動かすため、
+       animation-compositionを指定しないと後方（sway）が前方を上書きして
+       しまう。addにして2つのtransformを合成する（rotateして揺れながら
+       下から現れる、を両立させる）。 */
+    animation-name: rule-reveal, rule-motion-sway;
+    animation-duration: 1s, 5s;
+    animation-timing-function: ease-out, ease-in-out;
+    animation-iteration-count: 1, infinite;
+    animation-fill-mode: both, none;
+    animation-timeline: view(), auto;
+    animation-range: entry 0% entry 55%, normal;
+    animation-composition: replace, add;
+  }
+}
+@keyframes rule-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rule-motion-sway {
+  0%,
+  100% {
+    transform: rotate(-1.4deg);
+  }
+  50% {
+    transform: rotate(1.4deg);
+  }
+}
+.rule-motion--noren,
+.rule-motion--chochin {
+  transform-origin: top center;
+}
+
 /* Hero上部の営業軒数表示（index.astro）。--glowに連動させ、時間帯が
    latenightに近づくほど強く光る（--glow自体が時間帯で強弱するため、
    ここでは値を参照するだけでよい）。 */
@@ -524,6 +591,12 @@ html {
   .lantern-icon.is-breathing,
   .lantern-icon.is-inviting,
   .status-pulse,
+  .rule-motion,
+  .rule-motion--noren,
+  .rule-motion--chochin,
+  .rule-motion--ochoko,
+  .hero-keyvisual-parallax,
+  .hero-lantern-stream,
   ::view-transition-group(root),
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -535,6 +608,26 @@ html {
      点灯済みの状態に戻す。 */
   .street-glow {
     opacity: 1 !important;
+  }
+
+  /* .rule-motion系も同じくopacity:0/translateYからのentry animation前提
+     なので、静止時は最終状態（現れ切った状態）に固定する。 */
+  .rule-motion,
+  .rule-motion--noren,
+  .rule-motion--chochin,
+  .rule-motion--ochoko {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Hero手前を流れる提灯は「動くこと」自体が演出のすべてなので、
+     静止時は表示せずHero本体だけを見せる。 */
+  .hero-lantern-stream {
+    opacity: 0 !important;
+  }
+  /* キービジュアル自体のパララックスも初期状態（transformなし）に固定。 */
+  .hero-keyvisual-parallax {
+    transform: none !important;
   }
 
   /* .lantern-icon.is-breathing / .is-inviting も同じ理由: animation:none

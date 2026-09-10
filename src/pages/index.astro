@@ -34,6 +34,24 @@ const columns = (await getCollection('columns', ({ data }) => !data.draft))
   .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
   .slice(0, 3);
 
+// Heroパララックスの手前を流れる提灯。描画負荷を抑えるため6個までに固定。
+// 「下から上へ大きく流れる」動きにするため、各提灯は
+// 0%: 画面下からvhStart分だけ下の位置・縮小・不透明度0（未到達）
+// 50%: 中央（translateY:0）・peakScaleまで拡大・完全点灯
+// 100%: 画面上へvhEnd分だけ抜けた位置・縮小・不透明度0（通過済み）
+// という3段の共通keyframe（<style>のhero-lantern-stream）を、インスタンスごとに
+// CSS変数（vhStart/vhEnd/peakScale）とanimation-range（幅が狭いほど＝
+// Heroの同じスクロール距離をより短時間で駆け抜ける＝手前・速い）で
+// パラメータ化している。
+const HERO_STREAM_LANTERNS = [
+  { left: '8%', size: 40, peakScale: 1.3, vhStart: 55, vhEnd: 50, rangeStart: 0, rangeEnd: 55 },
+  { left: '24%', size: 30, peakScale: 1.15, vhStart: 45, vhEnd: 40, rangeStart: 8, rangeEnd: 68 },
+  { left: '42%', size: 46, peakScale: 1.4, vhStart: 60, vhEnd: 55, rangeStart: 2, rangeEnd: 50 },
+  { left: '60%', size: 26, peakScale: 1.1, vhStart: 40, vhEnd: 35, rangeStart: 14, rangeEnd: 78 },
+  { left: '78%', size: 42, peakScale: 1.35, vhStart: 58, vhEnd: 52, rangeStart: 4, rangeEnd: 54 },
+  { left: '94%', size: 32, peakScale: 1.2, vhStart: 48, vhEnd: 42, rangeStart: 12, rangeEnd: 70 },
+];
+
 const siteUrl = new URL('/', Astro.site ?? Astro.url).toString();
 
 // 本寺小路ガイドは非公式のファンサイト。Organization.nameは「本寺小路」自体
@@ -100,7 +118,9 @@ const structuredData = [
           <span class="ember" style={{ left: '80%', top: '62%', animationDuration: '9.5s', animationDelay: '-6.5s', '--drift-x': '20px' }}></span>
         </div>
 
-        <div class="relative px-1 py-3 text-center sm:px-2 sm:py-14 sm:text-left">
+        <!-- イラストに面積を割くため、見出し〜CTAの余白をさらに詰めた
+             （py-3→py-2、後続のmt-3/mt-4はほぼ最小限のためそのまま）。 -->
+        <div class="relative px-1 py-2 text-center sm:px-2 sm:py-14 sm:text-left">
           <h1 class="font-serif text-[1.65rem] font-bold leading-[1.45] text-gold-100 text-glow sm:text-3xl">
             灯りともる路地で、<br />今夜の一軒を。
           </h1>
@@ -109,7 +129,7 @@ const structuredData = [
           </p>
           <a
             href="/spots/"
-            class="group mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-100/35 bg-night-950/20 px-5 py-2.5 text-sm font-semibold text-amber-glow transition hover:border-amber-glow/70 hover:underline hover:underline-offset-4"
+            class="group mt-3 inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-100/35 bg-night-950/20 px-5 py-2.5 text-sm font-semibold text-amber-glow transition hover:border-amber-glow/70 hover:underline hover:underline-offset-4"
           >
             灯りを探しに行く
             <ArrowRight class="transition-transform duration-150 group-hover:translate-x-1 motion-reduce:transform-none" size={16} stroke-width={2.25} aria-hidden="true" />
@@ -118,24 +138,15 @@ const structuredData = [
       </div>
 
       <!--
-        キービジュアル: keyvisual.png（実寸804x702、ほぼ正方形）に差し戻し。
-        keyvisual2.webp（横長）はタッチが他の挿絵（提灯・暖簾・年表挿絵）と
-        揃わないこと、本寺小路の実際の狭い路地感には正方形寄りの構図の方が
-        合っていることから不採用。ファイル自体はpublic/images/に残置。
+        キービジュアル: keyvisual.png（実寸804x702、ほぼ正方形）。
+        モバイルは33dvh→42dvhに拡大（イラストを主役にする指示のため）。
+        sm以上は既存のmax-h指定のまま（正方形素材は幅基準のままだと
+        デスクトップで縦に間延びするため、変更していない）。
 
-        サイズ: モバイルはh-[33dvh]を維持するが、正方形素材は33dvh幅の
-        枠より横に余るため、object-coverではなくobject-containにして
-        高さ基準で収める（左右に余った分は透過PNG＋keyvisual-fadeの
-        mask-fadeでそのまま背景に溶ける）。sm以上は以前（keyvisual.png
-        採用時）と同じmax-h指定に戻す（正方形素材は幅基準のままだと
-        デスクトップで縦に間延びするため）。
-
-        灯りの表現（3段構成）は前回作ったものをそのまま流用するが、
-        全体が白く発光し「昼に見える」ほど強すぎたため、強度を半分程度に
-        絞った。今後の微調整がしやすいよう、.keyvisual-bloomの強度は
-        CSS変数（--kv-bloom-*）にまとめてある。
+        灯りの表現（3段構成）・パララックス（案B、keyvisual自体の
+        scale+translate）は変更なし。
       -->
-      <div class="relative mt-3 sm:mt-8">
+      <div class="hero-keyvisual-parallax relative mt-2 sm:mt-6">
         <div
           class="pointer-events-none absolute inset-0 opacity-50 bg-[radial-gradient(ellipse_38%_46%_at_50%_40%,var(--glow),transparent_58%),radial-gradient(ellipse_85%_95%_at_50%_40%,var(--glow),transparent_85%)]"
           aria-hidden="true"
@@ -146,7 +157,7 @@ const structuredData = [
           width="804"
           height="702"
           alt="赤提灯と「本寺小路」ののれんが灯る路地の様子。居酒屋やスナックの看板が並び、行き交う人影が見える夜の情景。"
-          class="keyvisual-fade relative mx-auto h-[33dvh] w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
+          class="keyvisual-fade relative mx-auto h-[42dvh] w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
           loading="eager"
         />
         <img
@@ -156,8 +167,48 @@ const structuredData = [
           alt=""
           aria-hidden="true"
           loading="eager"
-          class="keyvisual-bloom pointer-events-none absolute inset-0 mx-auto h-[33dvh] w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
+          class="keyvisual-bloom pointer-events-none absolute inset-0 mx-auto h-[42dvh] w-full object-contain sm:h-auto sm:max-h-[24rem] lg:max-h-[30rem]"
         />
+      </div>
+
+      <!--
+        パララックスの手前を流れる提灯。前回はkeyvisualの下端付近に小さく
+        静止して見えてしまっていた。原因は2つ:
+        (1) animation-rangeに cover を使っていた。Heroはページ最上部に
+            固定され、初回表示から既に画面内に収まっているため、
+            「下から入ってくる」covorの0%起点が実質的に無効化され、
+            スクロール0の時点で既に終盤の値（低い不透明度・移動済みの
+            位置）を指してしまっていた。band-heroのように常にページ最上部
+            にあるブロックには exit（＝これから画面外へ出ていく過程）を
+            使うのが正しく、スクロール0で必ずfrom側の値になる。
+        (2) 提灯を .hero-keyvisual-parallax の内側（＝キービジュアルの
+            狭い縦幅）に閉じ込めていたため、動ける範囲も小さすぎた。
+        ここではband-hero全体を覆うoverflow-hiddenのレイヤーとして
+        section直下に置き直し、画面下から上へ大きく（dvh単位で）
+        通り抜けさせる。overflow-hiddenでHeroの外には一切はみ出さない。
+        JSのscrollイベントは使わず、band-hero自身のview-timeline
+        （下記<style>参照）だけで動く。6個で固定（描画負荷のため）。
+        サイズも視認できるよう26〜46pxに拡大した。
+        prefers-reduced-motion / @supports非対応環境ではopacity:0のまま
+        （動きが前提の演出なので、動けないなら出さない）。
+      -->
+      <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        {
+          HERO_STREAM_LANTERNS.map((l) => (
+            <div
+              class="hero-lantern-stream absolute bottom-1/2"
+              style={{
+                left: l.left,
+                '--stream-vh-start': `${l.vhStart}dvh`,
+                '--stream-vh-end': `-${l.vhEnd}dvh`,
+                '--stream-peak-scale': String(l.peakScale),
+                animationRange: `exit ${l.rangeStart}% exit ${l.rangeEnd}%`,
+              }}
+            >
+              <LanternIcon lit size={l.size} />
+            </div>
+          ))
+        }
       </div>
     </section>
 
@@ -622,6 +673,101 @@ const structuredData = [
 </script>
 
 <style>
+  /*
+    Heroパララックス（案B）。JSのscrollイベントは使わず、CSSのスクロール
+    駆動アニメーションだけで実装する。既存のAlleyNight.astro（.street-glow）
+    ・RuleDivider（.rule-motion、global.css）と同じく
+    @supports (animation-timeline: view()) で機能検出し、非対応ブラウザでは
+    このブロック自体が丸ごとマッチしないため、通常表示（静止したHero）に
+    自然にフォールバックする。
+
+    band-heroに1本だけ named view-timeline（--hero-scroll）を張り、
+    キービジュアルと提灯6個の両方がこれを参照する。各レイヤーが個別に
+    無名のview()を使うと、Hero内での位置（テキストの下か、キービジュアルの
+    下かなど）によって「どこからHeroに入ったとみなすか」がレイヤーごとに
+    微妙にズレてしまうため、band-hero自身の可視範囲という1つの基準に
+    全レイヤーを揃えている。
+
+    animation-rangeは exit 0%〜exit 100%を使う（cover ではない）。
+    band-heroはページ最上部に固定されたブロックで、スクロール0の時点で
+    既に画面内に収まっている＝「下から入ってくる」covorの0%起点が
+    実質的に存在しない（初回描画から既にcoverの終盤寄りの値になって
+    しまい、提灯が最初から色褪せた位置で止まって見える不具合の原因
+    だった）。ページ最上部固定のブロックには「これから画面外へ出ていく
+    過程」を表すexitを使うのが正しく、スクロール0で必ずfrom側（提灯
+    未到達・keyvisualは静止）の値になる。Heroの範囲だけで完結し、
+    ページ全体には広げない。
+  */
+  @supports (animation-timeline: view()) {
+    .band-hero {
+      view-timeline-name: --hero-scroll;
+      view-timeline-axis: block;
+    }
+  }
+  /* 提灯レイヤーは「動くこと」自体が演出なので、@supports非対応
+     環境・prefers-reduced-motion（global.css側で!important上書き）では
+     出さない。 */
+  .hero-lantern-stream {
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .hero-keyvisual-parallax {
+        animation: hero-kv-drift linear both;
+        animation-timeline: --hero-scroll;
+        animation-range: exit 0% exit 100%;
+      }
+      .hero-lantern-stream {
+        /* animation-range は各インスタンスの style属性で個別に指定する
+           （手前ほど早く・大きく動く＝「奥/中景/手前」の速度差を
+           1つのkeyframeのまま範囲だけずらして表現するため）。 */
+        animation: hero-lantern-stream linear both;
+        animation-timeline: --hero-scroll;
+        will-change: transform, opacity;
+      }
+    }
+  }
+  @keyframes hero-kv-drift {
+    from {
+      transform: translateY(0) scale(1);
+    }
+    to {
+      /* わずかに拡大しながら少し上へ流れる＝「奥へ進んでいく」感覚。
+         スケールもtranslateも小さめの値に留め、提灯の灯り・本文の
+         可読性を損なわないようにしている。 */
+      transform: translateY(-16px) scale(1.05);
+    }
+  }
+  /*
+    提灯: 画面下から現れ（縮小・不透明0＝未到達）、中央で最大に灯って
+    （原寸〜peak-scaleまで拡大・完全点灯）、画面上へ抜けていく
+    （縮小・不透明0＝通過済み）、という「手前を通り過ぎる」動き。
+    移動量はdvh単位（--stream-vh-start/--stream-vh-end、インスタンスごとに
+    style属性で指定）にして、画面の高さに対して実際に大きく動いて見える
+    ようにしてある。透明かつ縮小した状態で出入りするため、Hero自体には
+    overflow-hiddenを掛けているものの、見た目の上でも唐突に切れて見えない。
+  */
+  @keyframes hero-lantern-stream {
+    0% {
+      transform: translateY(var(--stream-vh-start, 55dvh)) scale(0.6);
+      opacity: 0;
+    }
+    14% {
+      opacity: 1;
+    }
+    50% {
+      transform: translateY(0) scale(var(--stream-peak-scale, 1.2));
+      opacity: 1;
+    }
+    86% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(var(--stream-vh-end, -50dvh)) scale(0.6);
+      opacity: 0;
+    }
+  }
+
   /*
     セクション背景の明暗（band-*）。各bandは「自分自身の高さ」を基準にした
     to-bottomの2〜3色グラデーションを持ち、隣接するbandの境界色を

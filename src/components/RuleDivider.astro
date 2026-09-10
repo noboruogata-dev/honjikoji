@@ -22,6 +22,11 @@ const SRC: Record<'chochin' | 'noren' | 'ochoko', string> = {
     朱・黄の差し色が見せどころなので mode="tint"（原色保持）。
     アイコンはシルエットで機能すればよいので mode="mask" のまま、
     こちらとは差し込み方を分ける。
+
+    rule-motion / rule-motion--{variant}: スクロールで下から現れる演出＋
+    種類ごとの性質に合った常時アニメーション（暖簾・提灯は現れた後も
+    ゆらぐ、猪口は現れるだけ）。定義はglobal.css側（.ill-mask/.ill-tint
+    と同じく、Illustの装飾クラス群として集約する場所に置く方針に揃えた）。
   */
 }
 <div class="my-8 flex justify-center" role="presentation" aria-hidden="true">
@@ -31,6 +36,6 @@ const SRC: Record<'chochin' | 'noren' | 'ochoko', string> = {
     size={220}
     alt=""
     glow={variant === 'chochin'}
-    class="ill-tint-rule"
+    class={`ill-tint-rule rule-motion rule-motion--${variant}`}
   />
 </div>
