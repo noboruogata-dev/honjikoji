@@ -47,23 +47,30 @@ const columns = (await getCollection('columns', ({ data }) => !data.draft))
 // 起点について: 以前はkeyvisualが消えかかるタイミング（band-heroの
 // view-timeline基準でexit約29%）を起点にしていたが、「キービジュアルに
 // 掛けるのではなく、灯りがついている店エリア（hero-status）に対して
-// 掛けたい」との指示を受けた。別セクション基準の独立timelineは実測で
-// 動作しない不具合に当たったため（詳細は<style>側のコメント参照）、
-// hero-status-wrap自体をband-hero内に移し、band-heroの--hero-scroll
-// タイムラインをそのまま使う形にした。hero-statusがband-heroの最後尾に
-// 来たことで全体のexit範囲が伸びており、Playwrightでの実測（1280x800）
-// では hero-status-wrap の上端が画面上端に達する（＝消え始める）のが
-// exit進捗約47%、下端が画面上端を抜けきる（＝完全に消える）のが約98%
-// だった。rangeStart/rangeEndはこの47%〜98%の窓の中に収まるよう、
-// 元々（--status-scroll案時点）の相対的な速度差パターンをスケール
-// し直して求めた値。
+// 掛けたい」との指示を受けた。
+//
+// rangeStart/rangeEndを固定%で書いていた版は、PC（縦に広いビューポート）で
+// 「ページ上部でほぼ一瞬に流れ切って見える」不具合が出た。原因はCSSの
+// view-timeline exit相当の仕組みそのものにある: band-hero（ページ最上部に
+// 固定）のexit 0%→100%が実際に消費するスクロール量は常に「ビューポートの
+// 高さ」ちょうどになり、exit 100%（=band-heroの下端が画面上端を抜け切る
+// 瞬間）はビューポート高に関係ない一定のドキュメント座標に固定される。
+// つまりビューポートが高いほどexit 0%の開始位置がページ上部側へ引き
+// 寄せられ、同じ%区間がページのより早い・より狭いスクロール範囲に圧縮
+// される。固定%では原理的にどのビューポート高でも正しい体感速度に
+// できないため、rangeStart/rangeEndは「hero-status-wrapのexit窓の中の
+// 相対位置（0〜1）」だけをここに残し、実際の%への変換は<script>側の
+// calibrateLanternRanges()が起動時・resize時に実測ジオメトリから動的に
+// 算出してanimation-rangeへ書き込む（詳細は<script>内のコメント参照）。
+// ここでの数値パターン自体は元々の相対的な速度差（手前ほど早く・広い
+// 区間を動く）をそのまま維持している。
 const HERO_STREAM_LANTERNS = [
-  { left: '8%', size: 40, peakScale: 1.3, vhStart: 55, vhEnd: 50, rangeStart: 47, rangeEnd: 75 },
-  { left: '24%', size: 30, peakScale: 1.15, vhStart: 45, vhEnd: 40, rangeStart: 51, rangeEnd: 82 },
-  { left: '42%', size: 46, peakScale: 1.4, vhStart: 60, vhEnd: 55, rangeStart: 48, rangeEnd: 73 },
-  { left: '60%', size: 26, peakScale: 1.1, vhStart: 40, vhEnd: 35, rangeStart: 54, rangeEnd: 87 },
-  { left: '78%', size: 42, peakScale: 1.35, vhStart: 58, vhEnd: 52, rangeStart: 49, rangeEnd: 75 },
-  { left: '94%', size: 32, peakScale: 1.2, vhStart: 48, vhEnd: 42, rangeStart: 53, rangeEnd: 83 },
+  { left: '8%', size: 40, peakScale: 1.3, vhStart: 55, vhEnd: 50, relStart: 0, relEnd: 0.55 },
+  { left: '24%', size: 30, peakScale: 1.15, vhStart: 45, vhEnd: 40, relStart: 0.08, relEnd: 0.68 },
+  { left: '42%', size: 46, peakScale: 1.4, vhStart: 60, vhEnd: 55, relStart: 0.02, relEnd: 0.5 },
+  { left: '60%', size: 26, peakScale: 1.1, vhStart: 40, vhEnd: 35, relStart: 0.14, relEnd: 0.78 },
+  { left: '78%', size: 42, peakScale: 1.35, vhStart: 58, vhEnd: 52, relStart: 0.04, relEnd: 0.54 },
+  { left: '94%', size: 32, peakScale: 1.2, vhStart: 48, vhEnd: 42, relStart: 0.12, relEnd: 0.7 },
 ];
 
 const siteUrl = new URL('/', Astro.site ?? Astro.url).toString();
@@ -219,18 +226,24 @@ const structuredData = [
         サイズも視認できるよう26〜46pxに拡大した。
         prefers-reduced-motion / @supports非対応環境ではopacity:0のまま
         （動きが前提の演出なので、動けないなら出さない）。
+        animation-rangeはSSR時点では書かず、data-rel-start/data-rel-end
+        （HERO_STREAM_LANTERNSのrelStart/relEnd）だけを持たせる。実際の
+        %への変換は<script>のcalibrateLanternRanges()が起動時・resize時に
+        実ジオメトリから計算して書き込む（理由は上のHERO_STREAM_LANTERNS
+        定義部のコメント参照）。
       -->
       <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         {
           HERO_STREAM_LANTERNS.map((l) => (
             <div
               class="hero-lantern-stream absolute bottom-1/2"
+              data-rel-start={l.relStart}
+              data-rel-end={l.relEnd}
               style={{
                 left: l.left,
                 '--stream-vh-start': `${l.vhStart}dvh`,
                 '--stream-vh-end': `-${l.vhEnd}dvh`,
                 '--stream-peak-scale': String(l.peakScale),
-                animationRange: `exit ${l.rangeStart}% exit ${l.rangeEnd}%`,
               }}
             >
               <LanternIcon lit size={l.size} />
@@ -722,7 +735,85 @@ const structuredData = [
     heroStatusIntervalId = setInterval(render, 60_000);
   }
 
+  // 提灯パララックス（.hero-lantern-stream）のanimation-rangeを、固定%では
+  // なく実ジオメトリから動的に計算して書き込む。
+  //
+  // 理由: band-hero（ページ最上部に固定）に張ったview-timelineのexit
+  // 0%→100%が実際に消費するスクロール量は、CSS view-timelineの仕様上
+  // 常に「ビューポートの高さ」ちょうどになり、exit 100%（band-heroの
+  // 下端が画面上端を抜け切る瞬間）はビューポート高に関係ない一定の
+  // ドキュメント座標に固定される。つまりビューポートが高い（PC・大きい
+  // モニタ）ほどexit 0%の開始位置がページ上部側へ引き寄せられ、同じ%
+  // 区間が実際にはページのより早い・より狭いスクロール範囲に圧縮
+  // されてしまう。固定%（例: 47%〜75%）で書いていた版は、PCで
+  // 「ページ上部でほぼ一瞬に流れ切って見える」という実際の不具合報告
+  // につながった。
+  //
+  // 対策として、%を静的に決め打ちするのをやめ、「hero-status-wrapの
+  // 上端が画面上端に達する瞬間」「下端が画面上端を抜け切る瞬間」を
+  // その時点のwindow.innerHeightと実際の要素位置から直接exit進捗
+  // （0〜1）へ逆算し、HERO_STREAM_LANTERNSのrelStart/relEnd（この窓の
+  // 中での相対位置、0〜1）をその窓へ写像してanimation-rangeに反映する。
+  // ビューポート高がどんな値でも、hero-statusエリアが実際に画面から
+  // 消えていく間だけ提灯が流れるようになる。
+  let lanternResizeHandler: (() => void) | undefined;
+
+  function calibrateLanternRanges() {
+    if (!window.CSS?.supports?.('animation-timeline: view()')) return;
+    const bandHero = document.querySelector<HTMLElement>('.band-hero');
+    const wrap = document.querySelector<HTMLElement>('.hero-status-wrap');
+    const lanterns = document.querySelectorAll<HTMLElement>('.hero-lantern-stream');
+    if (!bandHero || !wrap || lanterns.length === 0) return;
+
+    const vh = window.innerHeight;
+    const scrollY = window.scrollY;
+    const heroRect = bandHero.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+
+    // band-heroのexit 100%地点（下端が画面上端を抜け切るスクロール位置）の
+    // ドキュメント座標。exit 0%はここからvhだけ手前（exit全体の消費量が
+    // 常にvhになる、という性質を利用して逆算する）。
+    const exitEndDocY = heroRect.bottom + scrollY;
+    const progressAt = (docY: number) => Math.min(1, Math.max(0, (docY - exitEndDocY) / vh + 1));
+
+    const windowStart = progressAt(wrapRect.top + scrollY) * 100;
+    const windowEnd = progressAt(wrapRect.bottom + scrollY) * 100;
+    const span = windowEnd - windowStart;
+
+    lanterns.forEach((el) => {
+      const relStart = Number(el.dataset.relStart ?? '0');
+      const relEnd = Number(el.dataset.relEnd ?? '1');
+      const rangeStart = windowStart + relStart * span;
+      const rangeEnd = windowStart + relEnd * span;
+      el.style.animationRange = `exit ${rangeStart.toFixed(2)}% exit ${rangeEnd.toFixed(2)}%`;
+    });
+  }
+
+  function initLanternCalibration() {
+    calibrateLanternRanges();
+    // Webフォントのスワップ等、初回計測後に遅れて起きるレイアウトのズレ
+    // （hero-status-wrapの高さが変わる）に追従するため、少し遅延させて
+    // もう一度計測する（Layout.astroのスクロールリセットと同種の対策）。
+    setTimeout(calibrateLanternRanges, 300);
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(calibrateLanternRanges).catch(() => {});
+    }
+
+    if (lanternResizeHandler) window.removeEventListener('resize', lanternResizeHandler);
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    lanternResizeHandler = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(calibrateLanternRanges, 150);
+    };
+    window.addEventListener('resize', lanternResizeHandler);
+  }
+
   document.addEventListener('astro:page-load', initHeroStatus);
+  // hero-status-wrap（軒数・提灯行）の内容はinitHeroStatusのrender()が
+  // 同期的に確定させるため、同じイベントで後から登録するこちらは常に
+  // 確定後のレイアウトを計測できる（同一イベントへの同期リスナーは
+  // 登録順に実行される）。
+  document.addEventListener('astro:page-load', initLanternCalibration);
 </script>
 
 <style>
@@ -795,9 +886,15 @@ const structuredData = [
         }
       }
       .hero-lantern-stream {
-        /* animation-range は各インスタンスの style属性で個別に指定する
-           （手前ほど早く・大きく動く＝「奥/中景/手前」の速度差を
-           1つのkeyframeのまま範囲だけずらして表現するため）。
+        /* animation-range はここでは書かない。固定%だと、PCなど
+           ビューポートが高い環境でexit 0%→100%の実消費スクロール量が
+           狭いページ上部に圧縮され「一瞬で流れ切って見える」不具合が
+           出たため、<script>のcalibrateLanternRanges()が起動時・resize時
+           に実ジオメトリ（hero-status-wrapの実際の表示位置）から動的に
+           計算してstyle.animationRangeへ書き込む（詳細はそちらのコメント
+           参照）。JS未実行の一瞬はanimation-range未指定＝既定のexit 0%〜
+           100%のままになるが、上のopacity:0初期値により見た目には
+           影響しない。
            animation-timelineはkeyvisualと同じ--hero-scrollを参照する
            （理由は上のコメント参照）。 */
         animation-name: hero-lantern-stream;
