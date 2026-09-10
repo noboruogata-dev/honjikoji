@@ -8,10 +8,15 @@ import type { CollectionEntry } from 'astro:content';
 interface Props {
   spot: CollectionEntry<'spots'>;
   /** 一覧内での並び順。指定するとスクロールで時間差をつけて浮かび上がる
-   *  （global.cssの[data-reveal]参照）。/spots/のようにJSでカードの
-   *  表示・非表示を切り替えるフィルタ付き一覧では指定しないこと
-   *  （display:noneの間はIntersectionObserverが交差判定できず、
-   *  フィルタで後から表示された時に不透明度0のまま固まる恐れがあるため）。 */
+   *  （global.cssの[data-reveal]参照）。以下のような、IntersectionObserver
+   *  の前提（「要素は通常のブロックとして、いずれ画面内に大きく入ってくる」）
+   *  が崩れる一覧では指定しないこと。指定すると不透明度0のまま固まって
+   *  消えて見える不具合になる:
+   *  - /spots/のようにJSでカードの表示・非表示を切り替えるフィルタ付き
+   *    一覧（display:noneの間は交差判定できない）
+   *  - index.astroのSPOTSのような横スクロール行（2枚目以降は右端に
+   *    「一部だけ覗く」状態が初期表示になり、面積の交差率が
+   *    SectionHeading.astro側のthreshold:0.2を永遠に超えられない） */
   revealIndex?: number;
 }
 
