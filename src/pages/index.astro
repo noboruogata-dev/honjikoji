@@ -897,4 +897,30 @@ const structuredData = [
     mix-blend-mode: screen;
     opacity: var(--kv-bloom-opacity);
   }
+
+  /*
+    モバイルでHeroパララックスがカクつく報告への対応。transform自体
+    （translateY/scale）はコンポジタだけで動くはずだが、実際に動いて
+    いるのはfilter（drop-shadow・blur）とmix-blend-mode:screenを
+    何層も重ねた画像で、これらは合成コストが高く、非力なモバイルGPUだと
+    スクロール駆動アニメーションの毎フレーム再合成が追いつかない
+    （animation-timelineの仕組み自体は主スレッドを使わないぶん軽いが、
+    合成側の負荷は別問題）。keyvisual-fade/keyvisual-bloomの重ね順・
+    発光の意図は変えず、モバイルだけ量を減らして合成コストを下げる:
+    - keyvisual-fade: drop-shadowを3段→1段に
+    - keyvisual-bloom: blur半径を縮小し、mix-blend-mode:screen
+      （モバイルGPUで特にコストが高いブレンドモード）をやめてnormal合成に
+      （発光の滲みは弱まるが、screen本来の「暗部を持ち上げない」性質を
+      opacityの低さで代用する）
+  */
+  @media (max-width: 639px) {
+    .keyvisual-fade {
+      filter: brightness(1.18) contrast(1.1) drop-shadow(0 0 28px var(--glow));
+    }
+    .keyvisual-bloom {
+      --kv-bloom-blur: 5px;
+      mix-blend-mode: normal;
+      opacity: calc(var(--kv-bloom-opacity) * 0.55);
+    }
+  }
 </style>
