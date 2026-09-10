@@ -203,19 +203,29 @@ const manners = [
                       i % 2 === 0 ? 'sm:pr-10' : 'sm:ml-auto sm:pl-10',
                     ]}
                   >
-                    <div class="rounded-xl border border-night-700 bg-night-900/60 p-5">
+                    <!--
+                      年表の挿絵(era-*.png)は透過ではなく、セピア調の地色が
+                      焼き込まれた素材（column挿絵等の「墨色背景」規格より前の
+                      もの）。以前は画像だけに暖色の台紙を敷いて馴染ませて
+                      いたが、画像と囲みの地の色が違うこと自体が「浮き」の
+                      本質だったため、囲み全体を挿絵と同系統の暖色（このセッ
+                      ションでbandセクションに使ったのと同じ暖色比率の墨色）
+                      に変更した。暗さは維持したまま色相だけ寒色(night-900
+                      系、青みの濃紺)から暖色に寄せたので、文字色
+                      （gold-100/amber-glow/vermilion。いずれも暗い地に映える
+                      設計）はそのまま流用でき、変更不要。画像側はring-1の
+                      細い縁取りだけに簡略化した（地の色が揃ったので、太い
+                      マットで縁取らなくても違和感がなくなったため）。
+                    -->
+                    <div class="rounded-xl border border-[#3a2f22]/70 bg-[#241f1a]/85 p-5">
                       <div class="sm:grid sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center sm:gap-5">
-                        <!--
-                          この年表の挿絵(era-*.png)は透過ではなく、セピア調の
-                          地色が焼き込まれた素材（column挿絵等の「墨色背景」
-                          規格より前に作られたもの）。暗いカードに直接置くと
-                          地色の四角がそのまま浮いて見えるため、挿絵と同系統の
-                          暖色（アンティーク写真の台紙）でマットを敷き、
-                          「古い写真をカードに貼った」体裁にして馴染ませる。
-                        -->
-                        <div class="mx-auto mb-4 w-36 rounded-lg bg-[#c7ac83] p-1.5 shadow-inner shadow-black/20 sm:mb-0 sm:w-40">
-                          <Illust src={item.image} mode="tint" size={160} alt={item.imageAlt} class="w-full rounded" />
-                        </div>
+                        <Illust
+                          src={item.image}
+                          mode="tint"
+                          size={160}
+                          alt={item.imageAlt}
+                          class="mx-auto mb-4 w-36 rounded-lg ring-1 ring-black/25 sm:mb-0 sm:w-40"
+                        />
                         <div class="text-center sm:text-left">
                           <p
                             class:list={[
