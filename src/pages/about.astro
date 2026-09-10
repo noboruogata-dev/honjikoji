@@ -205,13 +205,17 @@ const manners = [
                   >
                     <div class="rounded-xl border border-night-700 bg-night-900/60 p-5">
                       <div class="sm:grid sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center sm:gap-5">
-                        <Illust
-                          src={item.image}
-                          mode="tint"
-                          size={160}
-                          alt={item.imageAlt}
-                          class="mx-auto mb-4 w-36 rounded-lg sm:mb-0 sm:w-40"
-                        />
+                        <!--
+                          この年表の挿絵(era-*.png)は透過ではなく、セピア調の
+                          地色が焼き込まれた素材（column挿絵等の「墨色背景」
+                          規格より前に作られたもの）。暗いカードに直接置くと
+                          地色の四角がそのまま浮いて見えるため、挿絵と同系統の
+                          暖色（アンティーク写真の台紙）でマットを敷き、
+                          「古い写真をカードに貼った」体裁にして馴染ませる。
+                        -->
+                        <div class="mx-auto mb-4 w-36 rounded-lg bg-[#c7ac83] p-1.5 shadow-inner shadow-black/20 sm:mb-0 sm:w-40">
+                          <Illust src={item.image} mode="tint" size={160} alt={item.imageAlt} class="w-full rounded" />
+                        </div>
                         <div class="text-center sm:text-left">
                           <p
                             class:list={[

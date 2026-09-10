@@ -133,6 +133,12 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
           if (url.origin !== location.origin) return;
           // パス・クエリが変わらない（ページ内ハッシュ移動等）は対象外。
           if (url.pathname === location.pathname && url.search === location.search) return;
+          // 別ページへのハッシュ付きリンク（例: /about/#hashigo）も対象外。
+          // ここで先頭へ強制リセットすると、ClientRouterがハッシュ先の
+          // アンカーへスクロールした直後にそれを打ち消してしまい、
+          // 「別ページのアンカーへのリンクが常にページ先頭に着地する」
+          // 不具合になる（本番で発生・報告された）。
+          if (url.hash) return;
           pendingScrollReset = true;
         },
         true
