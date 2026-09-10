@@ -46,7 +46,7 @@ import { X } from '@lucide/astro';
       aria-haspopup="dialog"
       aria-controls="omikuji-dialog"
       aria-label="今夜のおみくじを引く"
-      class="omikuji-fab-button inline-flex shrink-0 items-center justify-center rounded-full p-2 text-amber-glow transition hover:opacity-85"
+      class="omikuji-fab-button relative inline-flex shrink-0 items-center justify-center rounded-full p-2 text-amber-glow"
     >
       <span data-omikuji-fab-icon class="inline-flex">
         <LanternIcon size={60} lit={true} class="omikuji-fab-lantern" />
@@ -317,6 +317,11 @@ import { X } from '@lucide/astro';
       const today = readStoredDraw();
       const hasDrawnToday = today?.dateKey === getOmikujiDayKey();
       fabLantern!.classList.toggle('is-inviting', !hasDrawnToday);
+      // ボタン本体（.omikuji-fab-button）にも同じis-invitingを付ける。
+      // 提灯本体側のis-invitingとは別要素向け（呼吸＋揺れ用）なので、
+      // 衝突しない。こちらはCSS側で数秒に一度「ボワン」と膨らむ周期
+      // アニメーション（詳細は<style>参照）のトリガーに使う。
+      openButton!.classList.toggle('is-inviting', !hasDrawnToday);
       hintEligible = !hasDrawnToday;
       updateHintVisibility();
     }
@@ -671,6 +676,77 @@ import { X } from '@lucide/astro';
     display: block;
   }
 
+  /*
+   * FABの「存在感」強化: 「今日まだ引いていない」間（is-inviting、
+   * syncFabStateが.omikuji-fab-button自体にも付与）、数秒に一度、
+   * 何もしなくても提灯が自然にふわっと一回り膨らみ（ボワンと弾む
+   * ease）、背後に光彩がにじみ広がる演出を周期的に繰り返す。
+   * 当初はhover/focus-visible時のみのtransitionで作っていたが、
+   * 「ホバーはマウスオーバーしないと発動しない。何もせずとも数秒に
+   * 一回ボワンとしてほしい」との指摘を受け、常時ループするCSS
+   * animationへ作り直した。周期は10秒中1回だけ短く膨らみ、残りは
+   * 静止する構成（既存のlantern-icon-sway-gustの「10秒に一度だけ
+   * 大きく揺れる」設計と同じ考え方）。「今日はもう引いた」後は
+   * どちらのクラスも外れるため、通常の静止した点灯状態に戻る。
+   *
+   * 拡大は提灯本体（.omikuji-fab-lantern、global.css）ではなく、それを
+   * 包む無地のラッパー（[data-omikuji-fab-icon]、このファイル内の
+   * 要素）に掛けている。理由: is-inviting中は.omikuji-fab-lantern
+   * 自体に呼吸＋揺れのCSS animation（.lantern-icon.is-inviting、
+   * global.css）が常時掛かっており、同じtransformプロパティへ別の
+   * animationを足しても片方に上書きされて効かない（1要素のtransformは
+   * 1つの計算値にしかならないため）。ラッパー側でscaleし、提灯側は
+   * そのままrotateし続ければ、親のscaleと子のrotateは別々の
+   * transformとして自然に合成され、「膨らみながら揺れる」見え方になる。
+   */
+  .omikuji-fab-button::before {
+    content: '';
+    position: absolute;
+    inset: -35%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(242, 181, 68, 0.5) 0%, rgba(242, 181, 68, 0.2) 45%, rgba(242, 181, 68, 0) 72%);
+    opacity: 0;
+    transform: scale(0.55);
+    pointer-events: none;
+  }
+  @keyframes omikuji-fab-glow-pulse {
+    0%,
+    100% {
+      opacity: 0;
+      transform: scale(0.55);
+    }
+    18% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+    45% {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+  }
+  @keyframes omikuji-fab-icon-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    18% {
+      transform: scale(1.16);
+    }
+    45% {
+      transform: scale(1);
+    }
+  }
+  /* 「もう少しゆっくりボワンとしてほしい」との指摘を受け、膨らみ〜
+     収まりの区間（0%→18%→45%）を当初（0%→8%→22%）より広げ、
+     周期自体も7s→9sに延ばした。膨らみ始めから収まり切るまでの
+     実時間は約1.5秒→約4秒になり、ゆったりした「ボワン」になる。 */
+  .omikuji-fab-button.is-inviting::before {
+    animation: omikuji-fab-glow-pulse 9s ease-in-out infinite;
+  }
+  .omikuji-fab-button.is-inviting [data-omikuji-fab-icon] {
+    animation: omikuji-fab-icon-pulse 9s ease-in-out infinite;
+  }
+
   /* 全画面演出の「暗転」を担う層。dialog自体の背景は透明にしてあり
      （script側のコメント参照）、このopacityだけをtransitionさせることで
      「画面が暗転する」動きを作る。 */
@@ -876,6 +952,13 @@ import { X } from '@lucide/astro';
     :global(.omikuji-fly-lantern) {
       animation: none;
       opacity: 0;
+    }
+    /* FABの周期ボワンも「動くこと」自体が演出なので、
+       .hero-lantern-stream等と同じ方針で丸ごと止める（静的な光彩を
+       残すのではなく、光彩ごと非表示にする）。 */
+    .omikuji-fab-button.is-inviting::before,
+    .omikuji-fab-button.is-inviting [data-omikuji-fab-icon] {
+      animation: none;
     }
     .omikuji-flash.is-flashing {
       animation: none;
