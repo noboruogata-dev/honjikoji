@@ -15,9 +15,20 @@
  *            bodyの構造要件（段落数・見出し数・最長段落文字数）も決定論的に
  *            チェックしたうえで、通過したものだけを src/content/spots/[slug].md
  *            に保存する（LLM呼び出しなし、コードのみ。構造要件は非ブロッキングの
- *            WARNで、満たさなくても保存はされる）。GOOGLE_PLACES_API_KEY が
- *            設定されていれば、Text Searchで店名・住所からPlace IDも解決して
- *            保存する（scripts/lib/googlePlaces.ts。解決できなくても保存は続行）。
+ *            WARNで、満たさなくても保存はされる）。Text Searchで店名・住所から
+ *            Place IDを解決し（scripts/lib/googlePlaces.ts）保存するが、これは
+ *            単なる付加情報ではなく必須のセーフティネットとして扱う。Place ID
+ *            が無いと、詳細ページのライブ営業時間表示（LivePlaceHours.astro）
+ *            もGoogleとの営業時間照合（下記）も両方とも無効になり、Agent1が
+ *            誤った営業時間を書いても誰にも検知されないまま公開されてしまう
+ *            （2026年9月、実際にこれが原因で月曜日・昼営業のズレが未検知の
+ *            まま公開された事例がある）。そのため Agent3 は Place ID を解決
+ *            できなかった場合（一過性のエラー対策として複数回リトライしてもなお
+ *            解決できない場合）はこの候補を保存せず、試行を失敗として扱って
+ *            別の店舗をリトライする（MAX_ATTEMPTS参照）。GOOGLE_PLACES_API_KEY
+ *            自体が未設定の場合は特定の店舗の問題ではなく設定不備なので、
+ *            リトライしても無駄と判断してFatalPipelineErrorで処理全体を
+ *            即座に止める。
  *
  * 営業時間まわりの設計（2系統）:
  *   系統1（詳細ページの表示）: Place IDがあれば、詳細ページが表示のたびに
@@ -45,7 +56,9 @@
  * 事前準備:
  *   .env に GEMINI_API_KEY を設定してください（.env.example 参照）。
  *   https://aistudio.google.com/apikey で取得できます。
- *   GOOGLE_PLACES_API_KEY は任意です（未設定でもplaceIdが付かないだけで動作します）。
+ *   GOOGLE_PLACES_API_KEY も実質必須です。Place IDが解決できないと記事は
+ *   保存されません（上記Agent3の説明を参照）。未設定の場合はFatalPipelineErrorで
+ *   処理全体を停止します。
  */
 
 import 'dotenv/config';
@@ -79,7 +92,7 @@ import {
 } from './lib/gemini-agents.js';
 import { parseBudgetRange } from './lib/budgetParser.js';
 import { isIrregularHoliday, parseOpenHoursToHours } from './lib/openHoursParser.js';
-import { resolvePlaceId, resolveRegularOpeningHoursPeriods } from './lib/googlePlaces.js';
+import { resolvePlaceIdWithRetry, resolveRegularOpeningHoursPeriods } from './lib/googlePlaces.js';
 import { compareHoursWithGoogle } from './lib/hoursComparison.js';
 import { runInstagramMaterialAgent } from './lib/instagramMaterialAgent.js';
 
@@ -93,13 +106,48 @@ const MAX_ATTEMPTS = 3;
 
 // 各試行が最終的にどうなったかを記録し、全滅した場合でも「何が起きたか」を
 // ログとJob Summaryに必ず残すための集計用ラベル。
-type AttemptOutcome = 'notFound' | 'duplicate' | 'success' | 'error';
+type AttemptOutcome = 'notFound' | 'duplicate' | 'placeIdUnresolved' | 'hoursMismatch' | 'success' | 'error';
 const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
   notFound: '候補なし',
   duplicate: '重複',
+  placeIdUnresolved: 'Place ID未解決のため見送り',
+  hoursMismatch: '営業時間の乖離により見送り',
   success: '成功',
   error: 'エラー',
 };
+
+/**
+ * Agent3がPlace IDを解決できなかった場合に投げる（複数回リトライしても
+ * 該当なし・APIエラーが続いた場合のみ）。呼び出し側（試行ループ）はこれを
+ * notFound/duplicateと同様に「この候補は見送り、別の店舗をリトライする」
+ * 非致命的な結果として扱う。記事は一切保存しない。
+ */
+class PlaceIdUnresolvedError extends Error {
+  constructor(public readonly storeName: string) {
+    super(`Place IDを解決できませんでした: ${storeName}`);
+    this.name = 'PlaceIdUnresolvedError';
+  }
+}
+
+/**
+ * Agent3が、Agent1由来のhoursとGoogle Places APIとの照合で乖離を検出した
+ * 場合に投げる。PlaceIdUnresolvedErrorと同様に非致命的な結果として扱い、
+ * 記事は保存せず別の店舗をリトライする。営業時間の誤りは実害が大きいため
+ * ブロッキングとする（乖離の有無・大きさ・曜日名のみを扱い、Google側の
+ * 実際の時刻文字列は含めない。scripts/lib/hoursComparison.tsのコメント参照）。
+ */
+class HoursMismatchError extends Error {
+  constructor(
+    public readonly storeName: string,
+    public readonly mismatchedDays: string[],
+    public readonly maxDiffMinutes: number
+  ) {
+    super(
+      `営業時間の乖離を検出しました: ${storeName}（${mismatchedDays.join('・')}、最大${maxDiffMinutes}分程度）`
+    );
+    this.name = 'HoursMismatchError';
+  }
+}
 
 const GENRES = [
   '居酒屋',
@@ -576,12 +624,13 @@ interface QaResult {
   hoursReason?: string;
   /**
    * Agent1由来のhoursをPlaces APIの値と照合した結果（検証のみ・値は保存しない）。
-   * placeId未解決・GOOGLE_PLACES_API_KEY未設定・hours未導出のいずれかなら
-   * checked: false（照合自体を行っていない）。
+   * hours未導出、またはPlace Details取得自体に失敗した場合はchecked: false
+   * （照合自体を行っていない。この場合は非ブロッキング＝そのまま保存される）。
+   * hasMismatch: trueになるケースはHoursMismatchErrorとして投げられ保存
+   * されない（=このQaResultが返る時点では常にfalse）ため、ここに残るのは
+   * 事実上「一致した」ログ用の情報。
    */
   hoursVerification: { checked: boolean; hasMismatch: boolean; maxDiffMinutes: number; mismatchedDays: string[] };
-  /** Place IDを解決できなかった場合のみ設定する（Job Summaryで原因を切り分けられるようにするため）。 */
-  placeIdWarning?: string;
 }
 
 /** SpotFrontmatterのhoursを、content.config.tsが期待するYAML行に変換する（無ければ空配列）。 */
@@ -615,35 +664,53 @@ async function runQaAgent(
   const label = '[Agent3:QA]';
   console.log(`${label} 起動。Frontmatterスキーマ（Zod）を検証中...`);
 
-  // 店名・住所からPlace IDを解決する（GOOGLE_PLACES_API_KEY未設定・該当なし・
-  // APIエラーのいずれでも null。処理は継続し、placeIdは未設定のまま保存する）。
-  // 「キー未設定」と「キーはあるが該当なし/APIエラー」を区別してログ・Job
-  // Summaryに残す（ヨルサクラの件で原因切り分けにログ側の情報が不足していた
-  // ため、次回以降は再現作業なしで判別できるようにした）。
-  const placesApiKeyPresent = Boolean(process.env.GOOGLE_PLACES_API_KEY);
-  const resolvedPlace = await resolvePlaceId(research.title, research.address, process.env.GOOGLE_PLACES_API_KEY);
-  let placeIdWarning: string | undefined;
-  if (resolvedPlace) {
-    console.log(`${label} Place IDを解決しました: ${resolvedPlace.placeId}`);
-  } else if (!placesApiKeyPresent) {
-    placeIdWarning = 'GOOGLE_PLACES_API_KEYが未設定のため、Place ID解決・営業時間検証をスキップしました。';
-    console.warn(`${label} ${placeIdWarning}`);
-  } else {
-    placeIdWarning = 'Place IDを解決できませんでした（該当なし、またはAPIエラー）。詳細ページのライブ営業時間表示は無効のまま保存します。';
-    console.warn(`${label} ${placeIdWarning}`);
+  // 店名・住所からPlace IDを解決する。GOOGLE_PLACES_API_KEY自体が未設定なのは
+  // 特定の店舗の問題ではなく設定不備であり、リトライしても無駄なので
+  // FatalPipelineErrorで処理全体を即座に止める（ヨルサクラの件で「キー未設定」
+  // と「キーはあるが解決失敗」の切り分けにログが不足していた反省を踏まえ、
+  // ここで明確に区別する）。
+  //
+  // キーはあるのに解決できない場合（該当なし・APIエラー）は一過性のことが
+  // あるため resolvePlaceIdWithRetry が間隔を空けて複数回試す。それでも
+  // 解決できなければ、この候補の記事は保存せずPlaceIdUnresolvedErrorを投げる。
+  // Place IDが無いと、詳細ページのライブ営業時間表示（LivePlaceHours.astro）も
+  // 下記のGoogleとの営業時間照合も両方無効になり、Agent1が誤った営業時間を
+  // 書いても誰にも検知されないまま公開されてしまう（2026年9月に実際に発生）
+  // ため、これはブロッキングの理由として十分である。
+  if (!process.env.GOOGLE_PLACES_API_KEY) {
+    throw new FatalPipelineError(
+      'GOOGLE_PLACES_API_KEYが未設定です。Place ID解決・営業時間検証ができないため、記事は生成できません。'
+    );
   }
+  const resolvedPlace = await resolvePlaceIdWithRetry(
+    research.title,
+    research.address,
+    process.env.GOOGLE_PLACES_API_KEY
+  );
+  if (!resolvedPlace) {
+    throw new PlaceIdUnresolvedError(research.title);
+  }
+  console.log(`${label} Place IDを解決しました: ${resolvedPlace.placeId}`);
 
   // openHours/regularHolidayから構造化hoursを決定論的に導出する（LLM不使用）。
   // 導出できなければhoursは未設定のまま保存する（誤った営業時間よりは
   // hours欠落＝unknown表示の方が安全という方針。scripts/lib/openHoursParser.ts）。
   const hoursResult = parseOpenHoursToHours(research.openHours, research.regularHoliday);
 
-  // Agent1由来のhoursを、Places APIの値と照合する（検証のみ）。Places API側の
-  // 値そのものはfrontmatterにもJob Summaryにも保存しない（Google Maps Platform
-  // 利用規約上、opening hoursの永続保存は許可されていないため）。ここで残す
-  // のは「差分の有無・大きさ（分）・曜日名」という私たち自身が計算した派生
-  // 情報のみで、Google側の実際の時刻文字列は一切含めない
-  // （scripts/lib/hoursComparison.ts のコメント参照）。
+  // Agent1由来のhoursを、Places APIの値と照合する。Places API側の値そのもの
+  // はfrontmatterにもJob Summaryにも保存しない（Google Maps Platform利用規約上、
+  // opening hoursの永続保存は許可されていないため）。ここで扱うのは「差分の
+  // 有無・大きさ（分）・曜日名」という私たち自身が計算した派生情報のみで、
+  // Google側の実際の時刻文字列は一切含めない（scripts/lib/hoursComparison.ts
+  // のコメント参照）。
+  //
+  // 乖離を検出した場合はHoursMismatchErrorを投げて保存をブロックする。営業
+  // 時間の誤りは実害が大きく、警告ログだけでは（このワークフローがPRを介さず
+  // 直接mainへpushするため）誰も気づかないまま公開されてしまうことが実際に
+  // あったため。Google Place Detailsの取得自体に失敗した場合（checked: false）
+  // は「乖離が無い」とは断定できないが、これはPlace ID自体は解決できている
+  // ケースであり、ライブ営業時間表示（系統1）は正しく機能するため、非
+  // ブロッキングのまま保存を続行する。
   let hoursVerification: QaResult['hoursVerification'] = {
     checked: false,
     hasMismatch: false,
@@ -657,14 +724,11 @@ async function runQaAgent(
     );
     if (googlePeriods) {
       const comparison = compareHoursWithGoogle(hoursResult.hours, googlePeriods);
-      hoursVerification = { checked: true, ...comparison };
       if (comparison.hasMismatch) {
-        console.warn(
-          `${label} [営業時間検証] Places APIとの照合で差分を検出しました（${comparison.mismatchedDays.join('・')}、最大${comparison.maxDiffMinutes}分程度）。Google Mapsで直接ご確認ください。`
-        );
-      } else {
-        console.log(`${label} [営業時間検証] Places APIと一致しました。`);
+        throw new HoursMismatchError(research.title, comparison.mismatchedDays, comparison.maxDiffMinutes);
       }
+      hoursVerification = { checked: true, ...comparison };
+      console.log(`${label} [営業時間検証] Places APIと一致しました。`);
     } else {
       console.warn(`${label} [営業時間検証] Places APIから営業時間を取得できず、照合をスキップしました。`);
     }
@@ -782,7 +846,7 @@ async function runQaAgent(
   await writeFile(filePath, frontmatter + writer.body.trim() + '\n', 'utf-8');
 
   console.log(`${label} 完了。保存しました: ${path.relative(process.cwd(), filePath)}`);
-  return { filePath, hoursDerived: Boolean(fm.hours), hoursReason: hoursResult.reason, hoursVerification, placeIdWarning };
+  return { filePath, hoursDerived: Boolean(fm.hours), hoursReason: hoursResult.reason, hoursVerification };
 }
 
 // ============================================================
@@ -1361,7 +1425,9 @@ async function runBackfillPlaceId(manualOverrides: Map<string, string>): Promise
       continue;
     }
 
-    const resolved = await resolvePlaceId(title, address, apiKey, { verbose: true });
+    // 自動生成パイプライン（runQaAgent）と同じく、一過性のエラー対策として
+    // 複数回リトライする（scripts/lib/googlePlaces.tsのコメント参照）。
+    const resolved = await resolvePlaceIdWithRetry(title, address, apiKey, { verbose: true });
     if (!resolved) {
       results.push({ slug, title, address, status: 'not-resolved' });
       continue;
@@ -1497,6 +1563,19 @@ async function main() {
       ? `- 参考ヒントのうち営業状況を確認できなかった店（要手動確認）: ${Array.from(unconfirmedHintStores).join('、')}`
       : null;
 
+  // Place ID未解決・営業時間の乖離により見送った店舗名（全試行分の集計）。
+  // 集計だけでなく「どの店で何が起きたか」をJob Summaryに残す
+  // （試行内訳のカウントだけでは店名が分からず、後から追跡できないため）。
+  const placeIdUnresolvedStores: string[] = [];
+  const hoursMismatchStores: { name: string; mismatchedDays: string[]; maxDiffMinutes: number }[] = [];
+  const placeIdUnresolvedLines = (): string[] =>
+    placeIdUnresolvedStores.map((name) => `- ⚠️ Place ID が解決できず見送りました（${name}）`);
+  const hoursMismatchLines = (): string[] =>
+    hoursMismatchStores.map(
+      ({ name, mismatchedDays, maxDiffMinutes }) =>
+        `- ⚠️ 営業時間の乖離により見送りました（${name}：${mismatchedDays.join('・')}、最大${maxDiffMinutes}分程度。Google Mapsで直接ご確認ください）`
+    );
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     console.log(`\n----- 試行 ${attempt}/${MAX_ATTEMPTS} -----`);
 
@@ -1530,7 +1609,7 @@ async function main() {
       }
 
       const writer = await runWriterAgent(ai, research);
-      const { filePath, hoursDerived, hoursReason, hoursVerification, placeIdWarning } = await runQaAgent(
+      const { filePath, hoursDerived, hoursReason, hoursVerification } = await runQaAgent(
         research,
         writer,
         existingSlugs
@@ -1568,14 +1647,14 @@ async function main() {
         ? '営業時間(hours): 自動導出しました'
         : `営業時間(hours): 自動導出できませんでした（${hoursReason}）`;
 
-      // Places APIとの照合結果（検証のみ）。値そのもの（Google側の実際の時刻）は
-      // 一切含めない。差分の有無・大きさ・曜日名という派生情報のみを出す
-      // （scripts/lib/hoursComparison.ts のコメント参照）。
-      const hoursVerificationLine = !hoursVerification.checked
-        ? null
-        : hoursVerification.hasMismatch
-          ? `⚠️ 営業時間の検証: Places APIとの照合で差分を検出しました（${hoursVerification.mismatchedDays.join('・')}、最大${hoursVerification.maxDiffMinutes}分程度）。Google Mapsで直接ご確認のうえ、必要なら手動で修正してください。`
-          : '営業時間の検証: Places APIと一致しました。';
+      // Places APIとの照合結果。乖離を検出した場合はHoursMismatchErrorとして
+      // 投げられ、この行に到達する時点ではhasMismatch: trueにはならない
+      // （checked: falseはhours未導出、またはPlace Details取得自体に失敗した
+      // 場合の非ブロッキングなケース）。値そのもの（Google側の実際の時刻）は
+      // 一切含めない（scripts/lib/hoursComparison.ts のコメント参照）。
+      const hoursVerificationLine = hoursVerification.checked
+        ? '営業時間の検証: Places APIと一致しました。'
+        : null;
 
       console.log('\n============================================================');
       console.log(
@@ -1585,7 +1664,6 @@ async function main() {
       console.log(` ${announcementSummaryLine(announcement)}`);
       console.log(` ${hoursLine}`);
       if (hoursVerificationLine) console.log(` ${hoursVerificationLine}`);
-      if (placeIdWarning) console.log(` ⚠️ ${placeIdWarning}`);
       console.log('============================================================');
 
       await appendStepSummary(
@@ -1598,9 +1676,10 @@ async function main() {
           `- ${announcementSummaryLine(announcement)}`,
           `- ${hoursLine}`,
           hoursVerificationLine ? `- ${hoursVerificationLine}` : null,
-          placeIdWarning ? `- ⚠️ ${placeIdWarning}` : null,
           instagramMaterial.warning ? `- ⚠️ ${instagramMaterial.warning}` : null,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+          ...placeIdUnresolvedLines(),
+          ...hoursMismatchLines(),
           unconfirmedHintLine(),
         ]
           .filter((line): line is string => line !== null)
@@ -1619,12 +1698,34 @@ async function main() {
             `❌ 致命的エラーのため処理を停止しました: ${err.message}`,
             '',
             `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+            ...placeIdUnresolvedLines(),
+            ...hoursMismatchLines(),
             unconfirmedHintLine(),
           ]
             .filter((line): line is string => line !== null)
             .join('\n')
         );
         return;
+      }
+
+      // Place ID未解決・営業時間の乖離は、notFound/duplicateと同じ「この候補は
+      // 見送り、別の店舗をリトライする」非致命的な結果として扱う。記事は
+      // 一切保存されていない（runQaAgentがwriteFileより前に投げている）。
+      if (err instanceof PlaceIdUnresolvedError) {
+        outcomes.push('placeIdUnresolved');
+        placeIdUnresolvedStores.push(err.storeName);
+        console.warn(`[generate-spot] ${err.message} 見送ってリトライします。`);
+        continue;
+      }
+      if (err instanceof HoursMismatchError) {
+        outcomes.push('hoursMismatch');
+        hoursMismatchStores.push({
+          name: err.storeName,
+          mismatchedDays: err.mismatchedDays,
+          maxDiffMinutes: err.maxDiffMinutes,
+        });
+        console.warn(`[generate-spot] ${err.message} 見送ってリトライします。`);
+        continue;
       }
 
       outcomes.push('error');
@@ -1641,6 +1742,8 @@ async function main() {
             `❌ ${MAX_ATTEMPTS}回試行しましたが、記事の生成に失敗しました。`,
             '',
             `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+            ...placeIdUnresolvedLines(),
+            ...hoursMismatchLines(),
             unconfirmedHintLine(),
           ]
             .filter((line): line is string => line !== null)
@@ -1652,11 +1755,12 @@ async function main() {
     }
   }
 
-  // ここに到達するのは、MAX_ATTEMPTS回すべてが notFound か duplicate で
-  // continue した場合のみ（最終試行がエラーだった場合は上のcatch内でthrow
-  // 済みなのでここには来ない）。以前はこのケースが完全な無言終了（ログ無し・
-  // exitCode 0 の緑チェックのみ）になっており、「成功しているのに記事が
-  // 増えない」原因が実行ログからまったく追えなかった。エラーではなく
+  // ここに到達するのは、MAX_ATTEMPTS回すべてが notFound・duplicate・
+  // placeIdUnresolved・hoursMismatch のいずれかでcontinueした場合のみ
+  // （最終試行がエラーだった場合は上のcatch内でthrow済みなのでここには
+  // 来ない）。以前はこのケースが完全な無言終了（ログ無し・exitCode 0の
+  // 緑チェックのみ）になっており、「成功しているのに記事が増えない」原因が
+  // 実行ログからまったく追えなかった。いずれも異常ではなく安全のための
   // 意図的なスキップなので exitCode は変更しない（0のまま）。
   const summaryLine = summarizeOutcomes(outcomes, OUTCOME_LABELS);
   console.log('\n============================================================');
@@ -1674,6 +1778,8 @@ async function main() {
       `${MAX_ATTEMPTS}回試行しましたが、新しい記事は生成されませんでした。`,
       '',
       `- 試行内訳: ${summaryLine}`,
+      ...placeIdUnresolvedLines(),
+      ...hoursMismatchLines(),
       unconfirmedHintLine(),
       '',
       '_エラーではなく意図的なスキップです。次回の定期実行で再試行されます。_',

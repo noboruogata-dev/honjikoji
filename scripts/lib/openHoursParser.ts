@@ -87,6 +87,44 @@ function extractClosedDays(regularHoliday: string): Set<number> | null {
   return new Set(matches.map((m) => WEEKDAY_TO_NUMBER[m[1]]));
 }
 
+interface OpenCloseRange {
+  openMinutes: number;
+  closeMinutes: number;
+  /**
+   * この営業帯の直前のテキストに曜日限定の記載があれば、その曜日集合
+   * （例: [2, 3, 5, 6]＝火・水・金・土）。無ければundefined＝呼び出し側で
+   * regularHoliday由来のデフォルト曜日集合を使う。
+   */
+  days?: number[];
+}
+
+/**
+ * 「火・水・金・土曜」（曜は末尾にまとめて1つだけ）と「月曜・水曜・金曜」
+ * （各曜日ごとに曜が付く）の両方の表記にマッチする。
+ */
+const WEEKDAY_GROUP_RE = /(?:[日月火水木金土][・、,]?)+曜/g;
+
+/**
+ * ある営業帯の直前のテキスト（segment）から、その営業帯だけに適用される
+ * 曜日限定を抽出する。見つからなければnull（呼び出し側でデフォルトの曜日
+ * 集合を使う）。1つのsegmentに複数マッチしても（「月曜・水曜・金曜」は
+ * WEEKDAY_GROUP_REの仕様上3回に分かれてマッチする）、すべての曜日の
+ * 和集合を返す。
+ */
+function extractWeekdaysFromSegment(segment: string): number[] | null {
+  const matches = [...segment.matchAll(WEEKDAY_GROUP_RE)];
+  if (matches.length === 0) return null;
+
+  const days = new Set<number>();
+  for (const match of matches) {
+    for (const ch of match[0]) {
+      const day = WEEKDAY_TO_NUMBER[ch];
+      if (day !== undefined) days.add(day);
+    }
+  }
+  return days.size > 0 ? [...days].sort((a, b) => a - b) : null;
+}
+
 /**
  * openHours から開店・閉店時刻の組を「すべて」抽出する。「11:30〜14:00、
  * 17:30〜22:00」のように昼の部・夜の部が併記される営業時間は実データ上
@@ -98,14 +136,22 @@ function extractClosedDays(regularHoliday: string): Set<number> | null {
  * 使われているため、主要なダッシュ/波ダッシュ類をまとめて許容する。末尾の
  * 「（L.O. 22:30）」等の注記は非アンカーマッチのため自然に無視される。
  *
+ * 各組の直前のテキストに曜日限定の記載（例: "昼営業 火・水・金・土曜
+ * 12:00〜14:30"）があれば、その営業帯専用の曜日集合として一緒に返す
+ * （呼び出し側 parseOpenHoursToHours が、無ければregularHoliday由来の
+ * デフォルト曜日集合にフォールバックする）。これが無い旧実装では、営業帯
+ * ごとに異なる曜日限定（例: 夜は毎日・昼は一部曜日のみ）が失われ、実際には
+ * 休みの曜日を「営業中」と誤表示することがあった。
+ *
  * いずれかの組の時刻表記が不正な場合はnull（安全方針: 一部だけ解釈して
  * 残りを無視するくらいなら導出自体を諦める。extractClosedDaysと同じ考え方）。
  */
-function extractOpenCloseRanges(openHours: string): Array<{ openMinutes: number; closeMinutes: number }> | null {
+function extractOpenCloseRanges(openHours: string): OpenCloseRange[] | null {
   const matches = [...openHours.matchAll(/(\d{1,2}:\d{2})\s*[〜～\-~−]\s*(\d{1,2}:\d{2})/g)];
   if (matches.length === 0) return null;
 
-  const ranges: Array<{ openMinutes: number; closeMinutes: number }> = [];
+  const ranges: OpenCloseRange[] = [];
+  let previousEnd = 0;
   for (const match of matches) {
     const openMinutes = toMinutes(match[1]);
     const closeRaw = toMinutes(match[2]);
@@ -114,7 +160,13 @@ function extractOpenCloseRanges(openHours: string): Array<{ openMinutes: number;
     // 閉店が開店以下（=日をまたぐ）なら+24時間して経過時刻表記にする
     // （content.config.tsのhours仕様。例: 19:00〜02:00 → open:19:00, close:26:00）。
     const closeMinutes = closeRaw <= openMinutes ? closeRaw + 24 * 60 : closeRaw;
-    ranges.push({ openMinutes, closeMinutes });
+
+    const matchStart = match.index ?? previousEnd;
+    const segment = openHours.slice(previousEnd, matchStart);
+    const days = extractWeekdaysFromSegment(segment) ?? undefined;
+
+    ranges.push({ openMinutes, closeMinutes, days });
+    previousEnd = matchStart + match[0].length;
   }
   return ranges;
 }
@@ -136,22 +188,40 @@ export function parseOpenHoursToHours(openHours: string, regularHoliday: string)
     };
   }
 
-  const days = [0, 1, 2, 3, 4, 5, 6].filter((d) => !closedDays.has(d));
-  if (days.length === 0) {
+  const defaultDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !closedDays.has(d));
+  if (defaultDays.length === 0) {
     return {
       hours: undefined,
       reason: `regularHoliday "${regularHoliday}" の解釈上、全曜日が休業になり矛盾しています`,
     };
   }
 
-  // 昼の部・夜の部のように複数の営業帯がある場合、休業曜日はregularHoliday
-  // 由来の1つしか分からないため、各営業帯に同じdaysを適用する（営業帯ごとに
-  // 休業曜日が異なるケースはopenHoursの自由文からは判別できず、対応しない）。
-  return {
-    hours: ranges.map((times) => ({
-      days,
-      open: formatMinutes(times.openMinutes),
-      close: formatMinutes(times.closeMinutes),
-    })),
-  };
+  // 昼の部・夜の部のように複数の営業帯がある場合、営業帯ごとの直前テキストに
+  // 曜日限定の記載（例: "昼営業 火・水・金・土曜"）があればそれを使い、
+  // 無ければregularHoliday由来のデフォルト曜日集合にフォールバックする
+  // （extractOpenCloseRangesのコメント参照）。
+  //
+  // 営業帯固有の曜日指定がregularHoliday上の休業曜日と矛盾する場合（例:
+  // 定休日のはずの曜日にその営業帯があると書かれている）は、どちらが正しいか
+  // openHours/regularHolidayの自由文からは判別できずデータの整合性を信頼
+  // できないため、他の安全方針と同じく導出自体を諦める。
+  const hours: ParsedHourRule[] = [];
+  for (const range of ranges) {
+    if (range.days) {
+      const conflicting = range.days.filter((d) => closedDays.has(d));
+      if (conflicting.length > 0) {
+        return {
+          hours: undefined,
+          reason: `openHours "${openHours}" の曜日指定がregularHoliday "${regularHoliday}" の休業曜日と矛盾しています`,
+        };
+      }
+    }
+    hours.push({
+      days: range.days ?? defaultDays,
+      open: formatMinutes(range.openMinutes),
+      close: formatMinutes(range.closeMinutes),
+    });
+  }
+
+  return { hours };
 }

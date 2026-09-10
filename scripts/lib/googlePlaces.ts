@@ -118,6 +118,59 @@ export async function resolvePlaceId(
   return { placeId };
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export interface ResolvePlaceIdRetryOptions extends ResolvePlaceIdOptions {
+  /** 最大試行回数（1回目 + リトライ）。既定3回。 */
+  attempts?: number;
+  /** 各試行の間隔（ミリ秒）。既定2000ms。 */
+  delayMs?: number;
+}
+
+/**
+ * resolvePlaceId を間隔を空けて複数回リトライする。
+ *
+ * Text Search自体が一過性のエラー（ネットワーク瞬断、Google側のインデックス
+ * 反映タイミング等）で失敗し、直後に同じクエリを投げ直すと解決できることが
+ * 実際に確認されている（新規オープン店の記事で、生成時は解決できなかった
+ * Place IDが翌日には同じText Searchで解決できた事例）。
+ *
+ * 呼び出し元（scripts/generate-spot.tsのAgent3）は、全リトライを終えても
+ * nullなら「Place IDを解決できなかった」として記事の保存自体を見送る
+ * （誤情報が検証・ライブ表示のどちらの安全策も経由せず公開されるのを防ぐ
+ * ため）。1回勝負ではなく複数回試すことで、この見送りが一過性のエラー
+ * だけを理由に発生する頻度を下げる。
+ *
+ * apiKey が未設定の場合は1回も試さずnullを返す（無駄な待機を避ける。
+ * 呼び出し元はこれを「設定不備」として別途扱う）。
+ */
+export async function resolvePlaceIdWithRetry(
+  storeName: string,
+  address: string,
+  apiKey: string | undefined,
+  options: ResolvePlaceIdRetryOptions = {}
+): Promise<ResolvedPlace | null> {
+  if (!apiKey) return null;
+
+  const attempts = options.attempts ?? 3;
+  const delayMs = options.delayMs ?? 2000;
+  const verbose = options.verbose ?? false;
+
+  let result: ResolvedPlace | null = null;
+  for (let i = 1; i <= attempts; i += 1) {
+    result = await resolvePlaceId(storeName, address, apiKey, options);
+    if (result) return result;
+
+    if (verbose) {
+      console.error(`[googlePlaces] Place ID解決 ${i}/${attempts}回目が失敗しました。`);
+    }
+    if (i < attempts) await sleep(delayMs);
+  }
+  return result;
+}
+
 /**
  * Place Details (New) から regularOpeningHours.periods を取得する。
  *
