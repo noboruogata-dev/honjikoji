@@ -8,6 +8,13 @@
  *   Agent 1: Research Agent  — Google Search Grounding付きGeminiで実在店舗を
  *            1軒選定し、事実情報を厳密なJSONで抽出する。新規開店・リニューアル
  *            情報を優先的に探索し、開店から約1年以内なら isNew フラグを立てる。
+ *            Grounding呼び出しがURL付きの検索結果引用を1件も返さなかった
+ *            場合、facts/vibes/openHours等がGeminiのパラメトリック記憶からの
+ *            生成（ハルシネーション）である可能性を否定できないため、main()の
+ *            試行ループがこの候補を保存せず別の店舗をリトライする（2026年9月、
+ *            実際にこれが原因で「毎週金曜ジャズ生演奏」という裏付けのない
+ *            記述が公開された事例がある。詳細は該当チェック箇所のコメント
+ *            参照）。
  *   Agent 2: Writer Agent    — Agent 1のJSONだけを事実源として、地元メディア
  *            らしい紹介記事（800〜1200字）を執筆する（Grounding無し）。読みやすさの
  *            ため、段落数・見出し・1段落の文字数について構造要件を守るよう指示する。
@@ -106,10 +113,18 @@ const MAX_ATTEMPTS = 3;
 
 // 各試行が最終的にどうなったかを記録し、全滅した場合でも「何が起きたか」を
 // ログとJob Summaryに必ず残すための集計用ラベル。
-type AttemptOutcome = 'notFound' | 'duplicate' | 'placeIdUnresolved' | 'hoursMismatch' | 'success' | 'error';
+type AttemptOutcome =
+  | 'notFound'
+  | 'duplicate'
+  | 'ungroundedResearch'
+  | 'placeIdUnresolved'
+  | 'hoursMismatch'
+  | 'success'
+  | 'error';
 const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
   notFound: '候補なし',
   duplicate: '重複',
+  ungroundedResearch: 'Grounding引用0件のため見送り',
   placeIdUnresolved: 'Place ID未解決のため見送り',
   hoursMismatch: '営業時間の乖離により見送り',
   success: '成功',
@@ -197,7 +212,11 @@ const researchSchema = z.object({
   // 営業状況を確認できなかった店名。ヒントを渡していない試行では空配列になる。
   unconfirmedHintStores: z.array(z.string()).optional().default([]),
 });
-type ResearchResult = z.infer<typeof researchSchema>;
+// groundingSourceCountはZodスキーマの対象外（Gemini呼び出しのメタデータであり
+// JSON応答の一部ではない）。runResearchAgentがGrounding呼び出しの結果を
+// 合成して付与する。main()のループでハルシネーション対策の判定に使う
+// （groundingSourceCount === 0 のチェック箇所のコメント参照）。
+type ResearchResult = z.infer<typeof researchSchema> & { groundingSourceCount: number };
 
 // Agent 2（Writer）の出力スキーマ。
 const writerSchema = z.object({
@@ -548,7 +567,7 @@ async function runResearchAgent(
     console.log(`${label} 参考ヒント（燕三条TV動画由来・未確認）: ${videoHints.length}件`);
   }
 
-  const rawText = await callGroundedJsonAgent(ai, {
+  const { text: rawText, groundingSourceCount } = await callGroundedJsonAgent(ai, {
     label,
     prompt: buildResearchPrompt(excludeTitles, hintTitle, hintGenre, videoHints),
     responseSchema: researchResponseSchema,
@@ -572,6 +591,12 @@ async function runResearchAgent(
     console.log(
       `${label} 公式SNS候補: ${result.data.socialLinks.length > 0 ? result.data.socialLinks.map((link) => `${link.platform}: ${link.url}`).join(', ') : '(確認できず)'}`
     );
+    // URL付きのGrounding引用が0件は、Google検索ツール自体は有効だったが
+    // 実在の検索結果を1件も引用しなかったことを意味し、facts/vibes等の
+    // 内容が検索結果に基づかない生成（ハルシネーション）である可能性が
+    // 高いシグナル。ここではログのみ残し、実際のブロッキング判定は
+    // main()のループ側で行う（groundingSourceCount === 0 のチェック参照）。
+    console.log(`${label} Grounding引用件数: ${groundingSourceCount}件`);
   }
 
   if (result.data.unconfirmedHintStores.length > 0) {
@@ -580,7 +605,7 @@ async function runResearchAgent(
     );
   }
 
-  return result.data;
+  return { ...result.data, groundingSourceCount };
 }
 
 // ============================================================
@@ -1563,11 +1588,14 @@ async function main() {
       ? `- 参考ヒントのうち営業状況を確認できなかった店（要手動確認）: ${Array.from(unconfirmedHintStores).join('、')}`
       : null;
 
-  // Place ID未解決・営業時間の乖離により見送った店舗名（全試行分の集計）。
-  // 集計だけでなく「どの店で何が起きたか」をJob Summaryに残す
-  // （試行内訳のカウントだけでは店名が分からず、後から追跡できないため）。
+  // Grounding引用0件・Place ID未解決・営業時間の乖離により見送った店舗名
+  // （全試行分の集計）。集計だけでなく「どの店で何が起きたか」をJob Summaryに
+  // 残す（試行内訳のカウントだけでは店名が分からず、後から追跡できないため）。
+  const ungroundedResearchStores: string[] = [];
   const placeIdUnresolvedStores: string[] = [];
   const hoursMismatchStores: { name: string; mismatchedDays: string[]; maxDiffMinutes: number }[] = [];
+  const ungroundedResearchLines = (): string[] =>
+    ungroundedResearchStores.map((name) => `- ⚠️ Google検索の引用が0件のため見送りました（${name}）`);
   const placeIdUnresolvedLines = (): string[] =>
     placeIdUnresolvedStores.map((name) => `- ⚠️ Place ID が解決できず見送りました（${name}）`);
   const hoursMismatchLines = (): string[] =>
@@ -1605,6 +1633,29 @@ async function main() {
       if (isDuplicate) {
         outcomes.push('duplicate');
         console.warn(`[generate-spot] 「${research.title}」はすでに掲載済みでした。リトライします。`);
+        continue;
+      }
+
+      // 2026年9月、Wine Bar MARGAUXの記事で「毎週金曜日にジャズの生演奏
+      // イベントが開催されている」という、裏付けが一切ログに残らない記述が
+      // 公開された事例があった。調査の結果、その試行のGrounding呼び出しは
+      // URL付きの検索結果引用を1件も返していなかった（ログに「参照した
+      // 情報源」の行が一切無い）ことが判明した。にもかかわらずAgent1は
+      // 住所・営業時間・vibes（"生演奏あり"を含む）を確定情報として返し、
+      // Agent2/Agent3はそれをそのまま記事化・公開してしまった。
+      //
+      // Grounding引用が0件は「Google検索ツール自体は使ったが、実在の検索
+      // 結果を参照した形跡が無い」ことを意味し、facts/vibes/openHours等の
+      // 内容がGeminiのパラメトリック記憶からの生成（ハルシネーション）で
+      // ある可能性を否定できない。この場合はPlaceIdUnresolvedError/
+      // HoursMismatchErrorと同様、記事を保存せず別の店舗をリトライする
+      // （notFoundと同種の「調査の質が基準に満たなかった」結果として扱う）。
+      if (research.groundingSourceCount === 0) {
+        outcomes.push('ungroundedResearch');
+        ungroundedResearchStores.push(research.title);
+        console.warn(
+          `[generate-spot] 「${research.title}」はGoogle検索の引用が0件でした。調査内容を信頼できないため見送ってリトライします。`
+        );
         continue;
       }
 
@@ -1678,6 +1729,7 @@ async function main() {
           hoursVerificationLine ? `- ${hoursVerificationLine}` : null,
           instagramMaterial.warning ? `- ⚠️ ${instagramMaterial.warning}` : null,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+          ...ungroundedResearchLines(),
           ...placeIdUnresolvedLines(),
           ...hoursMismatchLines(),
           unconfirmedHintLine(),
@@ -1698,6 +1750,7 @@ async function main() {
             `❌ 致命的エラーのため処理を停止しました: ${err.message}`,
             '',
             `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+            ...ungroundedResearchLines(),
             ...placeIdUnresolvedLines(),
             ...hoursMismatchLines(),
             unconfirmedHintLine(),
@@ -1742,6 +1795,7 @@ async function main() {
             `❌ ${MAX_ATTEMPTS}回試行しましたが、記事の生成に失敗しました。`,
             '',
             `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+            ...ungroundedResearchLines(),
             ...placeIdUnresolvedLines(),
             ...hoursMismatchLines(),
             unconfirmedHintLine(),
@@ -1778,6 +1832,7 @@ async function main() {
       `${MAX_ATTEMPTS}回試行しましたが、新しい記事は生成されませんでした。`,
       '',
       `- 試行内訳: ${summaryLine}`,
+      ...ungroundedResearchLines(),
       ...placeIdUnresolvedLines(),
       ...hoursMismatchLines(),
       unconfirmedHintLine(),
