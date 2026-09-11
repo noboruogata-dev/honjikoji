@@ -102,6 +102,11 @@ import { isIrregularHoliday, parseOpenHoursToHours } from './lib/openHoursParser
 import { resolvePlaceIdWithRetry, resolveRegularOpeningHoursPeriods } from './lib/googlePlaces.js';
 import { compareHoursWithGoogle } from './lib/hoursComparison.js';
 import { runInstagramMaterialAgent } from './lib/instagramMaterialAgent.js';
+import {
+  buildSourceVerificationPrompt,
+  evaluateSourceVerificationClaims,
+  sourceVerificationResponseSchema as sourceVerificationZodSchema,
+} from './lib/sourceVerification.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -117,6 +122,7 @@ type AttemptOutcome =
   | 'notFound'
   | 'duplicate'
   | 'ungroundedResearch'
+  | 'unsourcedClaims'
   | 'placeIdUnresolved'
   | 'hoursMismatch'
   | 'success'
@@ -125,6 +131,7 @@ const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
   notFound: '候補なし',
   duplicate: '重複',
   ungroundedResearch: 'Grounding引用0件のため見送り',
+  unsourcedClaims: '出典なしの記述が多いため見送り',
   placeIdUnresolved: 'Place ID未解決のため見送り',
   hoursMismatch: '営業時間の乖離により見送り',
   success: '成功',
@@ -367,6 +374,35 @@ const writerResponseSchema = {
     },
   },
   required: ['description', 'body'],
+};
+
+// Agent 5（出典照合）の出力スキーマ。scripts/lib/sourceVerification.ts の
+// sourceVerificationResponseSchema（Zod・検証用）と項目を対応させること。
+const sourceVerificationResponseSchema = {
+  type: Type.OBJECT,
+  properties: {
+    claims: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          statement: { type: Type.STRING, description: '記事本文から抽出した、事実として断定している記述' },
+          hasSource: {
+            type: Type.BOOLEAN,
+            description: '調査データのどこかにこの記述を具体的に裏付ける記載があれば true、無ければ false',
+          },
+          sourceField: {
+            type: Type.STRING,
+            description:
+              'hasSource: true の場合のみ、根拠となった調査データの項目名（例: "openHours", "facts", "vibes"）',
+          },
+        },
+        required: ['statement', 'hasSource'],
+      },
+      description: '記事本文から抽出した断定的記述と、それぞれの出典照合結果の一覧',
+    },
+  },
+  required: ['claims'],
 };
 
 // ============================================================
@@ -636,6 +672,59 @@ async function runWriterAgent(ai: GoogleGenAI, research: ResearchResult): Promis
   }
 
   return result.data;
+}
+
+// ============================================================
+// Agent 5: Source Verification Agent（出典照合。検索・外部知識は不使用）
+// ============================================================
+
+/**
+ * Agent2が書いた本文の断定的記述それぞれが、Agent1の調査データ
+ * （research）のどこかに対応しているかを判定する。
+ *
+ * 「この記述は正しいか」をLLMに直接判定させても機能しない
+ * （もっともらしい記述ほど「正しい」と答えてしまう）ため、代わりに
+ * 「Agent2が書いた記述が、Agent1が集めたデータのどこかに対応しているか」
+ * という、より機械的で検証可能な問いに置き換える。Agent5にはGoogle
+ * Search Groundingのtoolsを一切渡さず（callPlainJsonAgentを使う）、
+ * 入力もresearchとbodyだけに限定することで、Agent5自身が外部知識や
+ * 一般常識で「もっともらしいから正しい」と判定してしまう余地を無くす
+ * （プロンプト内でも明示的に禁止している。
+ * scripts/lib/sourceVerification.ts のコメント参照）。
+ */
+async function runSourceVerificationAgent(
+  ai: GoogleGenAI,
+  research: ResearchResult,
+  writer: WriterResult
+): Promise<ReturnType<typeof evaluateSourceVerificationClaims>> {
+  const label = '[Agent5:SourceVerification]';
+  console.log(`${label} 起動。本文の断定的記述とAgent1の調査データを照合中...`);
+
+  const rawText = await callPlainJsonAgent(ai, {
+    label,
+    prompt: buildSourceVerificationPrompt(research, writer.body),
+    responseSchema: sourceVerificationResponseSchema,
+  });
+
+  const parsedJson = parseJsonOrThrow(rawText, label);
+  const result = sourceVerificationZodSchema.safeParse(parsedJson);
+  if (!result.success) {
+    logZodIssues(result, label);
+    throw new Error('Agent5(SourceVerification)のレスポンスがスキーマ違反です。');
+  }
+
+  const evaluation = evaluateSourceVerificationClaims(result.data.claims);
+  console.log(
+    `${label} 完了。断定的記述${evaluation.totalClaims}件中、出典なし${evaluation.unsourcedCount}件（${(evaluation.unsourcedRatio * 100).toFixed(0)}%）。`
+  );
+  if (evaluation.unsourcedStatements.length > 0) {
+    console.warn(`${label} 出典なしの記述:`);
+    for (const statement of evaluation.unsourcedStatements) {
+      console.warn(`  - ${statement}`);
+    }
+  }
+
+  return evaluation;
 }
 
 // ============================================================
@@ -1588,14 +1677,22 @@ async function main() {
       ? `- 参考ヒントのうち営業状況を確認できなかった店（要手動確認）: ${Array.from(unconfirmedHintStores).join('、')}`
       : null;
 
-  // Grounding引用0件・Place ID未解決・営業時間の乖離により見送った店舗名
-  // （全試行分の集計）。集計だけでなく「どの店で何が起きたか」をJob Summaryに
-  // 残す（試行内訳のカウントだけでは店名が分からず、後から追跡できないため）。
+  // Grounding引用0件・出典なし多数・Place ID未解決・営業時間の乖離により
+  // 見送った店舗名（全試行分の集計）。集計だけでなく「どの店で何が起きたか」を
+  // Job Summaryに残す（試行内訳のカウントだけでは店名が分からず、後から
+  // 追跡できないため）。
   const ungroundedResearchStores: string[] = [];
+  const unsourcedClaimsStores: { name: string; unsourcedCount: number; totalClaims: number; statements: string[] }[] =
+    [];
   const placeIdUnresolvedStores: string[] = [];
   const hoursMismatchStores: { name: string; mismatchedDays: string[]; maxDiffMinutes: number }[] = [];
   const ungroundedResearchLines = (): string[] =>
     ungroundedResearchStores.map((name) => `- ⚠️ Google検索の引用が0件のため見送りました（${name}）`);
+  const unsourcedClaimsLines = (): string[] =>
+    unsourcedClaimsStores.flatMap(({ name, unsourcedCount, totalClaims, statements }) => [
+      `- ⚠️ 出典なしの記述が多いため見送りました（${name}：${unsourcedCount}/${totalClaims}件）`,
+      ...statements.map((statement) => `  - ${statement}`),
+    ]);
   const placeIdUnresolvedLines = (): string[] =>
     placeIdUnresolvedStores.map((name) => `- ⚠️ Place ID が解決できず見送りました（${name}）`);
   const hoursMismatchLines = (): string[] =>
@@ -1660,6 +1757,30 @@ async function main() {
       }
 
       const writer = await runWriterAgent(ai, research);
+
+      // Agent 5: 出典照合。Agent2の本文の断定的記述それぞれが、Agent1の
+      // 調査データのどこかに対応しているかを機械的に判定する（検索・外部知識
+      // 不使用）。「毎週金曜ジャズ生演奏」の件はGrounding引用0件を検知する
+      // 対策（groundingSourceCount === 0 のチェック）で既に塞がれているが、
+      // それとは独立に「Grounding自体は行われたが、Agent2が本文執筆時に
+      // 調査データに無い具体的な記述を書き足した」ケースを検知するための
+      // 二段目の安全策。出典なしが閾値を超える場合は記事を保存せず見送る
+      // （詳細はscripts/lib/sourceVerification.tsのコメント参照）。
+      const sourceVerification = await runSourceVerificationAgent(ai, research, writer);
+      if (sourceVerification.shouldBlock) {
+        outcomes.push('unsourcedClaims');
+        unsourcedClaimsStores.push({
+          name: research.title,
+          unsourcedCount: sourceVerification.unsourcedCount,
+          totalClaims: sourceVerification.totalClaims,
+          statements: sourceVerification.unsourcedStatements,
+        });
+        console.warn(
+          `[generate-spot] 「${research.title}」は出典なしの記述が${sourceVerification.unsourcedCount}/${sourceVerification.totalClaims}件見つかりました。見送ってリトライします。`
+        );
+        continue;
+      }
+
       const { filePath, hoursDerived, hoursReason, hoursVerification } = await runQaAgent(
         research,
         writer,
@@ -1707,6 +1828,16 @@ async function main() {
         ? '営業時間の検証: Places APIと一致しました。'
         : null;
 
+      // 出典なしの記述は、ブロッキング閾値未満でも常にJob Summaryへ列挙する
+      // （後から人手で確認できるようにするため。ユーザーとの合意事項）。
+      const sourceVerificationLines =
+        sourceVerification.unsourcedStatements.length > 0
+          ? [
+              `- ⚠️ 出典なしの記述: ${sourceVerification.unsourcedCount}/${sourceVerification.totalClaims}件（閾値未満のため保存は続行）`,
+              ...sourceVerification.unsourcedStatements.map((statement) => `  - ${statement}`),
+            ]
+          : [];
+
       console.log('\n============================================================');
       console.log(
         ` 完了: 「${research.title}」（${research.genre}）${research.isNew ? '[NEW] ' : ''}を保存しました。`
@@ -1715,6 +1846,7 @@ async function main() {
       console.log(` ${announcementSummaryLine(announcement)}`);
       console.log(` ${hoursLine}`);
       if (hoursVerificationLine) console.log(` ${hoursVerificationLine}`);
+      for (const line of sourceVerificationLines) console.log(` ${line}`);
       console.log('============================================================');
 
       await appendStepSummary(
@@ -1729,7 +1861,9 @@ async function main() {
           hoursVerificationLine ? `- ${hoursVerificationLine}` : null,
           instagramMaterial.warning ? `- ⚠️ ${instagramMaterial.warning}` : null,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
+          ...sourceVerificationLines,
           ...ungroundedResearchLines(),
+          ...unsourcedClaimsLines(),
           ...placeIdUnresolvedLines(),
           ...hoursMismatchLines(),
           unconfirmedHintLine(),
@@ -1751,6 +1885,7 @@ async function main() {
             '',
             `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
             ...ungroundedResearchLines(),
+            ...unsourcedClaimsLines(),
             ...placeIdUnresolvedLines(),
             ...hoursMismatchLines(),
             unconfirmedHintLine(),
@@ -1796,6 +1931,7 @@ async function main() {
             '',
             `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
             ...ungroundedResearchLines(),
+            ...unsourcedClaimsLines(),
             ...placeIdUnresolvedLines(),
             ...hoursMismatchLines(),
             unconfirmedHintLine(),
@@ -1833,6 +1969,7 @@ async function main() {
       '',
       `- 試行内訳: ${summaryLine}`,
       ...ungroundedResearchLines(),
+      ...unsourcedClaimsLines(),
       ...placeIdUnresolvedLines(),
       ...hoursMismatchLines(),
       unconfirmedHintLine(),
