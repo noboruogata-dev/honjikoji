@@ -253,15 +253,35 @@ function extractJsonObject(text: string): string {
   return candidate.slice(start, end + 1);
 }
 
-export function logGroundingSources(response: GenerateContentResponse, label: string) {
+/**
+ * Grounding応答からURL付きの引用（groundingChunks[].web.uri）を抽出してログに
+ * 残し、その件数を返す。件数は callGroundedJsonAgent の呼び出し元が「Geminiは
+ * 本当に検索結果を引用したか」を判定するための唯一の手がかりになる
+ * （groundingSourceCountとしてハルシネーション対策に使われる。
+ * scripts/generate-spot.ts の groundingSourceCount === 0 のチェック参照）。
+ */
+export function logGroundingSources(response: GenerateContentResponse, label: string): number {
   const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
   const withUri = chunks.filter((chunk) => chunk.web?.uri);
-  if (withUri.length === 0) return;
+  if (withUri.length === 0) return 0;
 
   console.log(`${label} 参照した情報源 (${withUri.length}件):`);
   for (const chunk of withUri) {
     console.log(`  - ${chunk.web?.title ?? chunk.web?.uri} (${chunk.web?.uri})`);
   }
+  return withUri.length;
+}
+
+export interface GroundedJsonResult {
+  text: string;
+  /**
+   * Geminiのレスポンスに含まれていた、URL付きのGrounding引用の件数。
+   * 0件は「Google検索ツール自体は有効だったが、実在の検索結果を1件も
+   * 引用しなかった」ことを意味し、レスポンスの内容が検索結果に基づかない
+   * 生成（ハルシネーション）である可能性が高いシグナルとして呼び出し元が
+   * 利用できる。
+   */
+  groundingSourceCount: number;
 }
 
 /**
@@ -272,7 +292,7 @@ export function logGroundingSources(response: GenerateContentResponse, label: st
 export async function callGroundedJsonAgent(
   ai: GoogleGenAI,
   opts: { label: string; prompt: string; responseSchema: object }
-): Promise<string> {
+): Promise<GroundedJsonResult> {
   try {
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
@@ -284,8 +304,8 @@ export async function callGroundedJsonAgent(
       },
     });
     const text = requireText(response, opts.label);
-    logGroundingSources(response, opts.label);
-    return text;
+    const groundingSourceCount = logGroundingSources(response, opts.label);
+    return { text, groundingSourceCount };
   } catch (err) {
     if (isQuotaError(err)) {
       throw new FatalPipelineError(
@@ -303,8 +323,8 @@ export async function callGroundedJsonAgent(
       },
     });
     const fallbackText = requireText(fallbackResponse, `${opts.label}（フォールバック）`);
-    logGroundingSources(fallbackResponse, opts.label);
-    return extractJsonObject(fallbackText);
+    const groundingSourceCount = logGroundingSources(fallbackResponse, opts.label);
+    return { text: extractJsonObject(fallbackText), groundingSourceCount };
   }
 }
 

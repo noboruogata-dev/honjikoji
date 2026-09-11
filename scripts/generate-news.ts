@@ -304,7 +304,7 @@ async function runResearchAgent(
   console.log(`${label} 起動。Google Search Groundingで本寺小路の最新話題をリサーチ中...`);
 
   const today = todayInTokyo();
-  const rawText = await callGroundedJsonAgent(ai, {
+  const { text: rawText } = await callGroundedJsonAgent(ai, {
     label,
     prompt: buildResearchPrompt(excludeTopics, knownSpots, today),
     responseSchema: researchResponseSchema,

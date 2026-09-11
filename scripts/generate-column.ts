@@ -250,7 +250,7 @@ async function runResearchAgent(
 ): Promise<ColumnResearch> {
   const label = '[Agent1:Research]';
   console.log(`${label} ${profile.category}（${profile.kind}）の事実と出典を調査中...`);
-  const raw = await callGroundedJsonAgent(ai, {
+  const { text: raw } = await callGroundedJsonAgent(ai, {
     label,
     prompt: researchPrompt(profile, topic, excludedTitles, providedMaterial),
     responseSchema: researchResponseSchema,
