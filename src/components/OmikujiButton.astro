@@ -134,6 +134,7 @@ import { X } from '@lucide/astro';
     draw,
     getOmikujiDayKey,
     OMIKUJI_RANKS,
+    splitIntoSentences,
     type OmikujiRank,
     type OmikujiResult,
   } from '../lib/omikuji';
@@ -374,12 +375,16 @@ import { X } from '@lucide/astro';
     // 付けてフェード＋浮き上がりを発火させる（4. 格付けとお告げが浮かび上がる）。
     function renderResult(result: OmikujiResult, animate: boolean) {
       const { rank, text } = result;
+      // ブラウザ任意の折り返しに任せず、句点（。）ごとに改行する
+      // （お告げは1〜2文の短い言い切りが多く、文の途中で折り返されると
+      // 読みにくいため）。
+      const textHtml = splitIntoSentences(text).join('<br>');
       resultEl!.innerHTML = `
         <div class="omikuji-result-enter${animate ? '' : ' is-visible'}" data-omikuji-result-enter>
           <p class="font-serif text-base font-bold text-gold-100/75">${rank.name}</p>
           <p class="mt-0.5 text-[0.65rem] tracking-[0.15em] text-gold-100/55">${rank.reading}</p>
           <div class="mx-auto mt-5 max-w-[24em] rounded-xl border border-gold-100/10 bg-night-800 px-5 py-7">
-            <p class="font-serif text-xl font-semibold leading-[2] text-gold-100">${text}</p>
+            <p class="font-serif text-xl font-semibold leading-[2] text-gold-100">${textHtml}</p>
           </div>
           <p class="mt-4 text-xs text-gold-100/60">${rank.phrase}（出現率：約${rank.weight}%）</p>
         </div>
