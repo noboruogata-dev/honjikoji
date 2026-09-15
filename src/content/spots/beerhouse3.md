@@ -19,6 +19,7 @@ vibes:
   - "2次会・締めに最適"
   - "隠れ家"
 isNew: false
+establishedYear: 2016
 socialLinks:
   - platform: "instagram"
     url: "https://www.instagram.com/beerhouse3/"
