@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkGlyphCoverage, wrapJapaneseTitle } from './ogpImage';
+import { checkGlyphCoverage, fitFeedTitle, wrapJapaneseTitle } from './ogpImage';
 
 describe('checkGlyphCoverage', () => {
   it('JIS X 0208範囲の常用漢字外の文字（旧字体・人名用漢字）も検出できる文字として扱う', async () => {
@@ -57,11 +57,35 @@ describe('wrapJapaneseTitle', () => {
     expect(lines).toEqual(['Beerhouse3']);
   });
 
+  it('閉じ括弧の直後が助詞の場合、助詞ごと前の行に含める（回帰テスト: 「三条の「ハコニワ」で…」で2行目が「で」から始まっていた不具合）', () => {
+    const lines = wrapJapaneseTitle('三条の「ハコニワ」で移住者向け交流イベントが10月18日開催！', 21);
+    expect(lines).toEqual(['三条の「ハコニワ」で', '移住者向け交流イベントが10月18日開催！']);
+  });
+
+  it('助詞を含めると上限を超える場合は諦めて閉じ括弧の直後で改行する', () => {
+    // 「三条の「ハコニワ」で」は10文字。maxCharsPerLine=9では収まらないため、
+    // 助詞を巻き込まず、従来通り閉じ括弧の直後で改行する。
+    const lines = wrapJapaneseTitle('三条の「ハコニワ」で移住者向け交流イベントが10月18日開催！', 9);
+    expect(lines[0]).toBe('三条の「ハコニワ」');
+  });
+
   it('英単語＋日本語が混在する場合も、英単語の途中では改行しない', () => {
     // 単語「BAR」(3文字) + 「え」「び」(各1文字) = 5 <= 5 でちょうど1行目に収まり、
     // 「す」を足すと5を超えるので2行目へ。
     const lines = wrapJapaneseTitle('BARえびすまち', 5);
     expect(lines[0]).toBe('BARえび');
     expect(lines.join('')).toBe('BARえびすまち');
+  });
+});
+
+describe('fitFeedTitle', () => {
+  it('候補tierのうち、閉じ括弧直後の助詞が行頭に取り残されないtierを優先する（回帰テスト: 「「Bar Keywest」の紹介記事を公開しました」で、wrapJapaneseTitle単体では2行に収まる最初のtierがこの問題を起こしたままだった）', () => {
+    const result = fitFeedTitle('「Bar Keywest」の紹介記事を公開しました');
+    expect(result.lines).toEqual(['「Bar Keywest」の', '紹介記事を公開しました']);
+  });
+
+  it('どのtierでも2行に収まらない場合は例外を投げず結果を返す', () => {
+    const result = fitFeedTitle('あ'.repeat(80));
+    expect(result.lines.length).toBeGreaterThan(0);
   });
 });
