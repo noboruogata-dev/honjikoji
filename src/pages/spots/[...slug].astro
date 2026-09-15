@@ -20,6 +20,7 @@ import { getSpotSchemaType } from '../../lib/spotSchemaType';
 import { buildGoogleMapsUrl, buildOpeningHoursSpecification, buildSpotAddress } from '../../lib/structuredData';
 import { resolveOgpImage } from '../../lib/ogpImagePath';
 import { guidesForSpot } from '../../lib/guides';
+import { isRecentlyPublished } from '../../lib/spotFreshness';
 
 export async function getStaticPaths() {
   const spots = await getCollection('spots');
@@ -38,7 +39,6 @@ const {
   openHours,
   regularHoliday,
   vibes,
-  isNew,
   hours,
   isIrregular,
   description,
@@ -48,6 +48,7 @@ const {
   socialLinks,
   placeId,
 } = spot.data;
+const showNewBadge = isRecentlyPublished(pubDate);
 const { Content } = await render(spot);
 // hashigo（1軒目/2軒目/〆）は全店が該当し差別化情報にならないため、
 // guidesForSpot側で意図的に除外している。
@@ -119,7 +120,7 @@ const socialPlatformLabels = {
         <div class="flex flex-wrap items-center gap-2 text-xs">
           <span class="font-medium tracking-wide text-amber-glow">{genre}</span>
           {
-            isNew && (
+            showNewBadge && (
               <span class="inline-flex items-center gap-1 rounded-full bg-vermilion px-2.5 py-1 text-[0.65rem] font-bold tracking-wide text-white">
                 <span class="lantern-breathe h-1.5 w-1.5 rounded-full bg-white" />
                 NEW
