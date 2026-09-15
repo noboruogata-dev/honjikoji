@@ -11,14 +11,24 @@ import RuleDivider from '../components/RuleDivider.astro';
 import StructuredData from '../components/StructuredData.astro';
 import { getCollection } from 'astro:content';
 import { ArrowRight, MapPin } from '@lucide/astro';
+import { isRecentlyPublished } from '../lib/spotFreshness';
 
-// 新着店舗: isNewを優先し、次点でpubDate降順。先頭6件のみトップに出す
-// （全件・フィルタ付きの一覧は /spots/ へ移設済み）。Hero内の「何軒中何軒が
-// 営業中」表示は掲載店"全件"を対象にするため、slice前の全件を別途保持する。
+// 新着店舗: pubDateが直近（30日以内。src/lib/spotFreshness.ts参照）の店を
+// 優先し、あとはpubDate降順。先頭6件のみトップに出す（全件・フィルタ付きの
+// 一覧は /spots/ へ移設済み）。
+// 以前はisNew（お店自体が最近開店したか）で判定していたが、「新着店舗」＝
+// サイトに最近追加された店という直感とズレる（老舗の紹介記事を出しても
+// isNewはfalseのまま）うえ、isNewは生成時点で一度きりの判定で自動更新
+// されないため、開店から1年以上経った店が永久に居座り続ける問題もあった
+// （2026年9月、Wine Bar MARGAUXで発生）。
+// Hero内の「何軒中何軒が営業中」表示は掲載店"全件"を対象にするため、
+// slice前の全件を別途保持する。
 const allSpots = await getCollection('spots');
 const featuredSpots = [...allSpots]
   .sort((a, b) => {
-    if (a.data.isNew !== b.data.isNew) return a.data.isNew ? -1 : 1;
+    const aRecent = isRecentlyPublished(a.data.pubDate);
+    const bRecent = isRecentlyPublished(b.data.pubDate);
+    if (aRecent !== bRecent) return aRecent ? -1 : 1;
     return b.data.pubDate.valueOf() - a.data.pubDate.valueOf();
   })
   .slice(0, 6);
