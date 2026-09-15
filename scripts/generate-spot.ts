@@ -193,7 +193,12 @@ const SCENE_TAGS = ['1軒目におすすめ', '2次会・締めに最適', '深�
 
 // Agent 1（Research）の出力スキーマ。
 const researchSchema = z.object({
-  notFound: z.boolean(),
+  // 2026年9月、Grounding+構造化出力の併用をやめた際（gemini-agents.ts参照）、
+  // 店舗が見つかった応答でnotFoundフィールド自体が省略され、スキーマ違反で
+  // リトライが無駄に消費される事例が発生した。省略＝「notFoundにする理由が
+  // ない」＝falseと解釈するのが安全なため、optional+defaultで救済する
+  // （プロンプト側にも明示指示を追加済み。buildResearchPrompt参照）。
+  notFound: z.boolean().optional().default(false),
   title: z.string(),
   genre: z.string(),
   address: z.string(),
@@ -489,7 +494,8 @@ ${exclusionText}
 - 実在しない店舗を創作しないでください。
 - 除外リストの店舗、または本寺小路・本町エリア以外の店舗しか見つからない場合は、
   notFound を true にし、他のフィールドは空文字列（配列は空配列、isNewはfalse）にしてください。
-  ただし notFound にする前に、必ず第1段階・第2段階の両方を試したことを確認してください。`;
+  ただし notFound にする前に、必ず第1段階・第2段階の両方を試したことを確認してください。
+- 店舗が見つかった場合も notFound フィールド自体は省略せず、必ず false を明記してください。`;
 }
 
 function buildWriterPrompt(research: ResearchResult): string {
