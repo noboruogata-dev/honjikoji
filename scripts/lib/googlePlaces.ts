@@ -100,9 +100,12 @@ export async function resolvePlaceId(
   log(`response body: ${bodyText}`);
 
   if (!response.ok) {
-    // レスポンスボディは verbose 時のみログする（エラー詳細にAPIキー起因の
-    // 情報が含まれる可能性があるため）。常時ログはステータスコードのみ。
-    console.log(`[googlePlaces] Text Search "${textQuery}" がHTTP ${response.status} で失敗しました。`);
+    // エラーレスポンスボディ（Google API標準の { error: { code, message,
+    // status } } 形式）はAPIキーの値自体を含まず、リクエストの何が invalid
+    // だったかを示すだけなので常時ログする。2026年9月、Place ID解決が
+    // 全店舗でHTTP 400になる不具合の原因調査に必要だったため追加
+    // （ステータスコードだけでは「何が invalid か」が分からず特定できなかった）。
+    console.log(`[googlePlaces] Text Search "${textQuery}" がHTTP ${response.status} で失敗しました: ${bodyText}`);
     return null;
   }
 
