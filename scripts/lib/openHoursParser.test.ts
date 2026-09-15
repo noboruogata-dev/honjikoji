@@ -70,6 +70,17 @@ describe('parseOpenHoursToHours', () => {
     expect(result.hours).toBeUndefined();
     expect(result.reason).toContain('矛盾');
   });
+
+  it('曜日＋「は」の置き換え表現（例: "日曜は11:30〜15:00"）はundefinedを返す（回帰テスト: 泉食堂 マーポー亭の件。加算パターンとして誤解釈すると、置き換えられるはずの曜日にデフォルトの営業帯が残ったまま専用の営業帯が追加され、実際の営業時間と食い違うhoursが導出されていた）', () => {
+    const result = parseOpenHoursToHours('11:30〜14:00、18:00〜22:00（日曜は11:30〜15:00）', '月曜日、火曜日');
+    expect(result.hours).toBeUndefined();
+    expect(result.reason).toContain('置き換え');
+  });
+
+  it('「〜曜日は」（曜日の後に「日」が入る表記）の置き換え表現も検出する', () => {
+    const result = parseOpenHoursToHours('18:00〜24:00（土曜日は17:00〜24:00）', '月曜日');
+    expect(result.hours).toBeUndefined();
+  });
 });
 
 describe('isIrregularHoliday', () => {
