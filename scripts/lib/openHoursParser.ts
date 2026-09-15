@@ -171,7 +171,33 @@ function extractOpenCloseRanges(openHours: string): OpenCloseRange[] | null {
   return ranges;
 }
 
+/**
+ * 「日曜は11:30〜15:00」のように、曜日＋「は」（助詞）が直接続く言い回しを
+ * 検出する。この形は「その曜日だけ、直前の一般的な営業時間パターンを丸ごと
+ * 置き換える」という意味で使われることが多いが、extractWeekdaysFromSegment /
+ * extractOpenCloseRangesは「一部曜日にだけ営業帯を追加する」（例: "昼営業
+ * 火・水・金・土曜"）という加算パターンしか想定していない。
+ *
+ * 置き換えパターンを加算として解釈すると、置き換えられるはずの曜日に
+ * デフォルトの営業帯が残ったまま、その曜日専用の営業帯が「追加」されて
+ * しまい、実際の営業時間と食い違う構造化hoursが導出される（2026年9月、
+ * 「泉食堂 マーポー亭」の "11:30〜14:00、18:00〜22:00（日曜は11:30〜15:00）"
+ * でこれが起き、Google Place Detailsとの照合が誤って「営業時間の乖離」を
+ * 検出し、正しい候補の公開が見送られる実害があった）。
+ *
+ * 加算か置き換えかを自由文から安全に判別する方法が無いため、他の安全方針と
+ * 同じくこのパターンを検出したら導出自体を諦める。
+ */
+const WEEKDAY_OVERRIDE_MARKER_RE = /(?:[日月火水木金土][・、,]?)+曜(?:日)?は/;
+
 export function parseOpenHoursToHours(openHours: string, regularHoliday: string): ParseOpenHoursResult {
+  if (WEEKDAY_OVERRIDE_MARKER_RE.test(openHours)) {
+    return {
+      hours: undefined,
+      reason: `openHours "${openHours}" に曜日限定の「は」（例: "日曜は..."）による置き換え表現が含まれ、既存の営業帯への追加か置き換えかを安全に判別できないため導出を諦めました`,
+    };
+  }
+
   const closedDays = extractClosedDays(regularHoliday);
   if (closedDays === null) {
     return {
