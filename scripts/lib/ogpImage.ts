@@ -301,10 +301,16 @@ export function wrapJapaneseTitle(title: string, maxCharsPerLine: number): strin
   const PREFERRED_BREAK_AFTER = /[。！？、」』）]/;
   const AVOID_BREAK_AFTER = /[とのでを]/;
   const FORBIDDEN_LINE_START = /[。！？、」』）]/;
+  const CLOSING_BRACKET = /[」』）]/;
   // 禁則・助詞判定は「1文字トークン」にのみ意味を持つ（英数字の単語トークンは対象外）。
   const isSingleChar = (token: WrapToken | undefined): token is WrapToken => !!token && token.len === 1 && [...token.text].length === 1;
 
   const tokens = tokenizeForWrap(title);
+  const sumLen = (start: number, end: number): number => {
+    let total = 0;
+    for (let i = start; i < end; i += 1) total += tokens[i].len;
+    return total;
+  };
   const lines: string[] = [];
   let lineStart = 0;
 
@@ -343,6 +349,35 @@ export function wrapJapaneseTitle(title: string, maxCharsPerLine: number): strin
       while (breakAt < tokens.length && isSingleChar(tokens[breakAt]) && FORBIDDEN_LINE_START.test(tokens[breakAt].text)) {
         breakAt += 1;
       }
+      // 4) 閉じ括弧の直後がそのまま助詞（と・の・で・を）だと、その助詞
+      //    だけが次の行の先頭に取り残され、直前の語句との結びつきが分断
+      //    されて見える（例:「三条の「ハコニワ」で移住者向け…」で2行目が
+      //    「で移住者向け…」から始まってしまった実例。2026年9月報告。
+      //    「「Bar Keywest」の紹介記事…」のように、閉じ括弧が3)の禁則処理
+      //    経由で行末に押し出されるケースでも同様に起きるため、1)〜3)の
+      //    どちらの経路で閉じ括弧が行末に来た場合にも一律で効くよう、
+      //    ここでまとめてチェックする）。助詞を含めてもこの行の文字数
+      //    上限に収まるなら、助詞ごと前の行に含める。収まらなければ
+      //    諦める（前の行が長くなりすぎるよりは、多少不自然な改行位置の
+      //    方がまし）。
+      //    直前が閉じ括弧の場合に限定する（2の「助詞の直後で終わる行を
+      //    避ける」と役割が重ならないようにするため。例えば
+      //    「あいうえとかきくけこ」を5文字で折り返す場合、2)が既に
+      //    「あいうえ|とかきくけこ」を選んでおり、ここで無条件に助詞を
+      //    前の行へ引き戻すと「あいうえと|かきくけこ」に逆戻りして
+      //    2)の目的を打ち消してしまう）。
+      const prevToken = tokens[breakAt - 1];
+      const nextToken = tokens[breakAt];
+      if (
+        breakAt < tokens.length &&
+        isSingleChar(prevToken) &&
+        CLOSING_BRACKET.test(prevToken.text) &&
+        isSingleChar(nextToken) &&
+        AVOID_BREAK_AFTER.test(nextToken.text) &&
+        sumLen(lineStart, breakAt + 1) <= maxCharsPerLine
+      ) {
+        breakAt += 1;
+      }
     }
 
     lines.push(
@@ -379,16 +414,67 @@ const FEED_TITLE_TIERS = [
 
 const FEED_TITLE_MAX_LINES = 3;
 
+// wrapJapaneseTitle自身の閉じ括弧+助詞の結合（同関数内のコメント参照）は、
+// そのtierのmaxCharsPerLineに収まる範囲でしか働かない。1行目が
+// ちょうどそのtierの上限ぎりぎりで、助詞1文字分の余裕が無いと、
+// より小さいフォント（＝maxCharsPerLineが広いtier）でなら回避できたはずの
+// 「助詞が行頭に取り残される」形がそのまま採用されてしまう
+// （実例:「「Bar Keywest」の紹介記事を公開しました」）。そのため
+// fitFeedTitleは「2行に収まる最大サイズ」を機械的に採用するのではなく、
+// 2行に収まりかつこの問題も起きないtierを優先的に探す。
+// 判定対象は「と・の・で・を」に加え「が・は・も」も含める（wrapJapaneseTitle
+// 内部の禁則処理・助詞回避（とのでを限定）とは別物で、あくまで
+// fitFeedTitleが複数tierを比較検討する際の「見た目の良し悪し」判定用）。
+function startsWithAvoidedParticle(line: string): boolean {
+  return /^[とのでをがはも]/.test(line);
+}
+
 /**
  * タイトルの折り返し結果（行数）に応じてフォントサイズを段階的に選ぶ。
- * 2行に収まる最大サイズを優先し、どのサイズでも2行に収まらない場合は
- * 最小サイズで最大3行まで許容、それでも収まらなければ末尾を省略する。
+ * 2行に収まり、かつ2行目以降が助詞で始まらない最大のサイズを優先する。
+ *
+ * ただし、その「2行に収まる」唯一の方法が最小フォントだった場合
+ * （2026年9月報告: 「三条の「ハコニワ」で移住者向け交流イベントが
+ * 10月18日開催！」で、2行に収める唯一の方法が最小フォントになり、
+ * 2行目だけ極端に長く読みにくかった）は、1行増やしてでも大きいフォントで
+ * 3行（FEED_TITLE_MAX_LINES）に収まり、かつ助詞の行頭取り残しも起きない
+ * tierがあればそちらを優先する。既に2行目以降サイズのtierで条件を
+ * 満たせている場合は、この3行フォールバックは行わない（無関係な既存画像の
+ * 見た目を変えないため）。
+ *
+ * どのtierでも「2行に収まり助詞問題も無い」を満たせない場合は、2行に収まる
+ * 最大サイズ（従来の判定基準）にフォールバックする。どのサイズでも2行に
+ * 収まらない場合は、最小サイズで最大3行まで許容し、それでも収まらなければ
+ * 末尾を省略する。テスト用にexportする。
  */
-function fitFeedTitle(title: string): { fontSize: number; lines: string[] } {
-  for (const tier of FEED_TITLE_TIERS) {
+export function fitFeedTitle(title: string): { fontSize: number; lines: string[] } {
+  let fallback: { fontSize: number; lines: string[] } | undefined;
+  let accepted: { tierIndex: number; fontSize: number; lines: string[] } | undefined;
+
+  for (let i = 0; i < FEED_TITLE_TIERS.length; i += 1) {
+    const tier = FEED_TITLE_TIERS[i];
     const lines = wrapJapaneseTitle(title, tier.maxCharsPerLine);
-    if (lines.length <= 2) return { fontSize: tier.fontSize, lines };
+    if (lines.length > 2) continue;
+    if (!fallback) fallback = { fontSize: tier.fontSize, lines };
+    if (!lines.slice(1).some(startsWithAvoidedParticle)) {
+      accepted = { tierIndex: i, fontSize: tier.fontSize, lines };
+      break;
+    }
   }
+
+  if (accepted) {
+    const isSmallestTier = accepted.tierIndex === FEED_TITLE_TIERS.length - 1;
+    if (!isSmallestTier) return { fontSize: accepted.fontSize, lines: accepted.lines };
+
+    for (const tier of FEED_TITLE_TIERS) {
+      const lines = wrapJapaneseTitle(title, tier.maxCharsPerLine);
+      if (lines.length > FEED_TITLE_MAX_LINES) continue;
+      if (!lines.slice(1).some(startsWithAvoidedParticle)) return { fontSize: tier.fontSize, lines };
+    }
+    return { fontSize: accepted.fontSize, lines: accepted.lines };
+  }
+
+  if (fallback) return fallback;
 
   const smallest = FEED_TITLE_TIERS[FEED_TITLE_TIERS.length - 1];
   let lines = wrapJapaneseTitle(title, smallest.maxCharsPerLine);
