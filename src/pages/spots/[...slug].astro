@@ -21,6 +21,7 @@ import { buildGoogleMapsUrl, buildOpeningHoursSpecification, buildSpotAddress } 
 import { resolveOgpImage } from '../../lib/ogpImagePath';
 import { guidesForSpot } from '../../lib/guides';
 import { isRecentlyPublished } from '../../lib/spotFreshness';
+import { isShinise } from '../../lib/shinise';
 
 export async function getStaticPaths() {
   const spots = await getCollection('spots');
@@ -47,8 +48,10 @@ const {
   youtubeVideos,
   socialLinks,
   placeId,
+  establishedYear,
 } = spot.data;
 const showNewBadge = isRecentlyPublished(pubDate);
+const showShiniseBadge = isShinise(establishedYear);
 const { Content } = await render(spot);
 // hashigo（1軒目/2軒目/〆）は全店が該当し差別化情報にならないため、
 // guidesForSpot側で意図的に除外している。
@@ -124,6 +127,13 @@ const socialPlatformLabels = {
               <span class="inline-flex items-center gap-1 rounded-full bg-vermilion px-2.5 py-1 text-[0.65rem] font-bold tracking-wide text-white">
                 <span class="lantern-breathe h-1.5 w-1.5 rounded-full bg-white" />
                 NEW
+              </span>
+            )
+          }
+          {
+            showShiniseBadge && (
+              <span class="inline-flex items-center gap-1 rounded-full bg-amber-deep px-2.5 py-1 text-[0.65rem] font-bold tracking-wide text-white">
+                老舗
               </span>
             )
           }

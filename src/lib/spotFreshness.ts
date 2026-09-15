@@ -21,7 +21,7 @@
  * （pubDate）」に一本化する。
  */
 
-const RECENTLY_PUBLISHED_DAYS = 30;
+const RECENTLY_PUBLISHED_DAYS = 7;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 /** pubDateが直近 RECENTLY_PUBLISHED_DAYS 日以内なら、NEWバッジ・新着ソートで優先表示する。 */

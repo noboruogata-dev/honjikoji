@@ -5,6 +5,7 @@ import OpenStatus from './OpenStatus.astro';
 import { Play } from '@lucide/astro';
 import type { CollectionEntry } from 'astro:content';
 import { isRecentlyPublished } from '../lib/spotFreshness';
+import { isShinise } from '../lib/shinise';
 
 interface Props {
   spot: CollectionEntry<'spots'>;
@@ -36,9 +37,11 @@ const {
   description,
   youtubeVideos,
   pubDate,
+  establishedYear,
 } = spot.data;
 const hasVideo = (youtubeVideos?.length ?? 0) > 0;
 const showNewBadge = isRecentlyPublished(pubDate);
+const showShiniseBadge = isShinise(establishedYear);
 ---
 
 <a
@@ -55,11 +58,20 @@ const showNewBadge = isRecentlyPublished(pubDate);
   class="group relative flex flex-col overflow-hidden rounded-xl border border-night-700 bg-night-900/80 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70 hover:shadow-amber-deep/10"
 >
   {
-    showNewBadge && (
-      <span class="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-vermilion px-2.5 py-1 text-[0.65rem] font-bold tracking-wide text-white shadow-lg shadow-vermilion/40">
-        <span class="lantern-breathe h-1.5 w-1.5 rounded-full bg-white" />
-        NEW
-      </span>
+    (showNewBadge || showShiniseBadge) && (
+      <div class="absolute right-3 top-3 z-10 flex flex-col items-end gap-1.5">
+        {showNewBadge && (
+          <span class="inline-flex items-center gap-1 rounded-full bg-vermilion px-2.5 py-1 text-[0.65rem] font-bold tracking-wide text-white shadow-lg shadow-vermilion/40">
+            <span class="lantern-breathe h-1.5 w-1.5 rounded-full bg-white" />
+            NEW
+          </span>
+        )}
+        {showShiniseBadge && (
+          <span class="inline-flex items-center gap-1 rounded-full bg-amber-deep px-2.5 py-1 text-[0.65rem] font-bold tracking-wide text-white shadow-lg shadow-amber-deep/40">
+            老舗
+          </span>
+        )}
+      </div>
     )
   }
   <div class="flex items-center justify-between gap-2 border-b border-night-700 bg-night-800/50 px-4 py-3">

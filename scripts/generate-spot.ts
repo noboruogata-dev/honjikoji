@@ -206,7 +206,13 @@ const researchSchema = z.object({
   regularHoliday: z.string(),
   budget: z.string(),
   vibes: z.array(z.string()),
-  isNew: z.boolean(),
+  // notFoundと同じ理由（構造化出力を外した副作用でのフィールド省略対策。
+  // 上のnotFoundのコメント参照）でoptional+defaultにする。省略＝「新店舗と
+  // 判断できる根拠が無い」＝falseと解釈するのが安全。
+  isNew: z.boolean().optional().default(false),
+  // 開業年（西暦。任意）。確度高く確認できた場合のみ設定し、不明なら省略する
+  // （src/lib/shinise.ts の「老舗」バッジ判定に使う）。
+  establishedYear: z.number().int().min(1850).optional(),
   facts: z.string(),
   slug: z.string(),
   sources: z.array(z.string()).optional(),
@@ -256,6 +262,9 @@ const spotFrontmatterSchema = z.object({
   regularHoliday: z.string().min(1, 'regularHoliday が空です'),
   vibes: z.array(z.string().min(1)).min(1, 'vibes が空です'),
   isNew: z.boolean().default(false),
+  // 開業年（西暦。任意）。確度高く確認できた場合のみ設定する
+  // （src/lib/shinise.ts の「老舗」バッジ判定に使う）。
+  establishedYear: z.number().int().min(1850).optional(),
   // openHours/regularHolidayからscripts/lib/openHoursParser.tsで導出できた
   // 場合のみ設定する（導出できなければ未設定のまま。誤った営業時間よりは
   // hours欠落＝unknown表示の方が安全という方針）。
@@ -310,6 +319,10 @@ const researchResponseSchema = {
       type: Type.BOOLEAN,
       description:
         '開店・リニューアルオープンから約1年以内の新しい店舗だと分かった場合は true。不明・古くからの店舗なら false。',
+    },
+    establishedYear: {
+      type: Type.NUMBER,
+      description: '開業年（西暦4桁の数値）。確度高く確認できた場合のみ。不明なら省略。',
     },
     facts: {
       type: Type.STRING,
@@ -477,6 +490,8 @@ ${exclusionText}
 - budget: 予算目安（例: ￥3,000〜￥5,000）
 - vibes: 特徴タグ3〜6個（例: "隠れ家", "カウンター席あり", "深夜営業"）。可能であれば次の中から当てはまるものを含めてよい（無理に含めなくてもよい）: ${SCENE_TAGS.join(' / ')}
 - isNew: 開店・リニューアルオープンから約1年以内と判断できる場合は true、それ以外・不明な場合は false
+- establishedYear: 開業年（西暦4桁の数値）。公式サイトや信頼できる情報源で確度高く確認できた場合のみ設定し、
+  少しでも不確かなら絶対に推測せずフィールド自体を省略すること（「老舗」バッジの判定に使う重要な数値のため）。
 - facts: 名物料理・お酒のこだわり・店内の雰囲気・お店の歴史（開店/リニューアル時期の情報があれば必ず含める）など、紹介記事の執筆に使える事実をまとめたテキスト。分からない項目は「不明」と明記し、絶対に創作しないこと。
 - slug: ファイル名用の英小文字ケバブケースslug（ローマ字/英訳）
 - sources: 参照したサイト名やURL（分かる範囲で）
@@ -883,6 +898,7 @@ async function runQaAgent(
     regularHoliday: research.regularHoliday,
     vibes: research.vibes,
     isNew: research.isNew,
+    establishedYear: research.establishedYear,
     hours: hoursResult.hours,
     isIrregular: isIrregular || undefined,
     socialLinks: socialLinkResult.accepted.length > 0 ? socialLinkResult.accepted : undefined,
@@ -911,6 +927,9 @@ async function runQaAgent(
   }
   if (fm.isIrregular) {
     console.log(`${label} 不定休と判定したため isIrregular: true を設定しました。`);
+  }
+  if (fm.establishedYear !== undefined) {
+    console.log(`${label} 開業年を採用しました: ${fm.establishedYear}年`);
   }
   if (fm.socialLinks?.length) {
     console.log(`${label} 公式SNSを${fm.socialLinks.length}件採用しました。`);
@@ -954,6 +973,7 @@ async function runQaAgent(
     'vibes:',
     ...fm.vibes.map((vibe) => `  - ${toYamlString(vibe)}`),
     `isNew: ${fm.isNew}`,
+    ...(fm.establishedYear !== undefined ? [`establishedYear: ${fm.establishedYear}`] : []),
     ...buildSocialLinksYamlLines(fm.socialLinks),
     `description: ${toYamlString(fm.description)}`,
     `pubDate: ${fm.pubDate}`,
@@ -1618,6 +1638,218 @@ async function runBackfillPlaceId(manualOverrides: Map<string, string>): Promise
 }
 
 // ============================================================
+// --backfill-established-year: 既存の店舗記事のうち、establishedYearが
+// まだ無いものだけを、Google Search GroundingでGeminiに開業年を調査させて
+// 埋める（他の遡及生成と違い、既存フィールドの決定論的な変換ではなく
+// 新規の外部調査が必要なため、GEMINI_API_KEYを使う）。
+//
+// Grounding引用0件、またはモデル自身が確度高く確認できなかった場合は
+// 「不明」として見送る（メインパイプラインのGrounding0件対策・
+// notFound省略対策と同じ考え方。他の任意フィールドと同じく、誤った
+// 開業年を「老舗」バッジの根拠にする方が、バッジが付かないより実害が
+// 大きいため）。
+//
+// 既存のestablishedYearは絶対に上書きしない。書き込み前に必ず
+// 「slug・店名→開業年（Grounding引用件数）」の対応表を提示し、標準入力で
+// ユーザーの確認（y）を取ってから書き込む（対話専用）。
+// ============================================================
+
+// 2026年9月、構造化出力(responseSchema)とGrounding併用時のgroundingChunks
+// 欠落問題（scripts/lib/gemini-agents.tsのコメント参照）を踏まえ、
+// callGroundedJsonAgentはresponseSchemaを実際のAPI呼び出しには使わない。
+// そのため、notFoundと同じ理由でfoundもoptional+defaultで救済する。
+const establishedYearResearchSchema = z.object({
+  found: z.boolean().optional().default(false),
+  establishedYear: z.number().int().min(1850).optional(),
+});
+
+function buildEstablishedYearPrompt(title: string, address: string): string {
+  return `新潟県三条市の飲食店「${title}」（住所: ${address}）について、Google検索で開業年（創業年）を調査してください。
+
+出力は厳密なJSON形式で、次の情報を埋めてください。
+- found: 公式サイトや信頼できる情報源で開業年を確度高く確認できた場合のみ true。少しでも不確かなら false
+- establishedYear: found: true の場合のみ、開業年（西暦4桁の数値）。foundがfalseならフィールド自体を省略すること
+
+重要な注意点:
+- 確認できない限り、絶対に推測・創作しないでください。
+- 「創業○年」「昭和○年開業」等の記載が見つからない、複数の情報源で年が食い違う、
+  または出典に自信が持てない場合は、無理に数値を埋めず found: false にしてください。`;
+}
+
+interface EstablishedYearBackfillResult {
+  slug: string;
+  title: string;
+  status: 'resolved' | 'skipped-existing' | 'not-found' | 'error';
+  establishedYear?: number;
+  groundingSourceCount?: number;
+}
+
+/**
+ * establishedYear行をfrontmatterに書き込む。isNew行の直後に挿入する
+ * （新規生成時と同じ並び順。scripts/generate-spot.tsのfrontmatter組み立て
+ * 部分を参照）。既存のestablishedYear行は呼び出し側で既にフィルタ済み
+ * なので通常は無い想定だが、念のため置き換えにも対応する。
+ */
+function upsertEstablishedYearField(raw: string, establishedYear: number): string | null {
+  const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(raw);
+  if (!frontmatterMatch) return null;
+  const fmBlock = frontmatterMatch[1];
+  const fmStart = frontmatterMatch.index + '---\n'.length;
+
+  const existingLineMatch = /^establishedYear:.*$/m.exec(fmBlock);
+  if (existingLineMatch) {
+    const start = fmStart + existingLineMatch.index;
+    const end = start + existingLineMatch[0].length;
+    return raw.slice(0, start) + `establishedYear: ${establishedYear}` + raw.slice(end);
+  }
+
+  const isNewLineMatch = /^isNew:.*$/m.exec(fmBlock);
+  if (!isNewLineMatch) return null;
+
+  const insertAt = fmStart + isNewLineMatch.index + isNewLineMatch[0].length + 1;
+  const insertText = `establishedYear: ${establishedYear}\n`;
+  return raw.slice(0, insertAt) + insertText + raw.slice(insertAt);
+}
+
+async function runBackfillEstablishedYear(): Promise<void> {
+  console.log('============================================================');
+  console.log(' 本寺小路ガイド 開業年(establishedYear) 遡及生成（--backfill-established-year）');
+  console.log('============================================================');
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error(
+      '[generate-spot] GEMINI_API_KEY が設定されていません。.env に GEMINI_API_KEY=... を追加してください（.env.example 参照）。'
+    );
+    process.exit(1);
+  }
+  const ai = new GoogleGenAI({ apiKey });
+
+  await mkdir(SPOTS_DIR, { recursive: true });
+  const files = (await readdir(SPOTS_DIR)).filter((file) => file.endsWith('.md'));
+
+  const results: EstablishedYearBackfillResult[] = [];
+
+  for (const file of files) {
+    const slug = file.replace(/\.md$/, '');
+    const frontmatter = await readFrontmatter(SPOTS_DIR, slug);
+    if (!frontmatter) {
+      results.push({ slug, title: slug, status: 'error' });
+      continue;
+    }
+
+    const title = typeof frontmatter.title === 'string' ? frontmatter.title : slug;
+    const address = typeof frontmatter.address === 'string' ? frontmatter.address : '';
+    const existing = typeof frontmatter.establishedYear === 'number' ? frontmatter.establishedYear : undefined;
+
+    if (existing !== undefined) {
+      results.push({ slug, title, status: 'skipped-existing', establishedYear: existing });
+      continue;
+    }
+
+    console.log(`[generate-spot] "${title}" の開業年を調査中...`);
+    try {
+      const { text, groundingSourceCount } = await callGroundedJsonAgent(ai, {
+        label: `[backfill-established-year:${slug}]`,
+        prompt: buildEstablishedYearPrompt(title, address),
+        responseSchema: {},
+      });
+      const parsed = establishedYearResearchSchema.safeParse(parseJsonOrThrow(text, slug));
+      if (!parsed.success) {
+        logZodIssues(parsed, slug);
+        results.push({ slug, title, status: 'error' });
+        continue;
+      }
+      // 主パイプライン（メインの候補選定ループ）とは異なり、Grounding引用
+      // 0件でも即座に見送らない。実際に調べたところ、この「開業年だけを
+      // 尋ねる」狭い質問ではGrounding引用が0件でも、直近で実際に検証済み
+      // （Grounding付きで確認済み）だった正しい年をモデルが答えるケースを
+      // 確認した（2026年9月、Sato's Barの1987年で実際に発生。既知の
+      // 「検索はしているが引用メタデータだけ欠落する」Gemini側の挙動と
+      // 一致する。gemini-agents.tsのコメント参照）。この狭い質問形では
+      // 主パイプラインの店舗調査より欠落の発生率が高いとみられる。
+      // ユーザーとの合意により、ここではfoundフラグ（モデル自身の確信度
+      // 自己申告）だけを信じ、Grounding件数は対応表に添えて人間の最終
+      // 確認（y/N）判断材料として残すに留める。
+      if (groundingSourceCount === 0) {
+        console.warn(`[generate-spot] "${title}": Grounding引用0件（モデルの自己申告のみで判定します）。`);
+      }
+      if (!parsed.data.found || parsed.data.establishedYear === undefined) {
+        results.push({ slug, title, status: 'not-found', groundingSourceCount });
+        continue;
+      }
+      results.push({
+        slug,
+        title,
+        status: 'resolved',
+        establishedYear: parsed.data.establishedYear,
+        groundingSourceCount,
+      });
+    } catch (err) {
+      if (err instanceof FatalPipelineError) throw err;
+      console.error(`[generate-spot] "${title}" の調査に失敗しました:`, err instanceof Error ? err.message : err);
+      results.push({ slug, title, status: 'error' });
+    }
+  }
+
+  const resolvedResults = results.filter(
+    (r): r is EstablishedYearBackfillResult & { establishedYear: number } => r.status === 'resolved'
+  );
+  const skippedExisting = results.filter((r) => r.status === 'skipped-existing');
+  const notFound = results.filter((r) => r.status === 'not-found');
+  const errored = results.filter((r) => r.status === 'error');
+
+  console.log('\n============================================================');
+  console.log(
+    ` 調査結果: 対象${results.length}件中、開業年判明${resolvedResults.length}件・既存スキップ${skippedExisting.length}件・不明${notFound.length}件・エラー${errored.length}件`
+  );
+  console.log('============================================================');
+
+  if (resolvedResults.length === 0) {
+    console.log('[generate-spot] 新規に書き込む開業年はありません。終了します。');
+    return;
+  }
+
+  console.log('\n以下の対応表でfrontmatterに書き込みます（店名 → 開業年）:\n');
+  for (const r of resolvedResults) {
+    const groundingLabel =
+      r.groundingSourceCount === 0 ? 'Grounding引用0件・モデルの自己申告のみ⚠️' : `Grounding引用${r.groundingSourceCount}件`;
+    console.log(`  - ${r.slug}\n      店名: ${r.title}\n      開業年: ${r.establishedYear}年（${groundingLabel}）`);
+  }
+  if (notFound.length > 0) {
+    console.log(`\n開業年を確認できなかった店舗（変更なし）: ${notFound.map((r) => r.slug).join(', ')}`);
+  }
+  if (errored.length > 0) {
+    console.log(`\nエラーで調査できなかった店舗（変更なし）: ${errored.map((r) => r.slug).join(', ')}`);
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await rl.question(`\n上記 ${resolvedResults.length} 件をfrontmatterに書き込みますか？ (y/N): `);
+  rl.close();
+
+  if (answer.trim().toLowerCase() !== 'y') {
+    console.log('[generate-spot] 中断しました。何も書き込んでいません。');
+    return;
+  }
+
+  let written = 0;
+  for (const r of resolvedResults) {
+    const filePath = path.join(SPOTS_DIR, `${r.slug}.md`);
+    const raw = await readFile(filePath, 'utf-8');
+    const newRaw = upsertEstablishedYearField(raw, r.establishedYear);
+    if (newRaw === null) {
+      console.warn(`[generate-spot] ${r.slug}: isNew行が見つからず、安全に挿入できませんでした。スキップします。`);
+      continue;
+    }
+    await writeFile(filePath, newRaw, 'utf-8');
+    written += 1;
+    console.log(`[generate-spot] ${r.slug}: establishedYear: ${r.establishedYear} を書き込みました。`);
+  }
+
+  console.log(`\n[generate-spot] 完了: ${written}件のestablishedYearを書き込みました。`);
+}
+
+// ============================================================
 // オーケストレーター
 // ============================================================
 
@@ -1654,6 +1886,15 @@ async function main() {
   // GOOGLE_PLACES_API_KEY未設定でも手動指定分だけは動作する）。
   if (process.argv[2] === '--backfill-place-id') {
     await runBackfillPlaceId(parseManualPlaceIdOverrides(process.argv.slice(3)));
+    return;
+  }
+
+  // 遡及生成モード: GEMINI_API_KEY必須（Google Search Groundingで開業年を
+  // 調査するため、他の遡及生成と違い決定論的な変換だけでは完結しない）。
+  // 既存の店舗記事のうちestablishedYearが無いものだけを対象にする。
+  // 書き込み前に対応表を提示し、標準入力で確認を取る（対話専用）。
+  if (process.argv[2] === '--backfill-established-year') {
+    await runBackfillEstablishedYear();
     return;
   }
 

@@ -19,6 +19,7 @@ vibes:
   - "深夜営業"
   - "ワインバー"
 isNew: true
+establishedYear: 2025
 description: "2025年3月、三条市本寺小路にオープンした「Wine Bar MARGAUX」。老舗の想いを継承し、世界各国のワイン飲み比べや料理が楽しめる、世代を超えて親しまれる社交場です。"
 pubDate: 2026-09-11
 ---
