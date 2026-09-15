@@ -206,7 +206,13 @@ const researchSchema = z.object({
   regularHoliday: z.string(),
   budget: z.string(),
   vibes: z.array(z.string()),
-  isNew: z.boolean(),
+  // notFoundと同じ理由（構造化出力を外した副作用でのフィールド省略対策。
+  // 上のnotFoundのコメント参照）でoptional+defaultにする。省略＝「新店舗と
+  // 判断できる根拠が無い」＝falseと解釈するのが安全。
+  isNew: z.boolean().optional().default(false),
+  // 開業年（西暦。任意）。確度高く確認できた場合のみ設定し、不明なら省略する
+  // （src/lib/shinise.ts の「老舗」バッジ判定に使う）。
+  establishedYear: z.number().int().min(1850).optional(),
   facts: z.string(),
   slug: z.string(),
   sources: z.array(z.string()).optional(),
@@ -256,6 +262,9 @@ const spotFrontmatterSchema = z.object({
   regularHoliday: z.string().min(1, 'regularHoliday が空です'),
   vibes: z.array(z.string().min(1)).min(1, 'vibes が空です'),
   isNew: z.boolean().default(false),
+  // 開業年（西暦。任意）。確度高く確認できた場合のみ設定する
+  // （src/lib/shinise.ts の「老舗」バッジ判定に使う）。
+  establishedYear: z.number().int().min(1850).optional(),
   // openHours/regularHolidayからscripts/lib/openHoursParser.tsで導出できた
   // 場合のみ設定する（導出できなければ未設定のまま。誤った営業時間よりは
   // hours欠落＝unknown表示の方が安全という方針）。
@@ -310,6 +319,10 @@ const researchResponseSchema = {
       type: Type.BOOLEAN,
       description:
         '開店・リニューアルオープンから約1年以内の新しい店舗だと分かった場合は true。不明・古くからの店舗なら false。',
+    },
+    establishedYear: {
+      type: Type.NUMBER,
+      description: '開業年（西暦4桁の数値）。確度高く確認できた場合のみ。不明なら省略。',
     },
     facts: {
       type: Type.STRING,
@@ -477,6 +490,8 @@ ${exclusionText}
 - budget: 予算目安（例: ￥3,000〜￥5,000）
 - vibes: 特徴タグ3〜6個（例: "隠れ家", "カウンター席あり", "深夜営業"）。可能であれば次の中から当てはまるものを含めてよい（無理に含めなくてもよい）: ${SCENE_TAGS.join(' / ')}
 - isNew: 開店・リニューアルオープンから約1年以内と判断できる場合は true、それ以外・不明な場合は false
+- establishedYear: 開業年（西暦4桁の数値）。公式サイトや信頼できる情報源で確度高く確認できた場合のみ設定し、
+  少しでも不確かなら絶対に推測せずフィールド自体を省略すること（「老舗」バッジの判定に使う重要な数値のため）。
 - facts: 名物料理・お酒のこだわり・店内の雰囲気・お店の歴史（開店/リニューアル時期の情報があれば必ず含める）など、紹介記事の執筆に使える事実をまとめたテキスト。分からない項目は「不明」と明記し、絶対に創作しないこと。
 - slug: ファイル名用の英小文字ケバブケースslug（ローマ字/英訳）
 - sources: 参照したサイト名やURL（分かる範囲で）
@@ -883,6 +898,7 @@ async function runQaAgent(
     regularHoliday: research.regularHoliday,
     vibes: research.vibes,
     isNew: research.isNew,
+    establishedYear: research.establishedYear,
     hours: hoursResult.hours,
     isIrregular: isIrregular || undefined,
     socialLinks: socialLinkResult.accepted.length > 0 ? socialLinkResult.accepted : undefined,
@@ -911,6 +927,9 @@ async function runQaAgent(
   }
   if (fm.isIrregular) {
     console.log(`${label} 不定休と判定したため isIrregular: true を設定しました。`);
+  }
+  if (fm.establishedYear !== undefined) {
+    console.log(`${label} 開業年を採用しました: ${fm.establishedYear}年`);
   }
   if (fm.socialLinks?.length) {
     console.log(`${label} 公式SNSを${fm.socialLinks.length}件採用しました。`);

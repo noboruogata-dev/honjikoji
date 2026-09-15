@@ -31,6 +31,11 @@ const spots = defineCollection({
     vibes: z.array(z.string()),
     // 開店・リニューアルオープンから概ね1年以内の新店舗フラグ。
     isNew: z.boolean().default(false),
+    // 開業年（西暦。任意）。「老舗」バッジ（開業から50年以上。
+    // src/lib/shinise.ts参照）の判定に使う。Agent1がGoogle Search
+    // Groundingで確度高く確認できた場合のみ設定し、不明なら省略する
+    // （他の任意フィールドと同じ「自信が持てないなら省略」方針）。
+    establishedYear: z.number().int().min(1850).optional(),
     // 機械可読な営業時間（任意）。openHours/regularHoliday（表示用の自由文字列）とは
     // 独立して並走させる。1要素が「daysに含まれる曜日すべてに共通する1つの営業区間」。
     // close は「その曜日の0:00からの経過時刻」として24を超える値を許容する

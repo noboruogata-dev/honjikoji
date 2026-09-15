@@ -87,6 +87,7 @@ export interface SourceVerificationResearchInput {
   budget: string;
   vibes: string[];
   isNew: boolean;
+  establishedYear?: number;
   facts: string;
 }
 
@@ -133,6 +134,7 @@ Google検索や外部知識は一切使わず、以下に提示する「調査�
 予算目安: ${research.budget}
 特徴タグ: ${research.vibes.join(', ')}
 新店舗か: ${research.isNew ? 'はい（開店・リニューアルから概ね1年以内）' : 'いいえ、または不明'}
+開業年: ${research.establishedYear !== undefined ? `${research.establishedYear}年` : '不明'}
 事実メモ:
 ${research.facts}
 --- ここまで ---
