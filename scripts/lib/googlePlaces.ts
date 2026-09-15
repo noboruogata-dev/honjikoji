@@ -90,6 +90,7 @@ export async function resolvePlaceId(
       body: JSON.stringify(requestBody),
     });
   } catch (err) {
+    console.log(`[googlePlaces] Text Search "${textQuery}" がfetch例外で失敗しました。`);
     log(`fetch自体が例外を投げました: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
@@ -98,7 +99,12 @@ export async function resolvePlaceId(
   log(`response status: ${response.status} ${response.statusText}`);
   log(`response body: ${bodyText}`);
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    // レスポンスボディは verbose 時のみログする（エラー詳細にAPIキー起因の
+    // 情報が含まれる可能性があるため）。常時ログはステータスコードのみ。
+    console.log(`[googlePlaces] Text Search "${textQuery}" がHTTP ${response.status} で失敗しました。`);
+    return null;
+  }
 
   let data: unknown;
   try {
@@ -111,10 +117,20 @@ export async function resolvePlaceId(
   const places = (data as { places?: Array<{ id?: unknown }> } | null)?.places;
   const placeId = places?.[0]?.id;
   if (typeof placeId !== 'string' || placeId.length === 0) {
+    // Text Search自体の検索語（storeName/address、当サイト側で組み立てた
+    // クエリ）と「0件だった」という事実は、Googleから返された内容
+    // （Google Maps Content）ではないため、verboseに関わらず常時ログして
+    // よい。placeId自体もGoogle Maps Platform利用規約でキャッシュ・保存が
+    // 明示的に許可されている（ファイル先頭コメント参照）。この常時ログが
+    // 無かったため、2026年9月に本番でPlace ID未解決が続いた際、原因
+    // （クエリが実際に何だったか、0件かAPIエラーか）を後から一切追跡
+    // できなかった。
+    console.log(`[googlePlaces] Text Search "${textQuery}" は0件でした。`);
     log('レスポンスに places[0].id が含まれていませんでした（該当0件、またはフィールドマスク不一致）。');
     return null;
   }
 
+  console.log(`[googlePlaces] Text Search "${textQuery}" → ${placeId}`);
   return { placeId };
 }
 

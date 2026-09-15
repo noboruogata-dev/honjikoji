@@ -230,12 +230,6 @@ function isQuotaError(err: unknown): boolean {
   return /RESOURCE_EXHAUSTED/i.test(msg) || /"code"\s*:\s*429/.test(msg);
 }
 
-/** tools（Grounding）と responseSchema の併用が拒否された（400系）ように見えるかを判定する。 */
-function looksLikeToolSchemaConflict(err: unknown): boolean {
-  const msg = String(err instanceof Error ? err.message : err);
-  return /"code"\s*:\s*400/.test(msg) && /(tool|function)/i.test(msg) && /(schema|response_mime_type|json)/i.test(msg);
-}
-
 function requireText(response: GenerateContentResponse, context: string): string {
   const text = response.text;
   if (!text) throw new Error(`${context}: レスポンスが空でした。`);
@@ -285,8 +279,23 @@ export interface GroundedJsonResult {
 }
 
 /**
- * Google Search Grounding + 構造化JSON出力でGeminiを呼び出す。
- * 併用がAPI側で拒否された場合はプレーンJSONモード（コードフェンス除去）に自動フォールバックする。
+ * Google Search GroundingでGeminiを呼び出し、JSON応答を得る。
+ *
+ * 注意: tools(googleSearch) と responseSchema/responseMimeType: 'application/json'
+ * （構造化出力）は、意図的に併用しない。Google公式フォーラムで既知の挙動として、
+ * 両者を併用すると検索自体は実行されていてもレスポンスの groundingChunks
+ * （URL付き引用）が空になることがある
+ * （https://discuss.ai.google.dev/t/grounding-metadata-grounding-chunks-grounding-supports-empty-when-using-structured-output-with-google-search-tool/113240）。
+ * 2026年9月、本番のgenerate-spotで3回連続 groundingSourceCount === 0 になり
+ * 記事が1件も生成されなかった実例があり、原因はこれだったと判明した
+ * （groundingSourceCountはハルシネーション検知の唯一の手がかりのため、
+ * これが常に0になると安全策が空振りし続け、実際には検索していても
+ * 「検索していない」と誤判定して全候補を見送ってしまう）。
+ * そのためtools単体で呼び出し、JSON出力はプロンプト指示＋テキスト抽出で
+ * 行う。responseSchemaは呼び出し元のドキュメント・将来の入力バリデーション
+ * 用途として引数には残すが、このAPI呼び出し自体には使わない
+ * （形式検証は呼び出し元のZodスキーマに委ねる）。
+ *
  * クォータ超過（429）は再試行しても無駄なので FatalPipelineError として投げる。
  */
 export async function callGroundedJsonAgent(
@@ -296,35 +305,21 @@ export async function callGroundedJsonAgent(
   try {
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
-      contents: opts.prompt,
+      contents: `${opts.prompt}\n\n出力は説明文やMarkdownのコードフェンスを付けず、有効なJSONオブジェクトのみを1つ出力してください。`,
       config: {
         tools: [{ googleSearch: {} }],
-        responseMimeType: 'application/json',
-        responseSchema: opts.responseSchema,
       },
     });
     const text = requireText(response, opts.label);
     const groundingSourceCount = logGroundingSources(response, opts.label);
-    return { text, groundingSourceCount };
+    return { text: extractJsonObject(text), groundingSourceCount };
   } catch (err) {
     if (isQuotaError(err)) {
       throw new FatalPipelineError(
         'Google Search Grounding呼び出しがクォータ超過（429）で失敗しました。Google Cloud側の課金設定・APIの有効化状況をご確認ください。'
       );
     }
-    if (!looksLikeToolSchemaConflict(err)) throw err;
-
-    console.warn(`${opts.label} 構造化出力とGrounding併用が拒否されたため、プレーンJSONモードにフォールバックします。`);
-    const fallbackResponse = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: `${opts.prompt}\n\n出力は説明文やMarkdownのコードフェンスを付けず、有効なJSONオブジェクトのみを1つ出力してください。`,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
-    });
-    const fallbackText = requireText(fallbackResponse, `${opts.label}（フォールバック）`);
-    const groundingSourceCount = logGroundingSources(fallbackResponse, opts.label);
-    return { text: extractJsonObject(fallbackText), groundingSourceCount };
+    throw err;
   }
 }
 

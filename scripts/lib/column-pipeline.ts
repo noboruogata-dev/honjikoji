@@ -19,7 +19,9 @@ export const claimSchema = z.object({
 });
 
 export const columnResearchSchema = z.object({
-  notFound: z.boolean(),
+  // notFoundフィールド自体が応答から省略されるケースの救済（詳細は
+  // scripts/generate-spot.ts の同名フィールドのコメント参照）。
+  notFound: z.boolean().optional().default(false),
   topic: z.string(),
   slug: z.string(),
   angle: z.string(),

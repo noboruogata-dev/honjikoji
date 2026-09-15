@@ -86,7 +86,9 @@ const SEARCH_QUERIES = ['三条市 本寺小路 イベント', '三条市 歓楽
 
 // Agent 1（Research）の出力スキーマ。
 const researchSchema = z.object({
-  notFound: z.boolean(),
+  // notFoundフィールド自体が応答から省略されるケースの救済（詳細は
+  // scripts/generate-spot.ts の同名フィールドのコメント参照）。
+  notFound: z.boolean().optional().default(false),
   headline: z.string(),
   category: z.string(),
   // event: 祭り・花火大会・ライブ等、その日（期間）を過ぎたら終わる一過性の
@@ -263,7 +265,8 @@ ${knownSpotsText}
 重要な注意点:
 - 実在しない話題を創作しないでください。
 - 除外リストと重複する話題、本寺小路・三条市に関連しない話題、鮮度の制約を満たさない話題しか
-  見つからない場合は、notFound を true にし、他のフィールドは空文字列・null（配列は空配列）にしてください。`;
+  見つからない場合は、notFound を true にし、他のフィールドは空文字列・null（配列は空配列）にしてください。
+- 話題が見つかった場合も notFound フィールド自体は省略せず、必ず false を明記してください。`;
 }
 
 function buildWriterPrompt(research: ResearchResult): string {

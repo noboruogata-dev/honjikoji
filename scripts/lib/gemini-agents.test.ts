@@ -44,10 +44,10 @@ describe('logGroundingSources', () => {
 });
 
 describe('callGroundedJsonAgent', () => {
-  it('成功時、テキストとgroundingSourceCountの両方を返す', async () => {
+  it('成功時、テキスト（JSON抽出済み）とgroundingSourceCountの両方を返す', async () => {
     const generateContent = vi
       .fn()
-      .mockResolvedValue(fakeResponse('{"ok":true}', [{ web: { uri: 'https://example.com/a' } }]));
+      .mockResolvedValue(fakeResponse('```json\n{"ok":true}\n```', [{ web: { uri: 'https://example.com/a' } }]));
     const ai = { models: { generateContent } } as unknown as GoogleGenAI;
 
     const result = await callGroundedJsonAgent(ai, {
@@ -57,6 +57,24 @@ describe('callGroundedJsonAgent', () => {
     });
 
     expect(result).toEqual({ text: '{"ok":true}', groundingSourceCount: 1 });
+  });
+
+  it('呼び出し設定にresponseSchema/responseMimeTypeを含めない（構造化出力併用によるgroundingChunks欠落を避けるため）', async () => {
+    const generateContent = vi
+      .fn()
+      .mockResolvedValue(fakeResponse('{"ok":true}', [{ web: { uri: 'https://example.com/a' } }]));
+    const ai = { models: { generateContent } } as unknown as GoogleGenAI;
+
+    await callGroundedJsonAgent(ai, {
+      label: '[test]',
+      prompt: 'テストプロンプト',
+      responseSchema: { type: 'object' },
+    });
+
+    const callArgs = generateContent.mock.calls[0][0];
+    expect(callArgs.config).toEqual({ tools: [{ googleSearch: {} }] });
+    expect(callArgs.config.responseSchema).toBeUndefined();
+    expect(callArgs.config.responseMimeType).toBeUndefined();
   });
 
   it('Grounding引用が0件でも例外を投げず、groundingSourceCount: 0を返す（呼び出し元がハルシネーション対策として判定する）', async () => {
@@ -72,23 +90,13 @@ describe('callGroundedJsonAgent', () => {
     expect(result).toEqual({ text: '{"ok":true}', groundingSourceCount: 0 });
   });
 
-  it('構造化出力とGroundingの併用が拒否された場合、プレーンJSONモードにフォールバックしてもgroundingSourceCountを返す', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const schemaConflictError = new Error('{"code": 400, "message": "tool and response_schema cannot both be set"}');
-    const generateContent = vi
-      .fn()
-      .mockRejectedValueOnce(schemaConflictError)
-      .mockResolvedValueOnce(fakeResponse('```json\n{"ok":true}\n```', [{ web: { uri: 'https://example.com/a' } }]));
+  it('クォータ超過（429）はFatalPipelineErrorとして投げる', async () => {
+    const quotaError = new Error('{"code": 429, "message": "RESOURCE_EXHAUSTED"}');
+    const generateContent = vi.fn().mockRejectedValue(quotaError);
     const ai = { models: { generateContent } } as unknown as GoogleGenAI;
 
-    const result = await callGroundedJsonAgent(ai, {
-      label: '[test]',
-      prompt: 'テストプロンプト',
-      responseSchema: {},
-    });
-
-    expect(result).toEqual({ text: '{"ok":true}', groundingSourceCount: 1 });
-    expect(generateContent).toHaveBeenCalledTimes(2);
-    warnSpy.mockRestore();
+    await expect(
+      callGroundedJsonAgent(ai, { label: '[test]', prompt: 'テストプロンプト', responseSchema: {} })
+    ).rejects.toThrow(/クォータ超過/);
   });
 });
