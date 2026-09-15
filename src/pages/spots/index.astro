@@ -8,7 +8,7 @@ import EmptyState from '../../components/EmptyState.astro';
 import GenreIcon from '../../components/GenreIcon.astro';
 import StructuredData from '../../components/StructuredData.astro';
 import { getCollection } from 'astro:content';
-import { MapPin } from '@lucide/astro';
+import { MapPin, SlidersHorizontal, X } from '@lucide/astro';
 import { GUIDES } from '../../lib/guides';
 
 const spots = (await getCollection('spots')).sort(
@@ -75,137 +75,6 @@ const seatTypes = [
       </div>
     </div>
 
-    <div class="mt-6 space-y-3">
-      <div>
-        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">ジャンルで絞り込み</p>
-        <div class="flex flex-wrap gap-2" data-filter-group="genre">
-          <button
-            type="button"
-            data-value="all"
-            aria-pressed="true"
-            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-          >
-            すべて
-          </button>
-          {
-            genres.map((genre) => (
-              <button
-                type="button"
-                data-value={genre}
-                aria-pressed="false"
-                class="filter-btn inline-flex items-center gap-1.5 rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-              >
-                <GenreIcon genre={genre} size={14} />
-                {genre}
-              </button>
-            ))
-          }
-        </div>
-      </div>
-
-      <div>
-        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">シーンで絞り込み</p>
-        <div class="flex flex-wrap gap-2" data-filter-group="scene">
-          <button
-            type="button"
-            data-value="all"
-            aria-pressed="true"
-            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-          >
-            すべて
-          </button>
-          {
-            scenes.map((scene) => (
-              <button
-                type="button"
-                data-value={scene.key}
-                data-match={scene.value}
-                aria-pressed="false"
-                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-              >
-                {scene.label}
-              </button>
-            ))
-          }
-        </div>
-      </div>
-
-      <div>
-        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">予算帯で絞り込み</p>
-        <div class="flex flex-wrap gap-2" data-filter-group="budget">
-          <button
-            type="button"
-            data-value="all"
-            aria-pressed="true"
-            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-          >
-            すべて
-          </button>
-          {
-            budgets.map((budget) => (
-              <button
-                type="button"
-                data-value={budget.key}
-                aria-pressed="false"
-                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-              >
-                {budget.label}
-              </button>
-            ))
-          }
-        </div>
-      </div>
-
-      <div>
-        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">席タイプで絞り込み</p>
-        <div class="flex flex-wrap gap-2" data-filter-group="seat">
-          <button
-            type="button"
-            data-value="all"
-            aria-pressed="true"
-            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-          >
-            すべて
-          </button>
-          {
-            seatTypes.map((seat) => (
-              <button
-                type="button"
-                data-value={seat.key}
-                data-match={seat.value}
-                aria-pressed="false"
-                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-              >
-                {seat.label}
-              </button>
-            ))
-          }
-        </div>
-      </div>
-
-      <div>
-        <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">その他の条件で絞り込み</p>
-        <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            data-open-toggle
-            aria-pressed="false"
-            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-          >
-            今営業中
-          </button>
-          <button
-            type="button"
-            data-video-toggle
-            aria-pressed="false"
-            class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
-          >
-            動画あり
-          </button>
-        </div>
-      </div>
-    </div>
-
     <div class="mt-6 flex items-baseline justify-between">
       <p class="text-xs text-gold-100/55" data-result-count>{spots.length}件</p>
     </div>
@@ -215,6 +84,198 @@ const seatTypes = [
     </div>
 
     <EmptyState message="条件に合う店舗が見つかりませんでした。" class="hidden" />
+
+    <!--
+      left-4（右下ではなく左下）は意図的。全ページ共通のOmikujiButton.astro
+      （「運試し」提灯ボタン）が右下に fixed right-4 + bottom:calc(1.25rem+…)
+      で常駐しており、同じ右下に置くと実測で確実に重なる（ヒント吹き出し分の
+      高さがコンテンツ依存で変わるため、右下に縦積みする形は脆い）。
+      左右を分けるのが最も頑健な回避策。
+    -->
+    <button
+      type="button"
+      class="fixed bottom-5 left-4 z-30 inline-flex items-center gap-2 rounded-full border border-amber-deep/60 bg-night-800/95 px-5 py-3 text-sm font-semibold text-gold-100 shadow-lg shadow-black/40 backdrop-blur transition hover:border-amber-deep hover:text-amber-glow sm:bottom-8 sm:left-8"
+      aria-haspopup="dialog"
+      aria-controls="spot-filter-dialog"
+      aria-expanded="false"
+      data-filter-open
+    >
+      <SlidersHorizontal size={16} stroke-width={2} aria-hidden="true" />
+      絞り込み
+      <span
+        class="hidden min-w-[1.25rem] items-center justify-center rounded-full bg-amber-glow px-1.5 py-0.5 text-[0.65rem] font-bold text-night-950"
+        data-filter-count-badge
+      >0</span>
+    </button>
+
+    <dialog
+      id="spot-filter-dialog"
+      class="spot-filter-sheet m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-0 text-gold-100 backdrop:bg-night-950/70"
+      aria-label="絞り込み条件"
+      data-filter-dialog
+    >
+      <div class="spot-filter-sheet__panel relative mx-auto flex max-h-[88dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border-t border-night-600 bg-night-900 shadow-[0_-8px_32px_rgba(8,9,15,0.5)]">
+        <div class="flex shrink-0 items-center justify-between border-b border-night-700 px-5 py-4">
+          <h2 class="font-serif text-lg font-bold text-gold-100">絞り込み</h2>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-night-600 text-gold-100/80 transition hover:border-amber-deep/60 hover:text-amber-glow"
+            aria-label="閉じる"
+            data-filter-close
+          >
+            <X size={18} stroke-width={1.8} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div class="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+          <div>
+            <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">ジャンルで絞り込み</p>
+            <div class="flex flex-wrap gap-2" data-filter-group="genre">
+              <button
+                type="button"
+                data-value="all"
+                aria-pressed="true"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                すべて
+              </button>
+              {
+                genres.map((genre) => (
+                  <button
+                    type="button"
+                    data-value={genre}
+                    aria-pressed="false"
+                    class="filter-btn inline-flex items-center gap-1.5 rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+                  >
+                    <GenreIcon genre={genre} size={14} />
+                    {genre}
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+
+          <div>
+            <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">シーンで絞り込み</p>
+            <div class="flex flex-wrap gap-2" data-filter-group="scene">
+              <button
+                type="button"
+                data-value="all"
+                aria-pressed="true"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                すべて
+              </button>
+              {
+                scenes.map((scene) => (
+                  <button
+                    type="button"
+                    data-value={scene.key}
+                    data-match={scene.value}
+                    aria-pressed="false"
+                    class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+                  >
+                    {scene.label}
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+
+          <div>
+            <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">予算帯で絞り込み</p>
+            <div class="flex flex-wrap gap-2" data-filter-group="budget">
+              <button
+                type="button"
+                data-value="all"
+                aria-pressed="true"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                すべて
+              </button>
+              {
+                budgets.map((budget) => (
+                  <button
+                    type="button"
+                    data-value={budget.key}
+                    aria-pressed="false"
+                    class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+                  >
+                    {budget.label}
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+
+          <div>
+            <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">席タイプで絞り込み</p>
+            <div class="flex flex-wrap gap-2" data-filter-group="seat">
+              <button
+                type="button"
+                data-value="all"
+                aria-pressed="true"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                すべて
+              </button>
+              {
+                seatTypes.map((seat) => (
+                  <button
+                    type="button"
+                    data-value={seat.key}
+                    data-match={seat.value}
+                    aria-pressed="false"
+                    class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+                  >
+                    {seat.label}
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+
+          <div>
+            <p class="mb-2 text-xs font-medium tracking-wide text-gold-100/55">その他の条件で絞り込み</p>
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                data-open-toggle
+                aria-pressed="false"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                今営業中
+              </button>
+              <button
+                type="button"
+                data-video-toggle
+                aria-pressed="false"
+                class="filter-btn rounded-full border border-night-600 bg-night-800/60 px-3.5 py-1.5 text-xs font-medium text-gold-100/70 transition hover:border-amber-deep/60 hover:text-amber-glow"
+              >
+                動画あり
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex shrink-0 items-center justify-between gap-3 border-t border-night-700 px-5 py-4">
+          <button
+            type="button"
+            class="text-xs font-medium text-gold-100/60 underline decoration-night-600 underline-offset-4 transition hover:text-amber-glow"
+            data-filter-reset
+          >
+            条件をリセット
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center rounded-full bg-amber-glow px-5 py-2.5 text-sm font-bold text-night-950 transition hover:brightness-105"
+            data-filter-close
+          >
+            <span data-filter-apply-label>{spots.length}件を見る</span>
+          </button>
+        </div>
+      </div>
+    </dialog>
   </main>
 
   <Footer />
@@ -233,6 +294,35 @@ const seatTypes = [
     border-color: var(--color-amber-deep);
     background-color: var(--color-amber-glow);
     color: var(--color-night-950);
+  }
+
+  .spot-filter-sheet[open] {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .spot-filter-sheet__panel {
+    transform: translateY(100%);
+  }
+
+  .spot-filter-sheet.is-open .spot-filter-sheet__panel {
+    transform: translateY(0);
+    transition: transform 240ms ease-out;
+  }
+
+  .spot-filter-sheet.is-closing .spot-filter-sheet__panel {
+    transform: translateY(100%);
+    transition: transform 200ms ease-in;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spot-filter-sheet__panel,
+    .spot-filter-sheet.is-open .spot-filter-sheet__panel,
+    .spot-filter-sheet.is-closing .spot-filter-sheet__panel {
+      transform: none;
+      transition: none;
+    }
   }
 </style>
 
@@ -351,6 +441,14 @@ const seatTypes = [
     const resultCount = document.querySelector<HTMLElement>('[data-result-count]');
     const emptyMessage = document.querySelector<HTMLElement>('[data-empty-message]');
 
+    // 絞り込みオーバーレイ（ボトムシート）関連の要素。
+    const filterDialog = document.querySelector<HTMLDialogElement>('[data-filter-dialog]');
+    const filterOpenButton = document.querySelector<HTMLButtonElement>('[data-filter-open]');
+    const filterCloseButtons = document.querySelectorAll<HTMLButtonElement>('[data-filter-close]');
+    const filterResetButton = document.querySelector<HTMLButtonElement>('[data-filter-reset]');
+    const filterCountBadge = document.querySelector<HTMLElement>('[data-filter-count-badge]');
+    const filterApplyLabel = document.querySelector<HTMLElement>('[data-filter-apply-label]');
+
     // このページに一覧/フィルタが無い（＝/spots/ 以外に遷移した）場合は何もしない。
     if (groups.length === 0) return;
 
@@ -364,8 +462,10 @@ const seatTypes = [
 
     function applyFilters() {
       const genreKey = activeKey(group('genre'));
+      const sceneKey = activeKey(group('scene'));
       const sceneMatch = activeMatch(group('scene'));
       const budgetKey = activeKey(group('budget'));
+      const seatKey = activeKey(group('seat'));
       const seatMatch = activeMatch(group('seat'));
       const openActive = isOpenToggleActive();
       const videoActive = isVideoToggleActive();
@@ -396,6 +496,17 @@ const seatTypes = [
 
       if (resultCount) resultCount.textContent = `${visible}件`;
       if (emptyMessage) emptyMessage.classList.toggle('hidden', visible !== 0);
+
+      // 絞り込みFABのバッジ（有効な条件の数）と、シート下部の「N件を見る」ボタンの
+      // 件数表示を、フィルタの適用結果と常に同期させる。
+      const activeGroupCount = [genreKey, sceneKey, budgetKey, seatKey].filter((key) => key !== 'all').length;
+      const activeCount = activeGroupCount + (openActive ? 1 : 0) + (videoActive ? 1 : 0);
+      if (filterCountBadge) {
+        filterCountBadge.textContent = String(activeCount);
+        filterCountBadge.classList.toggle('hidden', activeCount === 0);
+        filterCountBadge.classList.toggle('inline-flex', activeCount > 0);
+      }
+      if (filterApplyLabel) filterApplyLabel.textContent = `${visible}件を見る`;
     }
 
     // URLクエリに書き戻すときの正規化。大文字小文字違いの同一条件URLが複数
@@ -529,6 +640,71 @@ const seatTypes = [
       videoToggle.setAttribute('aria-pressed', String(!active));
       withViewTransition(applyFilters);
       scheduleUrlPush();
+    });
+
+    filterResetButton?.addEventListener('click', () => {
+      groups.forEach((groupEl) => {
+        const buttons = groupEl.querySelectorAll<HTMLButtonElement>('.filter-btn');
+        buttons.forEach((b) => b.setAttribute('aria-pressed', b.dataset.value === 'all' ? 'true' : 'false'));
+      });
+      openToggle?.setAttribute('aria-pressed', 'false');
+      videoToggle?.setAttribute('aria-pressed', 'false');
+      withViewTransition(applyFilters);
+      scheduleUrlPush();
+    });
+
+    // 絞り込みオーバーレイ（ボトムシート）の開閉。Header.astro のモバイル
+    // メニュー（mobile-noren）と同じ dialog + showModal() パターン。この
+    // ページ自体は transition:persist されておらず、ClientRouterでの遷移の
+    // たびにDOMごと作り直されるため、Header.astroと違いAbortController等の
+    // 多重登録対策は不要（要素ごと消えるのでリスナーも自然に消える）。
+    // Escapeキーはdialog自身が発火するnativeの'cancel'イベントに任せる
+    // （こちらも要素スコープなので同じ理由で多重登録の心配がない）。
+    let filterClosingTimer: ReturnType<typeof setTimeout> | undefined;
+
+    function finishCloseFilterDialog() {
+      if (filterClosingTimer !== undefined) clearTimeout(filterClosingTimer);
+      filterDialog?.classList.remove('is-open', 'is-closing');
+      if (filterDialog?.open) filterDialog.close();
+      document.body.style.overflow = '';
+      filterOpenButton?.setAttribute('aria-expanded', 'false');
+    }
+
+    function closeFilterDialog(restoreFocus = true) {
+      if (!filterDialog?.open) return;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        finishCloseFilterDialog();
+        if (restoreFocus) filterOpenButton?.focus();
+        return;
+      }
+      filterDialog.classList.add('is-closing');
+      filterClosingTimer = setTimeout(() => {
+        finishCloseFilterDialog();
+        if (restoreFocus) filterOpenButton?.focus();
+      }, 220);
+    }
+
+    finishCloseFilterDialog();
+
+    filterOpenButton?.addEventListener('click', () => {
+      if (!filterDialog) return;
+      filterDialog.showModal();
+      document.body.style.overflow = 'hidden';
+      filterOpenButton.setAttribute('aria-expanded', 'true');
+      requestAnimationFrame(() => filterDialog.classList.add('is-open'));
+    });
+
+    filterCloseButtons.forEach((button) => {
+      button.addEventListener('click', () => closeFilterDialog());
+    });
+
+    filterDialog?.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeFilterDialog();
+    });
+
+    filterDialog?.addEventListener('click', (event) => {
+      if (event.target === filterDialog) closeFilterDialog();
     });
 
     // 「今営業中」有効時は、閲覧中に営業状態が変わりうるので定期的に再評価する。
