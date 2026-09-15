@@ -422,26 +422,58 @@ const FEED_TITLE_MAX_LINES = 3;
 // （実例:「「Bar Keywest」の紹介記事を公開しました」）。そのため
 // fitFeedTitleは「2行に収まる最大サイズ」を機械的に採用するのではなく、
 // 2行に収まりかつこの問題も起きないtierを優先的に探す。
+// 判定対象は「と・の・で・を」に加え「が・は・も」も含める（wrapJapaneseTitle
+// 内部の禁則処理・助詞回避（とのでを限定）とは別物で、あくまで
+// fitFeedTitleが複数tierを比較検討する際の「見た目の良し悪し」判定用）。
 function startsWithAvoidedParticle(line: string): boolean {
-  return /^[とのでを]/.test(line);
+  return /^[とのでをがはも]/.test(line);
 }
 
 /**
  * タイトルの折り返し結果（行数）に応じてフォントサイズを段階的に選ぶ。
- * 2行に収まり、かつ2行目以降が助詞（と・の・で・を）で始まらない最大の
- * サイズを優先する。どのサイズでも両方は満たせない場合は、2行に収まる
- * 最大サイズ（従来の判定基準）にフォールバックする。どのサイズでも
- * 2行に収まらない場合は、最小サイズで最大3行まで許容し、それでも
- * 収まらなければ末尾を省略する。テスト用にexportする。
+ * 2行に収まり、かつ2行目以降が助詞で始まらない最大のサイズを優先する。
+ *
+ * ただし、その「2行に収まる」唯一の方法が最小フォントだった場合
+ * （2026年9月報告: 「三条の「ハコニワ」で移住者向け交流イベントが
+ * 10月18日開催！」で、2行に収める唯一の方法が最小フォントになり、
+ * 2行目だけ極端に長く読みにくかった）は、1行増やしてでも大きいフォントで
+ * 3行（FEED_TITLE_MAX_LINES）に収まり、かつ助詞の行頭取り残しも起きない
+ * tierがあればそちらを優先する。既に2行目以降サイズのtierで条件を
+ * 満たせている場合は、この3行フォールバックは行わない（無関係な既存画像の
+ * 見た目を変えないため）。
+ *
+ * どのtierでも「2行に収まり助詞問題も無い」を満たせない場合は、2行に収まる
+ * 最大サイズ（従来の判定基準）にフォールバックする。どのサイズでも2行に
+ * 収まらない場合は、最小サイズで最大3行まで許容し、それでも収まらなければ
+ * 末尾を省略する。テスト用にexportする。
  */
 export function fitFeedTitle(title: string): { fontSize: number; lines: string[] } {
   let fallback: { fontSize: number; lines: string[] } | undefined;
-  for (const tier of FEED_TITLE_TIERS) {
+  let accepted: { tierIndex: number; fontSize: number; lines: string[] } | undefined;
+
+  for (let i = 0; i < FEED_TITLE_TIERS.length; i += 1) {
+    const tier = FEED_TITLE_TIERS[i];
     const lines = wrapJapaneseTitle(title, tier.maxCharsPerLine);
     if (lines.length > 2) continue;
     if (!fallback) fallback = { fontSize: tier.fontSize, lines };
-    if (!lines.slice(1).some(startsWithAvoidedParticle)) return { fontSize: tier.fontSize, lines };
+    if (!lines.slice(1).some(startsWithAvoidedParticle)) {
+      accepted = { tierIndex: i, fontSize: tier.fontSize, lines };
+      break;
+    }
   }
+
+  if (accepted) {
+    const isSmallestTier = accepted.tierIndex === FEED_TITLE_TIERS.length - 1;
+    if (!isSmallestTier) return { fontSize: accepted.fontSize, lines: accepted.lines };
+
+    for (const tier of FEED_TITLE_TIERS) {
+      const lines = wrapJapaneseTitle(title, tier.maxCharsPerLine);
+      if (lines.length > FEED_TITLE_MAX_LINES) continue;
+      if (!lines.slice(1).some(startsWithAvoidedParticle)) return { fontSize: tier.fontSize, lines };
+    }
+    return { fontSize: accepted.fontSize, lines: accepted.lines };
+  }
+
   if (fallback) return fallback;
 
   const smallest = FEED_TITLE_TIERS[FEED_TITLE_TIERS.length - 1];
