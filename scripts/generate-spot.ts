@@ -1915,6 +1915,10 @@ async function main() {
   console.log('============================================================');
 
   const outcomes: AttemptOutcome[] = [];
+  // 自律選定モード（CLIでの店舗指定が無い、通常の定期実行）で2回目以降の
+  // 試行が参考ヒントを1件選ぶ際、同一実行内で同じヒントを二重に選ばない
+  // ようにするための集合（下のfor内で使用）。
+  const triedHintsThisRun = new Set<string>();
   // Agent1が検索しても現況を確認できなかった参考ヒント店名（全試行分の集計）。
   // 手動確認して不要ならunmatched-videos.jsonから外す判断材料として、
   // 試行の成否によらずJob Summaryに必ず出す。
@@ -1961,8 +1965,38 @@ async function main() {
       // 参考ヒントは自律選定モードのときだけ渡す。
       const videoHints = hintTitle ? [] : await loadVideoHints(excludeTitles);
 
-      const preferredGenre = hintGenre ?? (hintTitle ? undefined : pickRandom(GENRES));
-      const research = await runResearchAgent(ai, excludeTitles, hintTitle, preferredGenre, videoHints);
+      // 2026年9月、自律選定モードで参考ヒントを十数件まとめて提示すると、
+      // Agent1が実際に検索するのは実質1〜2件だけで、残りは検索を試みずに
+      // unconfirmedHintStoresへ一括で計上している疑いが強いと判明した
+      // （実例:「すし処 平井屋」はGoogle検索すれば営業時間・クチコミ等が
+      // 豊富に出てくる実在店舗だったが、他の十数件に埋もれて一度も検索
+      // されないまま「確認できず」扱いになっていた。手動で店舗指定モード
+      // （このCLI引数にその店名だけを渡す方法）を使うと成功した）。
+      //
+      // そこでCLIでの店舗指定が無い自律選定モードでは、1回目の試行だけ
+      // 従来通り「新店舗優先の自由探索＋ヒントは補助」のプロンプトを使い、
+      // 2回目以降の試行はヒントリストから未使用の1件だけをランダムに選び、
+      // 指定店舗モードと同じ「その1件だけに検索を集中させる」プロンプトに
+      // 切り替える。3回の試行×週2回の定期実行を重ねることで、ヒントの
+      // 在庫を無理なく順に消化していく狙い。同一実行内で同じヒントを
+      // 二重に選ばないようtriedHintsThisRunで除外する。
+      let effectiveHintTitle: string | undefined = hintTitle;
+      let effectiveHintGenre: string | undefined = hintGenre;
+      let effectiveVideoHints = videoHints;
+      if (!hintTitle && attempt > 1) {
+        const untried = videoHints.filter((name) => !triedHintsThisRun.has(name));
+        if (untried.length > 0) {
+          const picked = pickRandom(untried);
+          triedHintsThisRun.add(picked);
+          effectiveHintTitle = picked;
+          effectiveHintGenre = undefined;
+          effectiveVideoHints = [];
+          console.log(`[generate-spot] 試行${attempt}: 参考ヒント「${picked}」1件に絞って検索を集中させます。`);
+        }
+      }
+
+      const preferredGenre = effectiveHintGenre ?? (effectiveHintTitle ? undefined : pickRandom(GENRES));
+      const research = await runResearchAgent(ai, excludeTitles, effectiveHintTitle, preferredGenre, effectiveVideoHints);
       for (const name of research.unconfirmedHintStores) unconfirmedHintStores.add(name);
 
       if (research.notFound) {
