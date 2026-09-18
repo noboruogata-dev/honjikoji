@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-17T23:14:36.000Z",
+  "generatedAt": "2026-09-18T12:26:28.276Z",
   "channel": "@TsubameSanjoTV",
   "candidates": [
     {
@@ -19,6 +19,24 @@
       "publishedAt": "2022-07-15T09:05:23Z",
       "confidence": "low",
       "reason": "店名のごく一部（連続3文字、店名の43%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "daikokutei-honten",
+      "spotTitle": "大黒亭 本店",
+      "videoId": "BNrTYET8J0Y",
+      "videoTitle": "三条カレーラーメンの老舗  大黒亭で 飲む！【本寺小路】『燕三条TV】新潟県三条市",
+      "publishedAt": "2025-06-25T13:08:50Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続3文字、店名の60%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "motsuyaki-takahashi",
+      "spotTitle": "もつ焼き たかはし",
+      "videoId": "H8MmA-0mG_8",
+      "videoTitle": "もつ焼き串ん 串焼き屋のパイオニア【燕三条TV】【新潟県三条市】【本寺小路】",
+      "publishedAt": "2026-09-18T09:01:36Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続4文字、店名の50%）がタイトルに含まれる可能性"
     },
     {
       "spotSlug": "motsuyaki-takahashi",

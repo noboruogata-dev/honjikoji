@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-17T23:14:36.006Z",
+  "generatedAt": "2026-09-18T12:26:28.291Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
@@ -85,15 +85,6 @@
       "storeDisplay": "蕎麦割烹 麦"
     },
     {
-      "videoId": "erPJd6Eo80A",
-      "title": "【燕三条TV】そば処今泉（昼から夜まで休まず営業している希少な蕎麦屋！蕎麦焼酎をそば湯割りで飲めるのは蕎麦屋だけ！）【本寺小路】【新潟県三条市】",
-      "publishedAt": "2021-11-22T09:27:58Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "そば処今泉",
-      "storeDisplay": "そば処今泉"
-    },
-    {
       "videoId": "LZabXkPdAp0",
       "title": "【燕三条TV】酒肴家  武（クジラから半殺し？のイカ料理まで圧倒的メニュー数を誇る本寺小路の居酒屋）【本寺小路】【新潟県三条市】",
       "publishedAt": "2021-11-28T10:07:16Z",
@@ -128,15 +119,6 @@
       "store": null,
       "storeManual": "旬彩 五色川",
       "storeDisplay": "旬彩 五色川"
-    },
-    {
-      "videoId": "BNrTYET8J0Y",
-      "title": "三条カレーラーメンの老舗  大黒亭で 飲む！【本寺小路】『燕三条TV】新潟県三条市",
-      "publishedAt": "2025-06-25T13:08:50Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "大黒亭",
-      "storeDisplay": "大黒亭"
     },
     {
       "videoId": "NPKmxYhhsho",
@@ -682,6 +664,15 @@
       "videoId": "KJ1Y4Gr0rC8",
       "title": "会長と三条花火2026【燕三条TV】",
       "publishedAt": "2026-08-02T01:18:38Z",
+      "area": "unknown",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
+    },
+    {
+      "videoId": "bjcMxaTxmFM",
+      "title": "会長のマイクタイソン｜燕三条TV",
+      "publishedAt": "2026-09-18T11:17:01Z",
       "area": "unknown",
       "store": null,
       "storeManual": null,
