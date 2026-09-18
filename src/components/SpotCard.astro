@@ -38,10 +38,30 @@ const {
   youtubeVideos,
   pubDate,
   establishedYear,
+  placeId,
 } = spot.data;
 const hasVideo = (youtubeVideos?.length ?? 0) > 0;
 const showNewBadge = isRecentlyPublished(pubDate);
 const showShiniseBadge = isShinise(establishedYear);
+
+// 営業時間の表示方針（2026年9月、一覧カードと詳細ページの表示が食い違う
+// という指摘を受けて整理）:
+// - hours（構造化営業時間）があれば、従来通りopenHours/regularHolidayの
+//   テキストとOpenStatusバッジ（開店中/まもなく閉店等）を表示する。
+// - hoursが無くてもplaceIdがあれば、詳細ページではLivePlaceHours.astroが
+//   Google Place Detailsをその場でライブ取得して正しい営業時間を表示できる
+//   （2026年9月以降、Agent1が営業時間を収集しなくなったため新規記事は
+//   基本的にこちらに該当する）。一覧カードはコスト上ライブ取得をしない
+//   （店舗数×閲覧数ぶんAPI呼び出しが増えるため）ので、「店舗へ要確認」
+//   という実際より弱い言い方はせず、「詳細ページでご確認ください」と
+//   案内する。今営業中/まもなく閉店のようなリアルタイム判定はカード単体
+//   では行えないため、OpenStatusバッジ自体は表示しない（不正確な
+//   「要確認」バッジを出すより、何も出さない方が誤解を招かない）。
+// - hoursもplaceIdも無い場合（例: beerhouse3.mdのようにPlace ID解決が
+//   必須になる前の記事）は、案内できる詳細ページ側の情報も無いため、
+//   従来通り「店舗へ要確認」＋unknown状態のOpenStatusバッジを表示する。
+const hasConfirmedHours = Boolean(hours);
+const canConfirmOnDetailPage = !hasConfirmedHours && Boolean(placeId);
 ---
 
 <a
@@ -98,15 +118,26 @@ const showShiniseBadge = isShinise(establishedYear);
       {description}
     </p>
     <dl class="mt-1 space-y-1 text-xs text-gold-100/50">
-      <div class="flex items-center gap-2">
-        <dt class="shrink-0 text-gold-100/55">営業時間</dt>
-        <dd class="min-w-0 flex-1 truncate">{openHours}</dd>
-        <OpenStatus hours={hours} isIrregular={isIrregular} size="sm" />
-      </div>
-      <div class="flex gap-2">
-        <dt class="shrink-0 text-gold-100/55">定休日</dt>
-        <dd class="truncate">{regularHoliday}</dd>
-      </div>
+      {
+        canConfirmOnDetailPage ? (
+          <div class="flex gap-2">
+            <dt class="shrink-0 text-gold-100/55">営業時間</dt>
+            <dd class="min-w-0 flex-1 truncate">詳細ページでご確認ください</dd>
+          </div>
+        ) : (
+          <Fragment>
+            <div class="flex items-center gap-2">
+              <dt class="shrink-0 text-gold-100/55">営業時間</dt>
+              <dd class="min-w-0 flex-1 truncate">{openHours}</dd>
+              <OpenStatus hours={hours} isIrregular={isIrregular} size="sm" />
+            </div>
+            <div class="flex gap-2">
+              <dt class="shrink-0 text-gold-100/55">定休日</dt>
+              <dd class="truncate">{regularHoliday}</dd>
+            </div>
+          </Fragment>
+        )
+      }
       <div class="flex gap-2">
         <dt class="shrink-0 text-gold-100/55">予算</dt>
         <dd class="truncate">{budget}</dd>
