@@ -32,8 +32,53 @@ const { placeId } = Astro.props;
 }
 
 <script>
+  // weekdayDescriptions（Places APIが返す、曜日ごとの営業時間説明7行）を
+  // 同じ営業時間の曜日をまとめたコンパクトな表示用データに変換するロジック
+  // 本体は src/lib/liveHoursFormat.ts に切り出してある（ユニットテスト
+  // 可能にするため。テストは src/lib/liveHoursFormat.test.ts 参照）。
+  // このコンポーネント側はDOM組み立てのみを担当する。
+  import { parseWeekdayDescriptions, formatHours, type FormattedHours } from '../lib/liveHoursFormat';
+
   interface PlaceHoursResponse {
     weekdayDescriptions?: unknown;
+  }
+
+  function renderRawFallback(list: HTMLElement, lines: string[]) {
+    list.replaceChildren(
+      ...lines.map((line) => {
+        const p = document.createElement('p');
+        p.textContent = line;
+        return p;
+      })
+    );
+  }
+
+  function renderFormattedHours(list: HTMLElement, formatted: FormattedHours) {
+    const elements: HTMLElement[] = [];
+
+    const hoursP = document.createElement('p');
+    const hoursLabel = document.createElement('span');
+    hoursLabel.className = 'text-gold-100/55';
+    hoursLabel.textContent = '営業時間: ';
+    hoursP.append(hoursLabel, document.createTextNode(formatted.openLines[0] ?? ''));
+    elements.push(hoursP);
+    for (const extraLine of formatted.openLines.slice(1)) {
+      const p = document.createElement('p');
+      p.className = 'pl-[4.5em]'; // "営業時間: " のインデントに揃える
+      p.textContent = extraLine;
+      elements.push(p);
+    }
+
+    if (formatted.closedLine) {
+      const closedP = document.createElement('p');
+      const closedLabel = document.createElement('span');
+      closedLabel.className = 'text-gold-100/55';
+      closedLabel.textContent = '定休日: ';
+      closedP.append(closedLabel, document.createTextNode(formatted.closedLine));
+      elements.push(closedP);
+    }
+
+    list.replaceChildren(...elements);
   }
 
   async function renderLivePlaceHours(el: HTMLElement) {
@@ -57,13 +102,14 @@ const { placeId } = Astro.props;
     const list = el.querySelector<HTMLElement>('[data-live-place-hours-list]');
     if (!list) return;
 
-    list.replaceChildren(
-      ...lines.map((line) => {
-        const p = document.createElement('p');
-        p.textContent = line;
-        return p;
-      })
-    );
+    const parsed = parseWeekdayDescriptions(lines);
+    if (parsed) {
+      renderFormattedHours(list, formatHours(parsed));
+    } else {
+      // 想定外の書式（フィールド形式の変更・特殊表記等）。要約を諦め、
+      // 従来通り7行そのまま表示する（誤った要約よりは安全側に倒す）。
+      renderRawFallback(list, lines);
+    }
     el.classList.remove('hidden');
 
     // 静的表示（openHours/regularHoliday）はここでのみ隠す。矛盾する情報を
