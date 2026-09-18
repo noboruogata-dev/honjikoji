@@ -82,8 +82,6 @@ export interface SourceVerificationResearchInput {
   title: string;
   genre: string;
   address: string;
-  openHours: string;
-  regularHoliday: string;
   budget: string;
   vibes: string[];
   isNew: boolean;
@@ -129,8 +127,6 @@ Google検索や外部知識は一切使わず、以下に提示する「調査�
 店名: ${research.title}
 ジャンル: ${research.genre}
 住所: ${research.address}
-営業時間: ${research.openHours}
-定休日: ${research.regularHoliday}
 予算目安: ${research.budget}
 特徴タグ: ${research.vibes.join(', ')}
 新店舗か: ${research.isNew ? 'はい（開店・リニューアルから概ね1年以内）' : 'いいえ、または不明'}

@@ -22,6 +22,7 @@
     "generate:guides-manifest": "tsx scripts/generate-guides-manifest.ts",
     "instagram:draft": "tsx scripts/instagram-draft.ts",
     "match:youtube": "tsx scripts/match-youtube.ts",
+    "spots:missing-hours": "tsx scripts/spots-missing-hours.ts",
     "test": "vitest run"
   },
   "dependencies": {

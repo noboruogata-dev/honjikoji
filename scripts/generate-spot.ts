@@ -8,9 +8,10 @@
  *   Agent 1: Research Agent  — Google Search Grounding付きGeminiで実在店舗を
  *            1軒選定し、事実情報を厳密なJSONで抽出する。新規開店・リニューアル
  *            情報を優先的に探索し、開店から約1年以内なら isNew フラグを立てる。
+ *            営業時間・定休日は調査対象に含めない（下記「営業時間の設計」参照）。
  *            Grounding呼び出しがURL付きの検索結果引用を1件も返さなかった
- *            場合、facts/vibes/openHours等がGeminiのパラメトリック記憶からの
- *            生成（ハルシネーション）である可能性を否定できないため、main()の
+ *            場合、facts/vibes等がGeminiのパラメトリック記憶からの生成
+ *            （ハルシネーション）である可能性を否定できないため、main()の
  *            試行ループがこの候補を保存せず別の店舗をリトライする（2026年9月、
  *            実際にこれが原因で「毎週金曜ジャズ生演奏」という裏付けのない
  *            記述が公開された事例がある。詳細は該当チェック箇所のコメント
@@ -18,6 +19,7 @@
  *   Agent 2: Writer Agent    — Agent 1のJSONだけを事実源として、地元メディア
  *            らしい紹介記事（800〜1200字）を執筆する（Grounding無し）。読みやすさの
  *            ため、段落数・見出し・1段落の文字数について構造要件を守るよう指示する。
+ *            具体的な営業時間・定休日も本文に書かせない（下記参照）。
  *   Agent 3: QA & Schema Validator Agent — Zodでフロントマターを厳密に検証し、
  *            bodyの構造要件（段落数・見出し数・最長段落文字数）も決定論的に
  *            チェックしたうえで、通過したものだけを src/content/spots/[slug].md
@@ -25,27 +27,40 @@
  *            WARNで、満たさなくても保存はされる）。Text Searchで店名・住所から
  *            Place IDを解決し（scripts/lib/googlePlaces.ts）保存するが、これは
  *            単なる付加情報ではなく必須のセーフティネットとして扱う。Place ID
- *            が無いと、詳細ページのライブ営業時間表示（LivePlaceHours.astro）
- *            もGoogleとの営業時間照合（下記）も両方とも無効になり、Agent1が
- *            誤った営業時間を書いても誰にも検知されないまま公開されてしまう
- *            （2026年9月、実際にこれが原因で月曜日・昼営業のズレが未検知の
- *            まま公開された事例がある）。そのため Agent3 は Place ID を解決
- *            できなかった場合（一過性のエラー対策として複数回リトライしてもなお
- *            解決できない場合）はこの候補を保存せず、試行を失敗として扱って
- *            別の店舗をリトライする（MAX_ATTEMPTS参照）。GOOGLE_PLACES_API_KEY
- *            自体が未設定の場合は特定の店舗の問題ではなく設定不備なので、
- *            リトライしても無駄と判断してFatalPipelineErrorで処理全体を
- *            即座に止める。
+ *            が無いと、詳細ページのライブ営業時間表示（LivePlaceHours.astro）が
+ *            機能せず、営業時間が永久に「店舗へ要確認」のままになってしまう。
+ *            そのため Agent3 は Place ID を解決できなかった場合（一過性のエラー
+ *            対策として複数回リトライしてもなお解決できない場合）はこの候補を
+ *            保存せず、試行を失敗として扱って別の店舗をリトライする
+ *            （MAX_ATTEMPTS参照）。GOOGLE_PLACES_API_KEY自体が未設定の場合は
+ *            特定の店舗の問題ではなく設定不備なので、リトライしても無駄と
+ *            判断してFatalPipelineErrorで処理全体を即座に止める。
  *
- * 営業時間まわりの設計（2系統）:
- *   系統1（詳細ページの表示）: Place IDがあれば、詳細ページが表示のたびに
- *     Place Details (New) をライブ取得して表示する（src/components/LivePlaceHours.astro
- *     と functions/api/place-hours.ts）。Places API由来のコンテンツはビルド時にも
- *     このリポジトリにも一切保存しない（Google Maps Platform利用規約で
- *     opening hoursの保存・キャッシュが許可されていないため）。
- *   系統2（サイト内の営業中判定・フィルタ・路地マップ点灯など）: 引き続き
- *     このAgent3がopenHours/regularHolidayから決定論的に導出するhours
- *     （src/lib/hours.ts）を使う。Places APIとは無関係の既存ロジックのまま。
+ * 営業時間の設計（2026年9月、旧「Agent1調査→Google Placesと照合→乖離なら
+ * ブロック」方式から変更）:
+ *   以前はAgent1に営業時間・定休日も調査させ、Google Place Detailsと照合して
+ *   一致すれば採用、乖離すれば記事全体をブロックしていた。しかしGrounding
+ *   引用付きの調査でも実際の営業時間・定休日と大きくズレるケースが多く
+ *   （例: 実際は水曜定休の店を「月曜定休」と誤り、営業時間も全曜日で乖離。
+ *   Grounding引用5件付きでも発生した）、この照合が新規記事化のボトルネックに
+ *   なっていた。
+ *
+ *   そこで営業時間・定休日はAgent1の調査対象から完全に外した。frontmatterの
+ *   openHours/regularHolidayは常にFALLBACK_HOURS_TEXT（「店舗へ要確認」）、
+ *   構造化hoursは常にundefinedで保存する。表示は以下のライブ取得に一本化する:
+ *   Place IDがあれば、詳細ページが表示のたびにPlace Details (New) をライブ
+ *   取得して表示する（src/components/LivePlaceHours.astro と
+ *   functions/api/place-hours.ts）。Places API由来のコンテンツはビルド時にも
+ *   このリポジトリにも一切保存しない（Google Maps Platform利用規約で opening
+ *   hoursの保存・キャッシュが許可されていないため）。一覧ページのカード
+ *   （SpotCard.astro）はこのライブ取得を行わないため「店舗へ要確認」表示の
+ *   まま。サイト内の営業中判定・フィルタ・Hero提灯表示は、hoursが無い店を
+ *   集計対象から除外する設計に元々なっており、そのまま機能する
+ *   （src/pages/index.astro・src/pages/spots/index.astro参照）。
+ *
+ *   parseOpenHoursToHours/compareHoursWithGoogle自体は削除していない
+ *   （--backfill-hours、および人力でopenHours/regularHolidayを埋めた記事の
+ *   検証に引き続き使える）。
  *
  * 注意: youtubeVideos はこのパイプラインでは絶対に生成・推測しない。
  * 実在する動画IDをLLMが幻覚する（または存在するが別動画を取り違える）
@@ -98,9 +113,8 @@ import {
   uniqueSlug,
 } from './lib/gemini-agents.js';
 import { parseBudgetRange } from './lib/budgetParser.js';
-import { isIrregularHoliday, parseOpenHoursToHours } from './lib/openHoursParser.js';
-import { resolvePlaceIdWithRetry, resolveRegularOpeningHoursPeriods } from './lib/googlePlaces.js';
-import { compareHoursWithGoogle } from './lib/hoursComparison.js';
+import { parseOpenHoursToHours } from './lib/openHoursParser.js';
+import { resolvePlaceIdWithRetry } from './lib/googlePlaces.js';
 import { runInstagramMaterialAgent } from './lib/instagramMaterialAgent.js';
 import {
   buildSourceVerificationPrompt,
@@ -124,7 +138,6 @@ type AttemptOutcome =
   | 'ungroundedResearch'
   | 'unsourcedClaims'
   | 'placeIdUnresolved'
-  | 'hoursMismatch'
   | 'success'
   | 'error';
 const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
@@ -133,7 +146,6 @@ const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
   ungroundedResearch: 'Grounding引用0件のため見送り',
   unsourcedClaims: '出典なしの記述が多いため見送り',
   placeIdUnresolved: 'Place ID未解決のため見送り',
-  hoursMismatch: '営業時間の乖離により見送り',
   success: '成功',
   error: 'エラー',
 };
@@ -148,26 +160,6 @@ class PlaceIdUnresolvedError extends Error {
   constructor(public readonly storeName: string) {
     super(`Place IDを解決できませんでした: ${storeName}`);
     this.name = 'PlaceIdUnresolvedError';
-  }
-}
-
-/**
- * Agent3が、Agent1由来のhoursとGoogle Places APIとの照合で乖離を検出した
- * 場合に投げる。PlaceIdUnresolvedErrorと同様に非致命的な結果として扱い、
- * 記事は保存せず別の店舗をリトライする。営業時間の誤りは実害が大きいため
- * ブロッキングとする（乖離の有無・大きさ・曜日名のみを扱い、Google側の
- * 実際の時刻文字列は含めない。scripts/lib/hoursComparison.tsのコメント参照）。
- */
-class HoursMismatchError extends Error {
-  constructor(
-    public readonly storeName: string,
-    public readonly mismatchedDays: string[],
-    public readonly maxDiffMinutes: number
-  ) {
-    super(
-      `営業時間の乖離を検出しました: ${storeName}（${mismatchedDays.join('・')}、最大${maxDiffMinutes}分程度）`
-    );
-    this.name = 'HoursMismatchError';
   }
 }
 
@@ -187,6 +179,32 @@ const GENRES = [
 // 一覧ページのシーン別フィルターと対応させる、任意で付与を検討させるタグ。
 const SCENE_TAGS = ['1軒目におすすめ', '2次会・締めに最適', '深夜営業'];
 
+// frontmatterのopenHours/regularHolidayに書き込む固定文言。
+//
+// 2026年9月まではAgent1（LLM）に営業時間・定休日も調査させ、Google Place
+// Detailsと照合して一致すれば採用、乖離すればこの文言に差し替えていた。
+// しかしGrounding引用付きの調査でも実際の営業時間・定休日と大きくズレる
+// ケースが多く（例: 実際は水曜定休の店をAgent1が「月曜定休」と誤り、
+// 営業時間も全曜日で乖離。Grounding引用5件付きでも発生した）、この照合
+// （関門3）が新規記事化のボトルネックになっていた。
+//
+// そこで営業時間・定休日はそもそもAgent1の調査対象から外し（研究し
+// ない・researchSchemaにフィールドを持たせない）、常にこの文言を
+// frontmatterに書き込む方針にした。表示はGoogle Place Detailsのライブ
+// 取得（下記）に一本化し、AIの調査を経由しない分むしろ正確になる、
+// というユーザーとの合意による判断。
+//
+// parseOpenHoursToHours/compareHoursWithGoogleは削除していない
+// （--backfill等で人間が手入力したhoursを検証する用途に転用できるよう
+// 残してある）が、この自動生成パイプラインからはもう呼ばない。
+//
+// 店舗詳細ページはこの文言が表示されても、LivePlaceHours.astro が
+// Google Place Detailsをその場でライブ取得できれば自動的にこの文言を
+// 隠して正しい曜日別営業時間に差し替える（保存はしない。src/components/
+// LivePlaceHours.astro参照）。一覧ページのカード（SpotCard.astro）は
+// ライブ取得を行わないため、この文言がそのまま表示され続ける。
+const FALLBACK_HOURS_TEXT = '店舗へ要確認';
+
 // ============================================================
 // Zod スキーマ
 // ============================================================
@@ -202,8 +220,6 @@ const researchSchema = z.object({
   title: z.string(),
   genre: z.string(),
   address: z.string(),
-  openHours: z.string(),
-  regularHoliday: z.string(),
   budget: z.string(),
   vibes: z.array(z.string()),
   // notFoundと同じ理由（構造化出力を外した副作用でのフィールド省略対策。
@@ -307,8 +323,6 @@ const researchResponseSchema = {
     title: { type: Type.STRING, description: '正式な店名' },
     genre: { type: Type.STRING, description: `次のいずれか1つ: ${GENRES.join(' / ')}` },
     address: { type: Type.STRING, description: '新潟県三条市 本町周辺の正確な住所' },
-    openHours: { type: Type.STRING, description: '営業時間（定休日は含めない）' },
-    regularHoliday: { type: Type.STRING, description: '定休日（不明な場合は "不明" または "不定休"）' },
     budget: { type: Type.STRING, description: '予算目安（例: ￥3,000〜￥5,000）' },
     vibes: {
       type: Type.ARRAY,
@@ -369,8 +383,6 @@ const researchResponseSchema = {
     'title',
     'genre',
     'address',
-    'openHours',
-    'regularHoliday',
     'budget',
     'vibes',
     'isNew',
@@ -412,7 +424,7 @@ const sourceVerificationResponseSchema = {
           sourceField: {
             type: Type.STRING,
             description:
-              'hasSource: true の場合のみ、根拠となった調査データの項目名（例: "openHours", "facts", "vibes"）',
+              'hasSource: true の場合のみ、根拠となった調査データの項目名（例: "address", "facts", "vibes"）',
           },
         },
         required: ['statement', 'hasSource'],
@@ -485,8 +497,6 @@ ${exclusionText}
 - title: 正式な店名
 - genre: ${GENRES.join(' / ')} のいずれか
 - address: 新潟県三条市 本町周辺の正確な住所
-- openHours: 営業時間（定休日は含めない）
-- regularHoliday: 定休日（不明な場合は "不明" または "不定休"）
 - budget: 予算目安（例: ￥3,000〜￥5,000）
 - vibes: 特徴タグ3〜6個（例: "隠れ家", "カウンター席あり", "深夜営業"）。可能であれば次の中から当てはまるものを含めてよい（無理に含めなくてもよい）: ${SCENE_TAGS.join(' / ')}
 - isNew: 開店・リニューアルオープンから約1年以内と判断できる場合は true、それ以外・不明な場合は false
@@ -523,8 +533,6 @@ function buildWriterPrompt(research: ResearchResult): string {
 店名: ${research.title}
 ジャンル: ${research.genre}
 住所: ${research.address}
-営業時間: ${research.openHours}
-定休日: ${research.regularHoliday}
 予算目安: ${research.budget}
 特徴タグ: ${research.vibes.join(', ')}
 新店舗か: ${research.isNew ? 'はい（開店・リニューアルから概ね1年以内）' : 'いいえ、または不明'}
@@ -550,6 +558,9 @@ ${research.facts}
   動画に関する情報が含まれていても、本文では触れないでください。
 - Instagram、Facebook、X、LINEなどのSNSアカウントやURLを本文・descriptionへ書かないでください。
   socialLinks はAgent 1とAgent 3が管理するFrontmatter専用フィールドです。
+- 具体的な営業時間・定休日（「19時から」「水曜定休」等）を本文に書かないでください。
+  リサーチ結果に含まれておらず、誤った情報を断定的に書く事故を防ぐためです。営業時間・
+  定休日はこの記事ページ上でGoogle Mapsの最新情報が別途ライブ表示されます。
 
 description（Frontmatter用の要約）は100字前後で、記事の魅力が一目で伝わるように。`;
 }
@@ -643,7 +654,7 @@ async function runResearchAgent(
     console.log(
       `${label} 完了。選定店舗: 「${result.data.title}」（${result.data.genre}）${result.data.isNew ? ' [NEW]' : ''}`
     );
-    console.log(`${label} 住所: ${result.data.address} / 営業時間: ${result.data.openHours} / 定休日: ${result.data.regularHoliday}`);
+    console.log(`${label} 住所: ${result.data.address}`);
     console.log(`${label} vibes: ${result.data.vibes.join(', ') || '(なし)'}`);
     console.log(
       `${label} 公式SNS候補: ${result.data.socialLinks.length > 0 ? result.data.socialLinks.map((link) => `${link.platform}: ${link.url}`).join(', ') : '(確認できず)'}`
@@ -754,18 +765,6 @@ async function runSourceVerificationAgent(
 
 interface QaResult {
   filePath: string;
-  hoursDerived: boolean;
-  /** hoursDerivedがfalseのときのみ設定される、導出できなかった理由。 */
-  hoursReason?: string;
-  /**
-   * Agent1由来のhoursをPlaces APIの値と照合した結果（検証のみ・値は保存しない）。
-   * hours未導出、またはPlace Details取得自体に失敗した場合はchecked: false
-   * （照合自体を行っていない。この場合は非ブロッキング＝そのまま保存される）。
-   * hasMismatch: trueになるケースはHoursMismatchErrorとして投げられ保存
-   * されない（=このQaResultが返る時点では常にfalse）ため、ここに残るのは
-   * 事実上「一致した」ログ用の情報。
-   */
-  hoursVerification: { checked: boolean; hasMismatch: boolean; maxDiffMinutes: number; mismatchedDays: string[] };
 }
 
 /** SpotFrontmatterのhoursを、content.config.tsが期待するYAML行に変換する（無ければ空配列）。 */
@@ -808,13 +807,12 @@ async function runQaAgent(
   // キーはあるのに解決できない場合（該当なし・APIエラー）は一過性のことが
   // あるため resolvePlaceIdWithRetry が間隔を空けて複数回試す。それでも
   // 解決できなければ、この候補の記事は保存せずPlaceIdUnresolvedErrorを投げる。
-  // Place IDが無いと、詳細ページのライブ営業時間表示（LivePlaceHours.astro）も
-  // 下記のGoogleとの営業時間照合も両方無効になり、Agent1が誤った営業時間を
-  // 書いても誰にも検知されないまま公開されてしまう（2026年9月に実際に発生）
-  // ため、これはブロッキングの理由として十分である。
+  // Place IDが無いと、詳細ページのライブ営業時間表示（LivePlaceHours.astro）が
+  // 機能せず、営業時間が永久に「店舗へ要確認」のまま（下記FALLBACK_HOURS_TEXT
+  // 参照）になってしまうため、これはブロッキングの理由として十分である。
   if (!process.env.GOOGLE_PLACES_API_KEY) {
     throw new FatalPipelineError(
-      'GOOGLE_PLACES_API_KEYが未設定です。Place ID解決・営業時間検証ができないため、記事は生成できません。'
+      'GOOGLE_PLACES_API_KEYが未設定です。Place ID解決ができないため、記事は生成できません。'
     );
   }
   const resolvedPlace = await resolvePlaceIdWithRetry(
@@ -827,54 +825,16 @@ async function runQaAgent(
   }
   console.log(`${label} Place IDを解決しました: ${resolvedPlace.placeId}`);
 
-  // openHours/regularHolidayから構造化hoursを決定論的に導出する（LLM不使用）。
-  // 導出できなければhoursは未設定のまま保存する（誤った営業時間よりは
-  // hours欠落＝unknown表示の方が安全という方針。scripts/lib/openHoursParser.ts）。
-  const hoursResult = parseOpenHoursToHours(research.openHours, research.regularHoliday);
-
-  // Agent1由来のhoursを、Places APIの値と照合する。Places API側の値そのもの
-  // はfrontmatterにもJob Summaryにも保存しない（Google Maps Platform利用規約上、
-  // opening hoursの永続保存は許可されていないため）。ここで扱うのは「差分の
-  // 有無・大きさ（分）・曜日名」という私たち自身が計算した派生情報のみで、
-  // Google側の実際の時刻文字列は一切含めない（scripts/lib/hoursComparison.ts
-  // のコメント参照）。
+  // 営業時間・定休日はAgent1の調査対象から外している（researchSchemaに
+  // フィールドが無い。FALLBACK_HOURS_TEXTのコメント参照）ため、ここでの
+  // 導出・Google Places APIとの照合は行わない。openHours/regularHolidayは
+  // 常にFALLBACK_HOURS_TEXT、構造化hours/isIrregularは常にundefinedで
+  // 保存する（下のcandidate構築部分参照）。表示はLivePlaceHours.astroの
+  // ライブ取得に一本化する。
   //
-  // 乖離を検出した場合はHoursMismatchErrorを投げて保存をブロックする。営業
-  // 時間の誤りは実害が大きく、警告ログだけでは（このワークフローがPRを介さず
-  // 直接mainへpushするため）誰も気づかないまま公開されてしまうことが実際に
-  // あったため。Google Place Detailsの取得自体に失敗した場合（checked: false）
-  // は「乖離が無い」とは断定できないが、これはPlace ID自体は解決できている
-  // ケースであり、ライブ営業時間表示（系統1）は正しく機能するため、非
-  // ブロッキングのまま保存を続行する。
-  let hoursVerification: QaResult['hoursVerification'] = {
-    checked: false,
-    hasMismatch: false,
-    maxDiffMinutes: 0,
-    mismatchedDays: [],
-  };
-  if (resolvedPlace && hoursResult.hours) {
-    const googlePeriods = await resolveRegularOpeningHoursPeriods(
-      resolvedPlace.placeId,
-      process.env.GOOGLE_PLACES_API_KEY
-    );
-    if (googlePeriods) {
-      const comparison = compareHoursWithGoogle(hoursResult.hours, googlePeriods);
-      if (comparison.hasMismatch) {
-        throw new HoursMismatchError(research.title, comparison.mismatchedDays, comparison.maxDiffMinutes);
-      }
-      hoursVerification = { checked: true, ...comparison };
-      console.log(`${label} [営業時間検証] Places APIと一致しました。`);
-    } else {
-      console.warn(`${label} [営業時間検証] Places APIから営業時間を取得できず、照合をスキップしました。`);
-    }
-  }
-
-  // regularHolidayに「不定休」を含む店は isIrregular: true を明示的に立てる。
-  // hoursは（不定休のため）通常はundefinedのままだが、サイト内の営業中
-  // カウント・提灯表示・路地マップの点灯に含めたい場合は、bar-keywest.mdの
-  // ように運営者が手動でhoursを追加できる（isIrregular: trueとhoursの併用は
-  // 意図的な例外として許容。詳細はcontent.config.tsのコメント参照）。
-  const isIrregular = isIrregularHoliday(research.regularHoliday);
+  // parseOpenHoursToHours/compareHoursWithGoogleはこの自動生成パイプライン
+  // からは呼ばなくなったが、--backfill-hours等の手動運用で引き続き使うため
+  // 削除していない。
   // budgetから予算の下限・上限を決定論的に導出する（LLM不使用）。
   // 抽出できなければundefinedのまま保存する（scripts/lib/budgetParser.ts）。
   const budgetRange = parseBudgetRange(research.budget);
@@ -894,13 +854,13 @@ async function runQaAgent(
     budget: research.budget,
     budgetMin: budgetRange.min,
     budgetMax: budgetRange.max,
-    openHours: research.openHours,
-    regularHoliday: research.regularHoliday,
+    openHours: FALLBACK_HOURS_TEXT,
+    regularHoliday: FALLBACK_HOURS_TEXT,
     vibes: research.vibes,
     isNew: research.isNew,
     establishedYear: research.establishedYear,
-    hours: hoursResult.hours,
-    isIrregular: isIrregular || undefined,
+    hours: undefined,
+    isIrregular: undefined,
     socialLinks: socialLinkResult.accepted.length > 0 ? socialLinkResult.accepted : undefined,
     description: writer.description,
     pubDate: todayInTokyo(),
@@ -918,16 +878,9 @@ async function runQaAgent(
     console.warn(`${label} genre "${fm.genre}" は既定リスト外ですが、そのまま採用します。`);
   }
 
-  if (fm.hours) {
-    console.log(`${label} 営業時間(hours)を自動導出しました: ${JSON.stringify(fm.hours)}`);
-  } else {
-    console.warn(
-      `${label} 営業時間(hours)を自動導出できませんでした（${hoursResult.reason}）。hoursは未設定（サイト上はunknown表示）のまま保存します。`
-    );
-  }
-  if (fm.isIrregular) {
-    console.log(`${label} 不定休と判定したため isIrregular: true を設定しました。`);
-  }
+  console.log(
+    `${label} 営業時間・定休日は収集対象外のため「${FALLBACK_HOURS_TEXT}」表示で保存します（詳細ページはLivePlaceHours.astroのライブ取得で正しい情報に置き換わります）。`
+  );
   if (fm.establishedYear !== undefined) {
     console.log(`${label} 開業年を採用しました: ${fm.establishedYear}年`);
   }
@@ -986,7 +939,7 @@ async function runQaAgent(
   await writeFile(filePath, frontmatter + writer.body.trim() + '\n', 'utf-8');
 
   console.log(`${label} 完了。保存しました: ${path.relative(process.cwd(), filePath)}`);
-  return { filePath, hoursDerived: Boolean(fm.hours), hoursReason: hoursResult.reason, hoursVerification };
+  return { filePath };
 }
 
 // ============================================================
@@ -1928,15 +1881,14 @@ async function main() {
       ? `- 参考ヒントのうち営業状況を確認できなかった店（要手動確認）: ${Array.from(unconfirmedHintStores).join('、')}`
       : null;
 
-  // Grounding引用0件・出典なし多数・Place ID未解決・営業時間の乖離により
-  // 見送った店舗名（全試行分の集計）。集計だけでなく「どの店で何が起きたか」を
-  // Job Summaryに残す（試行内訳のカウントだけでは店名が分からず、後から
-  // 追跡できないため）。
+  // Grounding引用0件・出典なし多数・Place ID未解決により見送った店舗名
+  // （全試行分の集計）。集計だけでなく「どの店で何が起きたか」をJob Summary
+  // に残す（試行内訳のカウントだけでは店名が分からず、後から追跡できない
+  // ため）。
   const ungroundedResearchStores: string[] = [];
   const unsourcedClaimsStores: { name: string; unsourcedCount: number; totalClaims: number; statements: string[] }[] =
     [];
   const placeIdUnresolvedStores: string[] = [];
-  const hoursMismatchStores: { name: string; mismatchedDays: string[]; maxDiffMinutes: number }[] = [];
   const ungroundedResearchLines = (): string[] =>
     ungroundedResearchStores.map((name) => `- ⚠️ Google検索の引用が0件のため見送りました（${name}）`);
   const unsourcedClaimsLines = (): string[] =>
@@ -1946,11 +1898,6 @@ async function main() {
     ]);
   const placeIdUnresolvedLines = (): string[] =>
     placeIdUnresolvedStores.map((name) => `- ⚠️ Place ID が解決できず見送りました（${name}）`);
-  const hoursMismatchLines = (): string[] =>
-    hoursMismatchStores.map(
-      ({ name, mismatchedDays, maxDiffMinutes }) =>
-        `- ⚠️ 営業時間の乖離により見送りました（${name}：${mismatchedDays.join('・')}、最大${maxDiffMinutes}分程度。Google Mapsで直接ご確認ください）`
-    );
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     console.log(`\n----- 試行 ${attempt}/${MAX_ATTEMPTS} -----`);
@@ -2023,11 +1970,11 @@ async function main() {
       // Agent2/Agent3はそれをそのまま記事化・公開してしまった。
       //
       // Grounding引用が0件は「Google検索ツール自体は使ったが、実在の検索
-      // 結果を参照した形跡が無い」ことを意味し、facts/vibes/openHours等の
+      // 結果を参照した形跡が無い」ことを意味し、facts/vibes等の
       // 内容がGeminiのパラメトリック記憶からの生成（ハルシネーション）で
-      // ある可能性を否定できない。この場合はPlaceIdUnresolvedError/
-      // HoursMismatchErrorと同様、記事を保存せず別の店舗をリトライする
-      // （notFoundと同種の「調査の質が基準に満たなかった」結果として扱う）。
+      // ある可能性を否定できない。この場合はPlaceIdUnresolvedErrorと同様、
+      // 記事を保存せず別の店舗をリトライする（notFoundと同種の「調査の質が
+      // 基準に満たなかった」結果として扱う）。
       if (research.groundingSourceCount === 0) {
         outcomes.push('ungroundedResearch');
         ungroundedResearchStores.push(research.title);
@@ -2062,11 +2009,7 @@ async function main() {
         continue;
       }
 
-      const { filePath, hoursDerived, hoursReason, hoursVerification } = await runQaAgent(
-        research,
-        writer,
-        existingSlugs
-      );
+      const { filePath } = await runQaAgent(research, writer, existingSlugs);
       outcomes.push('success');
 
       // 店舗記事の保存が成功した直後に、対応する公開お知らせを生成する。
@@ -2096,18 +2039,10 @@ async function main() {
         projectRoot: PROJECT_ROOT,
       });
 
-      const hoursLine = hoursDerived
-        ? '営業時間(hours): 自動導出しました'
-        : `営業時間(hours): 自動導出できませんでした（${hoursReason}）`;
-
-      // Places APIとの照合結果。乖離を検出した場合はHoursMismatchErrorとして
-      // 投げられ、この行に到達する時点ではhasMismatch: trueにはならない
-      // （checked: falseはhours未導出、またはPlace Details取得自体に失敗した
-      // 場合の非ブロッキングなケース）。値そのもの（Google側の実際の時刻）は
-      // 一切含めない（scripts/lib/hoursComparison.ts のコメント参照）。
-      const hoursVerificationLine = hoursVerification.checked
-        ? '営業時間の検証: Places APIと一致しました。'
-        : null;
+      // 営業時間・定休日はAgent1の調査対象外のため、常にFALLBACK_HOURS_TEXT
+      // （店舗詳細ページはLivePlaceHours.astroのライブ取得で正しい情報に
+      // 置き換わる。FALLBACK_HOURS_TEXTのコメント参照）。
+      const hoursLine = `営業時間(hours): 収集対象外のため「${FALLBACK_HOURS_TEXT}」表示で保存（詳細ページはライブ取得で補完）`;
 
       // 出典なしの記述は、ブロッキング閾値未満でも常にJob Summaryへ列挙する
       // （後から人手で確認できるようにするため。ユーザーとの合意事項）。
@@ -2126,7 +2061,6 @@ async function main() {
       console.log(` -> ${path.relative(process.cwd(), filePath)}`);
       console.log(` ${announcementSummaryLine(announcement)}`);
       console.log(` ${hoursLine}`);
-      if (hoursVerificationLine) console.log(` ${hoursVerificationLine}`);
       for (const line of sourceVerificationLines) console.log(` ${line}`);
       console.log('============================================================');
 
@@ -2139,14 +2073,12 @@ async function main() {
           `- ファイル: \`${path.relative(process.cwd(), filePath)}\``,
           `- ${announcementSummaryLine(announcement)}`,
           `- ${hoursLine}`,
-          hoursVerificationLine ? `- ${hoursVerificationLine}` : null,
           instagramMaterial.warning ? `- ⚠️ ${instagramMaterial.warning}` : null,
           `- 試行内訳: ${summarizeOutcomes(outcomes, OUTCOME_LABELS)}`,
           ...sourceVerificationLines,
           ...ungroundedResearchLines(),
           ...unsourcedClaimsLines(),
           ...placeIdUnresolvedLines(),
-          ...hoursMismatchLines(),
           unconfirmedHintLine(),
         ]
           .filter((line): line is string => line !== null)
@@ -2168,7 +2100,6 @@ async function main() {
             ...ungroundedResearchLines(),
             ...unsourcedClaimsLines(),
             ...placeIdUnresolvedLines(),
-            ...hoursMismatchLines(),
             unconfirmedHintLine(),
           ]
             .filter((line): line is string => line !== null)
@@ -2177,22 +2108,15 @@ async function main() {
         return;
       }
 
-      // Place ID未解決・営業時間の乖離は、notFound/duplicateと同じ「この候補は
-      // 見送り、別の店舗をリトライする」非致命的な結果として扱う。記事は
-      // 一切保存されていない（runQaAgentがwriteFileより前に投げている）。
+      // Place ID未解決は、notFound/duplicateと同じ「この候補は見送り、別の
+      // 店舗をリトライする」非致命的な結果として扱う。記事は一切保存されて
+      // いない（runQaAgentがwriteFileより前に投げている）。営業時間の乖離は
+      // 2026年9月以降、記事をブロックせず「店舗へ要確認」表示に差し替えて
+      // 保存するようになったため、ここには到達しない（FALLBACK_HOURS_TEXTの
+      // コメント参照）。
       if (err instanceof PlaceIdUnresolvedError) {
         outcomes.push('placeIdUnresolved');
         placeIdUnresolvedStores.push(err.storeName);
-        console.warn(`[generate-spot] ${err.message} 見送ってリトライします。`);
-        continue;
-      }
-      if (err instanceof HoursMismatchError) {
-        outcomes.push('hoursMismatch');
-        hoursMismatchStores.push({
-          name: err.storeName,
-          mismatchedDays: err.mismatchedDays,
-          maxDiffMinutes: err.maxDiffMinutes,
-        });
         console.warn(`[generate-spot] ${err.message} 見送ってリトライします。`);
         continue;
       }
@@ -2214,7 +2138,6 @@ async function main() {
             ...ungroundedResearchLines(),
             ...unsourcedClaimsLines(),
             ...placeIdUnresolvedLines(),
-            ...hoursMismatchLines(),
             unconfirmedHintLine(),
           ]
             .filter((line): line is string => line !== null)
@@ -2227,7 +2150,7 @@ async function main() {
   }
 
   // ここに到達するのは、MAX_ATTEMPTS回すべてが notFound・duplicate・
-  // placeIdUnresolved・hoursMismatch のいずれかでcontinueした場合のみ
+  // placeIdUnresolved のいずれかでcontinueした場合のみ
   // （最終試行がエラーだった場合は上のcatch内でthrow済みなのでここには
   // 来ない）。以前はこのケースが完全な無言終了（ログ無し・exitCode 0の
   // 緑チェックのみ）になっており、「成功しているのに記事が増えない」原因が
@@ -2252,7 +2175,6 @@ async function main() {
       ...ungroundedResearchLines(),
       ...unsourcedClaimsLines(),
       ...placeIdUnresolvedLines(),
-      ...hoursMismatchLines(),
       unconfirmedHintLine(),
       '',
       '_エラーではなく意図的なスキップです。次回の定期実行で再試行されます。_',

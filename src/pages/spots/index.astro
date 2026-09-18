@@ -486,6 +486,13 @@ const seatTypes = [
         let openOk = true;
         if (openActive) {
           const result = getOpenStatus(parseHours(card.dataset.hours));
+          // 営業時間unknown（未確認）の店は「今営業中」フィルターから除外する
+          // （Heroの営業中カウントが分母からunknownを除外するのと同じ考え方。
+          // src/pages/index.astro参照）。2026年9月、一時的に「除外しない」
+          // 方向へ変更したことがあったが、Agent1が営業時間を収集しなくなり
+          // 新規記事のhoursがほぼ全てunknownになる方針変更に伴い撤回した。
+          // unknownを含めると「今営業中」フィルターがほぼ全件を通してしまい
+          // 実質的に意味を失うため。
           openOk = result.state === 'open' || result.state === 'closing-soon';
         }
 
