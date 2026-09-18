@@ -7,8 +7,21 @@ placeId: "ChIJGV-KgUXi9F8RBZRrqZZ7LEU"
 budget: "￥1,000〜￥2,000"
 budgetMin: 1000
 budgetMax: 2000
-openHours: "店舗へ要確認"
-regularHoliday: "店舗へ要確認"
+openHours: "月・火・木・金 11:00〜14:00、17:00〜20:30／土 11:00〜20:30／日 11:00〜20:00"
+regularHoliday: "水曜日"
+hours:
+  - days: [1, 2, 4, 5]
+    open: "11:00"
+    close: "14:00"
+  - days: [1, 2, 4, 5]
+    open: "17:00"
+    close: "20:30"
+  - days: [6]
+    open: "11:00"
+    close: "20:30"
+  - days: [0]
+    open: "11:00"
+    close: "20:00"
 vibes:
   - "1軒目におすすめ"
   - "老舗"

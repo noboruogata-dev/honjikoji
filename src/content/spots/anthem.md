@@ -10,6 +10,10 @@ budgetMax: 5000
 openHours: "20:00〜翌4:00"
 regularHoliday: "不定休"
 isIrregular: true
+hours:
+  - days: [0, 1, 2, 3, 4, 5, 6]
+    open: "20:00"
+    close: "28:00"
 vibes:
   - "カウンター席あり"
   - "深夜営業"
