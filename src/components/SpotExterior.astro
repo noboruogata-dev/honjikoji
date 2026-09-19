@@ -1,0 +1,83 @@
+---
+// src/components/SpotExterior.astro
+//
+// 店舗の外観イラスト（線画スケッチ、灯りだけ黄色。keyvisualと同じ画風）を
+// タイトル下に表示する。public/images/spots/<slug>.png が実在する店舗だけ
+// 表示し（scripts/prepare-spot-exterior.tsが用意。無い店舗は黙って非表示、
+// src/lib/ogpImagePath.tsと同じ「実在チェック→フォールバック」方式）、
+// まだイラストが無い店舗が大半でも詳細ページの見た目が崩れないようにする。
+//
+// 見た目の処理はsrc/pages/index.astroのHeroキービジュアル
+// （.keyvisual-fade/.keyvisual-bloom）と同じ考え方を、小さいインライン画像用に
+// 軽量化して踏襲する:
+// - .spot-exterior-fade: 縁を円形になだらかに透過させるmask（画像自体の
+//   余白は既に十分あるが、切り出し矩形の角が墨色背景に対して不自然に
+//   四角く見えるのを防ぐ）。brightness/contrastで、墨色背景の上で細い線
+//   （生成り色）が沈んで見えないよう底上げする。
+// - .spot-exterior-bloom: 同じ画像をもう1枚、絶対配置で重ねてぼかし、
+//   mix-blend-mode: screenで合成した「発光レイヤー」。screenは暗い色（線画・
+//   透明部分）にはほとんど作用せず、彩度の高い画素（窓の黄色）だけを
+//   持ち上げるため、結果として灯りの部分だけがにじんで光って見える
+//   （keyvisual-bloomのコメント参照。plain drop-shadowだと輪郭全体に均一な
+//   影が付くだけで「窓だけが灯る」効果にならないため、この二層構成を採用）。
+//   このページには画像は1枚だけなので、Hero側のようなモバイル向け軽量化
+//   （合成コストを避けるためのフォールバック）は行っていない。
+import { resolveSpotExteriorImage } from '../lib/spotExterior';
+
+interface Props {
+  slug: string;
+  title: string;
+}
+
+const { slug, title } = Astro.props;
+const src = resolveSpotExteriorImage(slug);
+---
+
+{
+  src && (
+    <div class="spot-exterior-wrap relative mx-auto mt-5 w-full max-w-[220px] sm:max-w-[280px]">
+      <img
+        src={src}
+        alt={`「${title}」の外観イラスト`}
+        width="800"
+        height="800"
+        loading="lazy"
+        decoding="async"
+        class="spot-exterior-fade relative h-auto w-full object-contain"
+      />
+      <img
+        src={src}
+        alt=""
+        aria-hidden="true"
+        width="800"
+        height="800"
+        loading="lazy"
+        decoding="async"
+        class="spot-exterior-bloom pointer-events-none absolute inset-0 h-auto w-full object-contain"
+      />
+    </div>
+  )
+}
+
+<style>
+  .spot-exterior-fade {
+    -webkit-mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 68%, transparent 100%);
+    mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 68%, transparent 100%);
+    filter:
+      brightness(1.15) contrast(1.08)
+      drop-shadow(0 0 4px var(--glow))
+      drop-shadow(0 0 10px var(--glow));
+    transition: filter 0.6s ease;
+  }
+
+  .spot-exterior-bloom {
+    --se-bloom-saturate: 1.7;
+    --se-bloom-brightness: 1.3;
+    --se-bloom-blur: 5px;
+    --se-bloom-opacity: 0.5;
+    filter: saturate(var(--se-bloom-saturate)) brightness(var(--se-bloom-brightness)) blur(var(--se-bloom-blur));
+    mix-blend-mode: screen;
+    opacity: var(--se-bloom-opacity);
+    transition: opacity 0.6s ease;
+  }
+</style>

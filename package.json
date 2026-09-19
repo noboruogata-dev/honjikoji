@@ -23,6 +23,7 @@
     "instagram:draft": "tsx scripts/instagram-draft.ts",
     "match:youtube": "tsx scripts/match-youtube.ts",
     "spots:missing-hours": "tsx scripts/spots-missing-hours.ts",
+    "spots:exterior": "tsx scripts/prepare-spot-exterior.ts",
     "test": "vitest run"
   },
   "dependencies": {
