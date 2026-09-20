@@ -152,6 +152,30 @@ const writerResponseSchema = {
   required: ['title', 'summary', 'body', 'usedClaimIds', 'disclaimer'],
 };
 
+// 出力させたいJSONの完全な形を、フィールド値自体に「何を書くか」の説明を
+// 埋め込んだ実例として示す（構造化出力を使わない以上、プロンプトの散文的な
+// 指示だけではtopic/angleのようなフィールド名自体が抜け落ちる・sourceTypeの
+// 許容値が伝わらない、といった欠落が起きていたため。詳細はこの関数の下の
+// コメント、および generate-column.ts の failure investigation 参照）。
+// 値を「（〜を1文で。例: ...）」という指示文自体にしているのは、実在しそうな
+// 具体例をそのまま置くとモデルがコピーして使ってしまう事故を避けるため。
+const RESEARCH_JSON_EXAMPLE = `{
+  "notFound": false,
+  "topic": "（この回で扱う記事全体のテーマを1文で。例: 三条鍛冶の技と本寺小路の酒場文化）",
+  "slug": "sanjo-blacksmith-and-honjikoji-bars",
+  "angle": "（topicをどんな切り口・視点で書くかを1文で。例: 職人の道具への向き合い方から、夜の一杯を捉え直す）",
+  "claims": [
+    {
+      "id": "claim-1",
+      "statement": "（確認できた事実を1文で）",
+      "status": "verified",
+      "sourceTitle": "（出典ページのタイトル）",
+      "sourceUrl": "https://example.com/path-to-article",
+      "sourceType": "official"
+    }
+  ]
+}`;
+
 function researchPrompt(
   profile: ColumnProfile,
   topic: string | undefined,
@@ -172,6 +196,16 @@ function researchPrompt(
     profile.category === 'お酒の豆知識'
       ? '\n- 特定の酒蔵を扱う場合、その蔵の公式サイト、または新潟県酒造組合など一次情報で確認できた事実だけをclaimsに含める\n- 創業年・代表銘柄・受賞歴などの具体的な事実は、出典が確認できない限り一切含めない\n- 上記の裏付けが取れなければ、無理に代替の主張で埋めずnotFound=trueを返す'
       : '';
+  // fiction固有: 「実在店舗・実在人物の逸話を集めない」という制約が、他の
+  // kindのような「事実を調べてclaims化する」という型から外れさせ、
+  // status/sourceTypeの判定でモデルを迷わせていた（9/20失敗の実測ログ参照）。
+  // 「何が事実になり得て、何が事実にならないか」を明示することで迷いを消す:
+  // 創作（人物・店・出来事・セリフ）はそもそも事実ではないためclaims化しない、
+  // claimsに入るのは実在する街の一般的背景だけ、という線引きを固定する。
+  const kindRules =
+    profile.kind === 'fiction'
+      ? '\n- claimsに入れてよいのは、実在する街の一般的な背景事実（地名の由来、通りの歴史、街並みの一般的な様子など）だけ\n- 創作する人物・店・出来事・セリフは事実ではないため、claimsに一切含めない（架空の設定を裏付ける出典探しはしない）\n- 上記の背景事実の出典が、行政・公的機関ならsourceType="official"、それ以外の報道・観光サイト等の解説記事ならsourceType="secondary"とする\n- 該当する背景事実が無ければclaimsは空配列でよい（無理に埋めない）'
+      : '';
 
   return `あなたは本寺小路夜話のResearch Agentです。Google Search Groundingを使い、記事執筆前の事実台帳を作ってください。
 
@@ -182,22 +216,38 @@ ${requestedTopic}
 ${exclusions}
 ${provided}
 
-主張はclaimsへ1件ずつ分割し、次を厳守してください。
+出力するJSONは次の構造に厳密に従ってください（フィールド名・階層をこの通りにすること。値は書き方の説明であり、実際の内容に置き換えること）:
+
+${RESEARCH_JSON_EXAMPLE}
+
+各フィールドの意味:
+- topic: 記事全体のテーマを要約する1文。必ず文字列で埋める（省略不可）
+- slug: topicを英小文字とハイフンだけで表したもの
+- angle: topicをどんな切り口・視点で書くか。必ず文字列で埋める（省略不可）
+- claims: 主張を1件ずつ分割した配列。該当が無ければ空配列 []（キー自体は省略しない）
+
+claimsの各要素は次を厳守してください。
 - idはclaim-1、claim-2の連番
-- verified: 信頼できる一次資料、または独立した複数資料で確認できた
-- single-source: 1資料でのみ確認できた
-- oral-tradition: 郷土資料や聞き書きに「その伝承が存在する」と記録されている
-- unverified: 根拠を確認できない。記事本文では使用禁止
+- statusは次の4つの文字列のいずれかのみ。他の表記・日本語訳は禁止:
+  - "verified": 信頼できる一次資料、または独立した複数資料で確認できた
+  - "single-source": 1資料でのみ確認できた
+  - "oral-tradition": 郷土資料や聞き書きに「その伝承が存在する」と記録されている
+  - "unverified": 根拠を確認できない。記事本文では使用禁止
+- sourceTypeは次の4つの文字列のいずれかのみ。他の表記・日本語訳は禁止:
+  - "official": 行政・公的機関・業界団体（組合等）が発信する公式情報
+  - "primary": 当事者（店舗・企業・人物）本人が発信する一次情報（公式サイト等）
+  - "secondary": 報道・書籍・解説記事など、当事者以外の第三者がまとめた二次情報
+  - "provided": 運営者から提供された取材資料（kind=interviewのときだけ使用）
 - Web由来の主張はsourceTitle、sourceUrl、sourceTypeを必須にする
 - sourceUrlには、その記述を確認できる記事・資料ページを指定する。jpg/png等の画像ファイル直URLや、検索結果URLを出典にしない
 - 検索結果のスニペットだけを根拠にせず、参照先の内容を確認する
 - 「発祥」「最初」「唯一」などの強い断定は一次資料なしでverifiedにしない
 - 実在しない資料、URL、人物、店舗、出来事を作らない
-- ${profile.kind === 'fiction' ? '実在店舗・実在人物の逸話を集めない。街の一般的背景だけを調べる。' : '記事に使える具体的事実を集める。'}${categoryRules}
+- ${profile.kind === 'fiction' ? '実在店舗・実在人物の逸話を集めない。街の一般的背景だけを調べる。' : '記事に使える具体的事実を集める。'}${categoryRules}${kindRules}
 
 指定テーマに必要な根拠を得られない場合はnotFound=trueとし、claimsを空にしてください。
 根拠が得られた場合もnotFoundフィールド自体は省略せず、必ずfalseを明記してください。
-slugは英小文字とハイフンだけで作成してください。出力は指定スキーマに準拠したJSONだけにしてください。`;
+出力は上記の構造に厳密に従ったJSONオブジェクトだけにしてください。`;
 }
 
 function writerPrompt(profile: ColumnProfile, research: ColumnResearch): string {
@@ -258,7 +308,7 @@ async function runResearchAgent(
   });
   const result = columnResearchSchema.safeParse(parseJsonOrThrow(raw, label));
   if (!result.success) {
-    logZodIssues(result, label);
+    logZodIssues(result, label, raw);
     throw new Error('Agent1のJSONがスキーマに準拠していません。');
   }
   console.log(`${label} 完了。主張${result.data.claims.length}件を収集しました。`);
@@ -279,7 +329,7 @@ async function runWriterAgent(
   });
   const result = columnWriterSchema.safeParse(parseJsonOrThrow(raw, label));
   if (!result.success) {
-    logZodIssues(result, label);
+    logZodIssues(result, label, raw);
     throw new Error('Agent2のJSONがスキーマに準拠していません。');
   }
   console.log(`${label} 完了。本文${[...result.data.body].length}字。`);

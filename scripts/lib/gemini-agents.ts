@@ -348,11 +348,24 @@ export function parseJsonOrThrow(rawText: string, label: string): unknown {
   }
 }
 
-/** Zodの safeParse 失敗結果を整形してログ出力する。 */
-export function logZodIssues(result: { success: false; error: ZodError }, label: string) {
+/**
+ * Zodの safeParse 失敗結果を整形してログ出力する。
+ *
+ * rawText（省略可）を渡すと、違反したフィールド名だけでなく実際にモデルが
+ * 何を返したかも合わせて出力する。callGroundedJsonAgent はGrounding併用の
+ * 制約でresponseSchemaを使わず、JSON形状をプロンプト文面だけで指示している
+ * （scripts/lib/gemini-agents.ts の callGroundedJsonAgent コメント参照）ため、
+ * フィールド名の列挙だけでは「モデルがそもそも何を返したのか」が分からず
+ * 原因を切り分けられない。呼び出し側は取得済みの生レスポンス文字列を
+ * そのまま渡すこと。
+ */
+export function logZodIssues(result: { success: false; error: ZodError }, label: string, rawText?: string) {
   console.error(`${label} レスポンスがスキーマに準拠していません:`);
   for (const issue of result.error.issues) {
     console.error(`  - ${issue.path.join('.') || '(root)'}: ${issue.message}`);
+  }
+  if (rawText !== undefined) {
+    console.error(`${label} 生レスポンス:\n${rawText}`);
   }
 }
 
