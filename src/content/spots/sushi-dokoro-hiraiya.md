@@ -17,6 +17,8 @@ vibes:
   - "2次会・締めに最適"
 isNew: false
 establishedYear: 1861
+youtubeVideos:
+  - id: "j6fKHOx3kkk"
 description: "新潟県三条市の歓楽街・本寺小路に位置する「すし処 平井屋」は、文久元年創業の160年以上の歴史を誇る老舗です。伝統のクルミ入り太巻きや柔らかい穴子寿司、温かなおもてなしで締めや2次会にも最適です。"
 pubDate: 2026-09-22
 ---

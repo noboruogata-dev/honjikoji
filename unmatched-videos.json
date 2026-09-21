@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-20T23:04:11.571Z",
+  "generatedAt": "2026-09-21T23:15:32.880Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
@@ -11,15 +11,6 @@
       "store": null,
       "storeManual": "バード",
       "storeDisplay": "バード"
-    },
-    {
-      "videoId": "j6fKHOx3kkk",
-      "title": "すし処 平井屋（文久より150年以上続く老舗）【本寺小路】【燕三条TV】【新潟県三条市】",
-      "publishedAt": "2020-05-29T09:29:49Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "すし処 平井屋",
-      "storeDisplay": "すし処 平井屋"
     },
     {
       "videoId": "ko5xDh77z6Y",
