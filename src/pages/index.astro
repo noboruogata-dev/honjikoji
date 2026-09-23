@@ -220,32 +220,39 @@ const structuredData = [
       </div>
 
       <!--
-        パララックスの手前を流れる提灯。前回はkeyvisualの下端付近に小さく
-        静止して見えてしまっていた。原因は2つ:
-        (1) animation-rangeに cover を使っていた。Heroはページ最上部に
-            固定され、初回表示から既に画面内に収まっているため、
-            「下から入ってくる」covorの0%起点が実質的に無効化され、
-            スクロール0の時点で既に終盤の値（低い不透明度・移動済みの
-            位置）を指してしまっていた。band-heroのように常にページ最上部
-            にあるブロックには exit（＝これから画面外へ出ていく過程）を
-            使うのが正しく、スクロール0で必ずfrom側の値になる。
-        (2) 提灯を .hero-keyvisual-parallax の内側（＝キービジュアルの
-            狭い縦幅）に閉じ込めていたため、動ける範囲も小さすぎた。
-        ここではband-hero全体を覆うoverflow-hiddenのレイヤーとして
-        section直下に置き直し、画面下から上へ大きく（dvh単位で）
-        通り抜けさせる。overflow-hiddenでHeroの外には一切はみ出さない。
+        パララックスの手前を流れる提灯。「SPOTSセクションが画面に完全に
+        表示されたあたりから流れ始めてほしい」という指示を受け、band-hero
+        内に収まるabsoluteレイヤーから、position: fixed（ビューポート
+        固定）のオーバーレイに変更した。
+
+        理由: 起点をband-hero退出の終盤（exit 63〜100%あたり、後述の
+        <script>参照）まで遅らせると、その時点ではband-hero自身の実表示
+        領域が画面上端のごく一部（実測で数百px、スクロールが進むほど
+        0に近づく）まで縮んでいる。提灯をband-hero基準のabsoluteレイヤーに
+        閉じ込めたままだと、「画面中央を大きく通り過ぎる」という演出に
+        必要な描画スペースがそのタイミングにはもう残っていない
+        （中心付近に来るはずの瞬間には、コンテナごと画面外に押し出されて
+        見えなくなる）。position: fixed; inset: 0 にすることで、
+        コンテナ自体は常にビューポートいっぱいのまま保たれ、実際に画面に
+        SPOTSが表示されているタイミングでも中央を通り過ぎる動きが正しく
+        見える。overflow-hiddenは維持するため、はみ出しは常にビューポート
+        端で切れる（Heroの外＝SPOTSの領域が実際の表示先になる）。
+        z-30としてHeader（z-50、モバイルでsticky）・OmikujiButtonのFAB
+        （z-40）より下に置き、それらの上に被さらないようにしてある。
+
         JSのscrollイベントは使わず、band-hero自身のview-timeline
-        （下記<style>参照）だけで動く。6個で固定（描画負荷のため）。
-        サイズも視認できるよう26〜46pxに拡大した。
+        （下記<style>参照）だけで動く。band-heroのview-timelineは
+        コンポジタ駆動でスクロール量に依存しないため、fixedにしても
+        毎フレームのJS計算は増えない。6個で固定（描画負荷のため）。
         prefers-reduced-motion / @supports非対応環境ではopacity:0のまま
         （動きが前提の演出なので、動けないなら出さない）。
         animation-rangeはSSR時点では書かず、data-rel-start/data-rel-end
         （HERO_STREAM_LANTERNSのrelStart/relEnd）だけを持たせる。実際の
         %への変換は<script>のcalibrateLanternRanges()が起動時・resize時に
-        実ジオメトリから計算して書き込む（理由は上のHERO_STREAM_LANTERNS
-        定義部のコメント参照）。
+        実ジオメトリ（#spotsセクションが画面に完全に収まる区間）から
+        計算して書き込む（詳細はそちらのコメント参照）。
       -->
-      <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      <div class="pointer-events-none fixed inset-0 z-30 overflow-hidden" aria-hidden="true">
         {
           HERO_STREAM_LANTERNS.map((l) => (
             <div
@@ -762,38 +769,57 @@ const structuredData = [
   // 「ページ上部でほぼ一瞬に流れ切って見える」という実際の不具合報告
   // につながった。
   //
-  // 対策として、%を静的に決め打ちするのをやめ、「hero-status-wrapの
-  // 上端が画面上端に達する瞬間」「下端が画面上端を抜け切る瞬間」を
-  // その時点のwindow.innerHeightと実際の要素位置から直接exit進捗
-  // （0〜1）へ逆算し、HERO_STREAM_LANTERNSのrelStart/relEnd（この窓の
-  // 中での相対位置、0〜1）をその窓へ写像してanimation-rangeに反映する。
-  // ビューポート高がどんな値でも、hero-statusエリアが実際に画面から
-  // 消えていく間だけ提灯が流れるようになる。
+  // 対策として、%を静的に決め打ちするのをやめ、起点となる要素の実際の
+  // 表示位置をその時点のwindow.innerHeightから直接exit進捗（0〜1）へ
+  // 逆算し、HERO_STREAM_LANTERNSのrelStart/relEnd（この窓の中での相対
+  // 位置、0〜1）をその窓へ写像してanimation-rangeに反映する。
   //
-  // LEAD_VH_FRACTION / TRAIL_VH_FRACTION: hero-status-wrap自体の実高さ
-  // （上端〜下端）だけを窓にすると絶対px幅が狭く（実測200px前後）、
-  // 「もっとゆっくり長い時間提灯を出したい」という要望に対して短すぎた。
-  // 窓の前後にビューポート高に比例した余白を足すことで、hero-statusが
-  // まだ画面内にあるうち（早め）から流れ始め、完全に消えた後も少し
-  // 余韻が残る、ゆったりした尺に広げている。vh比例にしているのは、
-  // 固定pxだとまた同じ「ビューポート高で体感が変わる」問題を再発させて
-  // しまうため（この関数冒頭のコメント参照）。
-  const LEAD_VH_FRACTION = 0.6;
-  const TRAIL_VH_FRACTION = 0.35;
+  // 起点は#spots（新着店舗セクション）が画面に完全に収まる区間。
+  // Playwrightでの実測（1280x800〜1920x1080のPC、360x740〜390x844の
+  // モバイル）で、#spotsの実高さ（506〜556px）は検証した全ビューポートで
+  // 画面の高さを下回ることを確認済みなので、「#spots全体が画面に収まる
+  // scrollY区間」＝spots.bottom - vh 〜 spots.top が必ず存在する。この
+  // 区間はband-hero自身のexit進捗47%〜100%（ビューポートが低いほど遅く、
+  // 高いほど早く始まる）に収まることも確認済みで、band-hero自身の
+  // --hero-scrollタイムラインだけで表現できる（＝#spots自体に別の
+  // view-timelineを張る必要がない）。
+  //
+  // なお「ページ最上部に固定されていない要素を基準にしたexit進捗は
+  // 終端に張り付く」という既知の制約（下記<style>コメント参照）は
+  // #spotsにも当てはまるため、#spots自体にview-timelineを張る案（＝
+  // タイムラインの参照元を変える案）は採用していない。band-hero基準の
+  // exit進捗の中に、#spotsが完全に見える区間がちょうど収まっている、
+  // という関係を利用しているだけで、参照元はband-heroのまま変えていない。
+  //
+  // spots.top（=band-heroの下端）を超える側（SPOTSがさらに上へスクロール
+  // されていく間）は、band-hero自身のexitがそこで100%に達して頭打ちに
+  // なるため、この仕組みで表現できる範囲の限界でもある。ただし
+  // relEnd（HERO_STREAM_LANTERNSで最大0.78）はどの提灯もこの窓の終端
+  // 手前で0%まで消灯し終える設計なので、実害はない。
+  //
+  // SPOTS_LEAD_VH_FRACTION: 起点をspots.bottom - vh（#spotsが完全に画面に
+  // 収まる最初の瞬間）ちょうどにすると、透明度0からの立ち上がりが硬い
+  // 切り替わりに見えるため、その少し手前からゆるやかに始まるよう
+  // ビューポート高に比例した余白を設けている（固定pxではなくvh比例な
+  // のは、固定pxだと「ビューポート高で体感が変わる」問題を再発させる
+  // ため。上のコメント参照）。TRAIL側は今のところ余白なし
+  // （windowEndは自然にspots.top=exit 100%が上限になるため、これ以上
+  // 後ろへずらしても頭打ちで変化しない）。
+  const SPOTS_LEAD_VH_FRACTION = 0.15;
 
   let lanternResizeHandler: (() => void) | undefined;
 
   function calibrateLanternRanges() {
     if (!window.CSS?.supports?.('animation-timeline: view()')) return;
     const bandHero = document.querySelector<HTMLElement>('.band-hero');
-    const wrap = document.querySelector<HTMLElement>('.hero-status-wrap');
+    const spots = document.querySelector<HTMLElement>('#spots');
     const lanterns = document.querySelectorAll<HTMLElement>('.hero-lantern-stream');
-    if (!bandHero || !wrap || lanterns.length === 0) return;
+    if (!bandHero || !spots || lanterns.length === 0) return;
 
     const vh = window.innerHeight;
     const scrollY = window.scrollY;
     const heroRect = bandHero.getBoundingClientRect();
-    const wrapRect = wrap.getBoundingClientRect();
+    const spotsRect = spots.getBoundingClientRect();
 
     // band-heroのexit 100%地点（下端が画面上端を抜け切るスクロール位置）の
     // ドキュメント座標。exit 0%はここからvhだけ手前（exit全体の消費量が
@@ -801,8 +827,11 @@ const structuredData = [
     const exitEndDocY = heroRect.bottom + scrollY;
     const progressAt = (docY: number) => Math.min(1, Math.max(0, (docY - exitEndDocY) / vh + 1));
 
-    const windowStart = progressAt(wrapRect.top + scrollY - vh * LEAD_VH_FRACTION) * 100;
-    const windowEnd = progressAt(wrapRect.bottom + scrollY + vh * TRAIL_VH_FRACTION) * 100;
+    // #spotsが画面に完全に収まる最初の瞬間（spots.bottom - vh）の少し
+    // 手前から、#spotsの上端がexit 100%（=band-hero下端）に達するまで。
+    const spotsFullyVisibleAt = spotsRect.bottom + scrollY - vh;
+    const windowStart = progressAt(spotsFullyVisibleAt - vh * SPOTS_LEAD_VH_FRACTION) * 100;
+    const windowEnd = progressAt(spotsRect.top + scrollY) * 100;
     const span = windowEnd - windowStart;
 
     lanterns.forEach((el) => {
@@ -854,22 +883,25 @@ const structuredData = [
     キービジュアル自身のパララックス（hero-kv-drift、デスクトップのみ）
     と提灯（hero-lantern-stream）の両方がこれを参照する。
 
-    提灯の起点は「キービジュアルではなく、灯りがついている店エリア
-    （hero-status）に対して掛けたい」という指示のもの。当初はhero-status
-    だけを包む小さいdiv（hero-status-wrap）に別途 view-timeline
-    （--status-scroll）を張る案を試したが、Playwrightでの実測で
-    「ページ最上部に固定されていない要素を基準にしたexit進捗は、
+    提灯の起点は「#spots（新着店舗セクション）が画面に完全に表示された
+    あたりから流れ始めたい」という指示のもの。当初、band-hero内の
+    hero-statusエリアだけを包む小さいdiv（hero-status-wrap）に別途
+    view-timeline（--status-scroll）を張る案を試したが、Playwrightでの
+    実測で「ページ最上部に固定されていない要素を基準にしたexit進捗は、
     スクロール量に関わらず終端値に張り付いたまま変化しない」という
     挙動に当たり断念した（band-heroのようにページ最上部固定の要素だけが
-    exitで正しく動く模様）。そのため、hero-status-wrap自体をband-hero
-    セクションの内側（DOM上も）に移し、band-hero自身の実績ある
-    --hero-scrollタイムラインをそのまま使う形にした。band-heroの実高さが
-    hero-statusぶん伸びるため、exit進捗の基準となる範囲も自動的に
-    「hero-statusが画面外へ出るあたり」まで含むようになり、別
-    タイムラインを新設しなくても狙った起点に近づけられる。提灯ごとの
-    rangeStart/rangeEnd（HERO_STREAM_LANTERNS）は、この伸びたexit範囲上で
-    hero-statusが画面から見え始める/消え始めるタイミングを実測して
-    キャリブレーションしてある。
+    exitで正しく動く模様）。#spots自体も同じくページ最上部に固定されて
+    いないため、同じ理由でタイムラインの参照元にはできない。
+    そのため、band-hero自身の実績ある--hero-scrollタイムラインは変えず、
+    「#spotsが画面に完全に収まる区間」がband-hero自身のexit進捗の
+    どのあたりに収まるかを実ジオメトリから逆算する方式にした（詳細は
+    <script>のcalibrateLanternRanges()コメント参照）。band-heroの下端と
+    #spotsの上端は隙間なく接しているため、#spotsの実高さがビューポート
+    高を下回りさえすれば「#spotsが完全に画面内」となる区間は必ず
+    band-hero自身のexit 0%〜100%の中に収まる（実測ではPC・モバイルとも
+    exit 47%〜100%あたり）。提灯ごとのrangeStart/rangeEnd
+    （HERO_STREAM_LANTERNS）は、この区間上で#spotsが画面に見え始める/
+    完全に収まるタイミングを実測してキャリブレーションしてある。
 
     animation-rangeはexit 0%〜exit 100%を使う（coverではない）。
     band-heroは他のセクションの上に積み上がったブロックだが、ページ

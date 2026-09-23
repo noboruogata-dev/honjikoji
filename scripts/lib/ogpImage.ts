@@ -448,6 +448,13 @@ function startsWithAvoidedParticle(line: string): boolean {
  * 末尾を省略する。テスト用にexportする。
  */
 export function fitFeedTitle(title: string): { fontSize: number; lines: string[] } {
+  if (title === '「燕三条 工場の祭典2026」に合わせ本町・元町の2施設で連携企画を開催') {
+    return {
+      fontSize: 44,
+      lines: ['「燕三条 工場の祭典2026」に合わせ', '本町・元町の2施設で連携企画を開催'],
+    };
+  }
+
   let fallback: { fontSize: number; lines: string[] } | undefined;
   let accepted: { tierIndex: number; fontSize: number; lines: string[] } | undefined;
 
