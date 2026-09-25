@@ -67,6 +67,7 @@ const spots = defineCollection({
         z.object({
           id: z.string().regex(/^[A-Za-z0-9_-]{11}$/), // YouTube動画ID
           label: z.string().optional(), // 「旧店舗」「新店舗」等の補足
+          start: z.number().int().nonnegative().optional(), // 再生開始位置（秒）。複数店舗をまとめた動画用
         })
       )
       .optional(),
