@@ -226,7 +226,7 @@ const socialPlatformLabels = {
                   {video.label && (
                     <p class="mb-2 text-xs font-medium tracking-wide text-amber-glow">{video.label}</p>
                   )}
-                  <YouTubeEmbed videoId={video.id} storeName={title} label={video.label} />
+                  <YouTubeEmbed videoId={video.id} storeName={title} label={video.label} start={video.start} />
                 </div>
               ))}
             </div>

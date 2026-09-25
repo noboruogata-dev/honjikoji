@@ -10,10 +10,12 @@ interface Props {
   storeName: string;
   /** 複数動画がある場合の補足（例: "旧店舗"）。あれば aria-label にも含める。 */
   label?: string;
+  /** 再生開始位置（秒）。 */
+  start?: number;
   class?: string;
 }
 
-const { videoId, storeName, label, class: className = '' } = Astro.props;
+const { videoId, storeName, label, start, class: className = '' } = Astro.props;
 
 const thumbnailSrc = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 const playLabel = `${storeName}${label ? `（${label}）` : ''}の紹介動画を再生`;
@@ -26,6 +28,7 @@ const playLabel = `${storeName}${label ? `（${label}）` : ''}の紹介動画�
   ]}
   data-yt-lite
   data-video-id={videoId}
+  data-start={start}
 >
   <img
     src={thumbnailSrc}
@@ -65,7 +68,7 @@ const playLabel = `${storeName}${label ? `（${label}）` : ''}の紹介動画�
         if (!videoId) return;
 
         const iframe = document.createElement('iframe');
-        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1${container.dataset.start ? `&start=${container.dataset.start}` : ''}`;
         iframe.title = button.getAttribute('aria-label') ?? '';
         iframe.className = 'absolute inset-0 h-full w-full';
         iframe.setAttribute('frameborder', '0');
