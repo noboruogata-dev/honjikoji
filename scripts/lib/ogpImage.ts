@@ -298,7 +298,9 @@ function tokenizeForWrap(title: string): WrapToken[] {
  * テスト用にexportする。
  */
 export function wrapJapaneseTitle(title: string, maxCharsPerLine: number): string[] {
-  const PREFERRED_BREAK_AFTER = /[。！？、」』）]/;
+  // 空白（半角・全角）も優先的な改行位置にする（「酒采とお食事 どっぽ」が
+  // 「…どっ」「ぽ」と1文字だけ取り残されて折り返された不具合の対策）。
+  const PREFERRED_BREAK_AFTER = /[。！？、」』）\s　]/;
   const AVOID_BREAK_AFTER = /[とのでを]/;
   const FORBIDDEN_LINE_START = /[。！？、」』）]/;
   const CLOSING_BRACKET = /[」』）]/;
@@ -385,6 +387,7 @@ export function wrapJapaneseTitle(title: string, maxCharsPerLine: number): strin
         .slice(lineStart, breakAt)
         .map((t) => t.text)
         .join('')
+        .trimEnd()
     );
     lineStart = breakAt;
   }
