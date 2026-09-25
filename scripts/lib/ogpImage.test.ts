@@ -116,3 +116,9 @@ describe('fitFeedTitle', () => {
     expect(result.fontSize).toBe(44);
   });
 });
+
+describe('wrapJapaneseTitle（空白での改行）', () => {
+  it('空白を優先的な改行位置にし、末尾に1文字だけ取り残さない', () => {
+    expect(wrapJapaneseTitle('酒采とお食事 どっぽ', 9)).toEqual(['酒采とお食事', 'どっぽ']);
+  });
+});
