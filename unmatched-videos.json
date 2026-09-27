@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-24T23:15:28.968Z",
+  "generatedAt": "2026-09-27T23:04:03.176Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
@@ -83,15 +83,6 @@
       "store": null,
       "storeManual": "酒肴家  武",
       "storeDisplay": "酒肴家  武"
-    },
-    {
-      "videoId": "l2zFDbhXZ8Q",
-      "title": "独歩（深夜に味わう燕三条背脂）〆に背脂ラーメンを食べられる唯一無二の店！【本寺小路】【燕三条TV】",
-      "publishedAt": "2022-10-28T09:14:12Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "独歩",
-      "storeDisplay": "独歩"
     },
     {
       "videoId": "b_eTJURz5Nc",
