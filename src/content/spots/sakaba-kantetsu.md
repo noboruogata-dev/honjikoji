@@ -22,6 +22,8 @@ socialLinks:
     url: "https://www.instagram.com/new_kantetsu/"
   - platform: "facebook"
     url: "https://www.facebook.com/kantetsusanjo"
+youtubeVideos:
+  - id: "t7O9IvMvWPo"
 description: "三条市の本寺小路・本町エリアで親しまれる「酒場カンテツ」。名物のサバサラをはじめ趣向を凝らした料理と名物ドリンク「金魚」が楽しめます。コの字カウンターの温かい店内で1軒目から締めまで幅広く利用できます。"
 pubDate: 2026-09-29
 ---
