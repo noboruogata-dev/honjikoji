@@ -601,16 +601,38 @@ const structuredData = [
     return row;
   }
 
+  // Hero上部の主CTA「灯りを探しに行く →」（アウトライン丸ボタン、
+  // 上のtemplate側を参照）と同じ意匠に揃える。以前はただの下線付き
+  // テキストリンクで、暗い背景の中に埋もれて目立たなかったため。
   function buildLinkWithArrow(href: string, label: string): HTMLAnchorElement {
     const link = document.createElement('a');
     link.href = href;
     link.className =
-      'group mt-4 inline-flex items-center gap-1 text-sm font-medium text-amber-glow underline-offset-4 transition hover:text-amber-glow/80 hover:underline';
+      'group mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-100/35 bg-night-950/20 px-5 py-2.5 text-sm font-semibold text-amber-glow transition hover:border-amber-glow/70 hover:underline hover:underline-offset-4';
     const linkLabel = document.createElement('span');
     linkLabel.textContent = label;
-    const arrow = document.createElement('span');
-    arrow.className = 'inline-block transition-transform duration-150 group-hover:translate-x-1';
-    arrow.textContent = '→';
+    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    arrow.setAttribute('viewBox', '0 0 24 24');
+    arrow.setAttribute('width', '16');
+    arrow.setAttribute('height', '16');
+    arrow.setAttribute('fill', 'none');
+    arrow.setAttribute('stroke', 'currentColor');
+    arrow.setAttribute('stroke-width', '2.25');
+    arrow.setAttribute('stroke-linecap', 'round');
+    arrow.setAttribute('stroke-linejoin', 'round');
+    arrow.setAttribute('aria-hidden', 'true');
+    arrow.classList.add(
+      'shrink-0',
+      'transition-transform',
+      'duration-150',
+      'group-hover:translate-x-1',
+      'motion-reduce:transform-none'
+    );
+    const arrowLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    arrowLine.setAttribute('d', 'M5 12h14');
+    const arrowHead = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    arrowHead.setAttribute('d', 'm12 5 7 7-7 7');
+    arrow.append(arrowLine, arrowHead);
     link.append(linkLabel, arrow);
     return link;
   }
