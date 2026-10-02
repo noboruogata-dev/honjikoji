@@ -7,8 +7,8 @@ placeId: "ChIJe0OMWmnj9F8RI-acwErt74A"
 budget: "￥4,000〜￥6,000"
 budgetMin: 4000
 budgetMax: 6000
-openHours: "店舗へ要確認"
-regularHoliday: "店舗へ要確認"
+openHours: "Lunch 11:30〜14:00（要予約・2と7のつく日は休み）、Dinner 18:00〜23:00"
+regularHoliday: "不定休"
 vibes:
   - "1軒目におすすめ"
   - "2次会・締めに最適"
