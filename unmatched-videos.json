@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T23:15:32.455Z",
+  "generatedAt": "2026-10-02T02:05:59.312Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
@@ -49,15 +49,6 @@
       "storeDisplay": "粋酔亭"
     },
     {
-      "videoId": "XN3kq_1podo",
-      "title": "スタミナ料理焼肉ホルモン ニュー大丸（秘伝の味噌ダレで食べるホルモン最強説！）【本寺小路】【燕三条TV】【新潟県三条市】",
-      "publishedAt": "2021-02-02T09:15:24Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "ニュー大丸",
-      "storeDisplay": "ニュー大丸"
-    },
-    {
       "videoId": "C-gbb1UUzoM",
       "title": "飲みの後に蕎麦で〆られる貴重な店『蕎麦割烹 麦』【本寺小路】【新潟県三条市】【燕三条TV】",
       "publishedAt": "2021-03-01T09:48:49Z",
@@ -65,24 +56,6 @@
       "store": null,
       "storeManual": "蕎麦割烹 麦",
       "storeDisplay": "蕎麦割烹 麦"
-    },
-    {
-      "videoId": "LZabXkPdAp0",
-      "title": "【燕三条TV】酒肴家  武（クジラから半殺し？のイカ料理まで圧倒的メニュー数を誇る本寺小路の居酒屋）【本寺小路】【新潟県三条市】",
-      "publishedAt": "2021-11-28T10:07:16Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "酒肴家  武",
-      "storeDisplay": "酒肴家  武"
-    },
-    {
-      "videoId": "b_eTJURz5Nc",
-      "title": "ワンオペで満卓もこなすコの字ファンタジスタの店、その名も”ニュー”【本寺小路】【新潟県三条市】【燕三条TV】",
-      "publishedAt": "2023-09-10T07:30:17Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "ニューカンテツ",
-      "storeDisplay": "ニューカンテツ"
     },
     {
       "videoId": "k9Z4CP4KFfM",
@@ -173,6 +146,15 @@
       "store": "朝から晩まで通しでお酒が飲める「コーヒー村」",
       "storeManual": "コーヒー村",
       "storeDisplay": "コーヒー村"
+    },
+    {
+      "videoId": "Qr1JB-iAL2o",
+      "title": "【燕三条TV】極上のジンギスカンが食べれる店「もつ焼 多しろ」｜新潟県三条市",
+      "publishedAt": "2022-06-15T08:38:11Z",
+      "area": "sanjo",
+      "store": "極上のジンギスカンが食べれる店「もつ焼 多しろ」",
+      "storeManual": null,
+      "storeDisplay": "極上のジンギスカンが食べれる店「もつ焼 多しろ」"
     },
     {
       "videoId": "hXGbocxgz7I",

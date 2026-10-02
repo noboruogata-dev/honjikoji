@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T23:15:32.448Z",
+  "generatedAt": "2026-10-02T02:05:59.303Z",
   "channel": "@TsubameSanjoTV",
   "candidates": [
     {
@@ -57,6 +57,24 @@
       "reason": "店名のごく一部（連続4文字、店名の50%）がタイトルに含まれる可能性"
     },
     {
+      "spotSlug": "new-kantetsu",
+      "spotTitle": "ニューカンテツ",
+      "videoId": "LZabXkPdAp0",
+      "videoTitle": "【燕三条TV】酒肴家  武（クジラから半殺し？のイカ料理まで圧倒的メニュー数を誇る本寺小路の居酒屋）【本寺小路】【新潟県三条市】",
+      "publishedAt": "2021-11-28T10:07:16Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続3文字、店名の43%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "new-kantetsu",
+      "spotTitle": "ニューカンテツ",
+      "videoId": "XN3kq_1podo",
+      "videoTitle": "スタミナ料理焼肉ホルモン ニュー大丸（秘伝の味噌ダレで食べるホルモン最強説！）【本寺小路】【燕三条TV】【新潟県三条市】",
+      "publishedAt": "2021-02-02T09:15:24Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続3文字、店名の43%）がタイトルに含まれる可能性"
+    },
+    {
       "spotSlug": "oden-bar-yorusakura",
       "spotTitle": "ヨルサクラ",
       "videoId": "qoQCI2G_j0k",
@@ -82,24 +100,6 @@
       "publishedAt": "2021-01-03T09:35:49Z",
       "confidence": "low",
       "reason": "店名のごく一部（連続2文字、店名の40%）がタイトルに含まれる可能性"
-    },
-    {
-      "spotSlug": "new-kantetsu",
-      "spotTitle": "ニューカンテツ",
-      "videoId": "qoQCI2G_j0k",
-      "videoTitle": "女性バーテンダーによる日本一のカクテルが飲めるBAR！ラスティーズセカンド【本寺小路】【燕三条TV】｜新潟県三条市",
-      "publishedAt": "2023-06-06T09:17:58Z",
-      "confidence": "low",
-      "reason": "店名のごく一部（連続2文字、店名の50%）がタイトルに含まれる可能性"
-    },
-    {
-      "spotSlug": "new-kantetsu",
-      "spotTitle": "ニューカンテツ",
-      "videoId": "Qr1JB-iAL2o",
-      "videoTitle": "【燕三条TV】極上のジンギスカンが食べれる店「もつ焼 多しろ」｜新潟県三条市",
-      "publishedAt": "2022-06-15T08:38:11Z",
-      "confidence": "low",
-      "reason": "店名のごく一部（連続2文字、店名の50%）がタイトルに含まれる可能性"
     }
   ]
 }
