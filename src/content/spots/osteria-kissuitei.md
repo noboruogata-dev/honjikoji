@@ -16,6 +16,8 @@ vibes:
   - "イタリアン居酒屋"
   - "隠れ家"
 isNew: true
+youtubeVideos:
+  - id: "bwEV7Lj81Eo"
 description: "本寺小路で25年以上愛されるイタリアン居酒屋「Osteria Kissui tei」が移転リニューアル。落ち着いた隠れ家空間で、人気のゴルゴンゾーラパスタやボトルワインを1軒目から2次会まで楽しめます。"
 pubDate: 2026-10-02
 ---
