@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T02:05:59.312Z",
+  "generatedAt": "2026-10-05T01:25:31.839Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
@@ -38,15 +38,6 @@
       "store": null,
       "storeManual": "鳥正",
       "storeDisplay": "鳥正"
-    },
-    {
-      "videoId": "bwEV7Lj81Eo",
-      "title": "粋酔亭｜本格的イタリアンが食べられるお店【本寺小路】【燕三条TV】【新潟県三条市】",
-      "publishedAt": "2020-11-20T03:34:55Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "粋酔亭",
-      "storeDisplay": "粋酔亭"
     },
     {
       "videoId": "C-gbb1UUzoM",
