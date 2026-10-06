@@ -2,6 +2,7 @@
 // ニュース一覧の1件。スマホでは日付・分類とタイトルを2段で見せる。
 import { BookOpenText, MapPin } from '@lucide/astro';
 import type { CollectionEntry } from 'astro:content';
+import EventStatus from './EventStatus.astro';
 
 interface Props {
   item: CollectionEntry<'news'>;
@@ -41,6 +42,7 @@ const href = `/news/${item.id}/`;
       >
         {item.data.category}
       </span>
+      {item.data.eventEndDate && <EventStatus endDate={item.data.eventEndDate} />}
     </span>
     <span class="mt-1 block line-clamp-2 text-sm font-medium leading-6 text-gold-100 transition hover:text-amber-glow sm:mt-0 sm:line-clamp-1">
       {item.data.title}

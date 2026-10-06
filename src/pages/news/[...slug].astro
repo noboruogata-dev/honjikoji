@@ -5,6 +5,7 @@ import Footer from '../../components/Footer.astro';
 import Prose from '../../components/Prose.astro';
 import StructuredData from '../../components/StructuredData.astro';
 import ShareButton from '../../components/ShareButton.astro';
+import EventStatus from '../../components/EventStatus.astro';
 import { getCollection, getEntry, render } from 'astro:content';
 import { ArrowRight, Megaphone } from '@lucide/astro';
 import { resolveOgpImage } from '../../lib/ogpImagePath';
@@ -18,7 +19,7 @@ export async function getStaticPaths() {
 }
 
 const { item } = Astro.props;
-const { title, pubDate, category, summary, relatedSpotSlug, relatedColumnSlug } = item.data;
+const { title, pubDate, category, summary, eventEndDate, relatedSpotSlug, relatedColumnSlug } = item.data;
 const { Content } = await render(item);
 
 const relatedSpot = relatedSpotSlug ? await getEntry('spots', relatedSpotSlug) : undefined;
@@ -74,6 +75,7 @@ const structuredData = {
         <time class="text-gold-100/55" datetime={pubDate.toISOString().slice(0, 10)}>
           {pubDate.toISOString().slice(0, 10)}
         </time>
+        {eventEndDate && <EventStatus endDate={eventEndDate} />}
       </div>
 
       <h1 class="mt-3 font-serif text-2xl font-bold leading-snug text-gold-100 text-glow sm:text-3xl">
@@ -81,6 +83,7 @@ const structuredData = {
       </h1>
 
       <p class="mt-4 leading-relaxed text-gold-100/70">{summary}</p>
+      {eventEndDate && <EventStatus endDate={eventEndDate} variant="notice" />}
 
       <ShareButton title={title} url={canonicalUrl} class="mt-5" />
 

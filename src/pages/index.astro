@@ -9,6 +9,7 @@ import LanternIcon from '../components/illustrations/LanternIcon.astro';
 import AlleyNight from '../components/illustrations/AlleyNight.astro';
 import RuleDivider from '../components/RuleDivider.astro';
 import StructuredData from '../components/StructuredData.astro';
+import EventStatus from '../components/EventStatus.astro';
 import { getCollection } from 'astro:content';
 import { ArrowRight, MapPin } from '@lucide/astro';
 import { isRecentlyPublished } from '../lib/spotFreshness';
@@ -497,6 +498,7 @@ const structuredData = [
                   <time class="shrink-0 text-xs tabular-nums text-gold-100/40" datetime={item.data.pubDate.toISOString().slice(0, 10)}>
                     {item.data.pubDate.toISOString().slice(0, 10)}
                   </time>
+                  {item.data.eventEndDate && <EventStatus endDate={item.data.eventEndDate} />}
                   <a
                     href={`/news/${item.id}/`}
                     class="min-w-0 flex-1 truncate text-gold-100/70 underline-offset-4 transition hover:text-amber-glow hover:underline"
