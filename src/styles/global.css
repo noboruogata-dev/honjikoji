@@ -13,6 +13,11 @@
   --color-night-600: #383d5b;
   --color-night-500: #4f5580;
 
+  /* 一覧カードはトップの墨色グラデーションに合わせた、青みのない暖色の面にする。 */
+  --color-card-900: #261f1a;
+  --color-card-800: #332820;
+  --color-card-700: #574439;
+
   /* 提灯の光彩：アンバー（灯りの中心）と朱赤（提灯の紙・縁） */
   --color-amber-glow: #f2b544;
   --color-amber-deep: #c8862a;

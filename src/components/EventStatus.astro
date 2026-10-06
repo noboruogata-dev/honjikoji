@@ -1,0 +1,39 @@
+---
+interface Props {
+  endDate: string;
+  variant?: 'badge' | 'notice';
+}
+
+const { endDate, variant = 'badge' } = Astro.props;
+---
+
+{
+  variant === 'notice' ? (
+    <p data-event-status data-event-end={endDate} hidden class="mt-4 rounded-lg border border-gold-100/15 bg-night-800/60 px-4 py-3 text-sm leading-relaxed text-gold-100/75">
+      この記事で案内した開催日・期間は終了しています。内容は掲載当時の情報です。
+    </p>
+  ) : (
+    <span data-event-status data-event-end={endDate} hidden class="shrink-0 rounded-full border border-gold-100/25 px-2 py-0.5 text-xs font-medium text-gold-100/80">
+      開催終了
+    </span>
+  )
+}
+
+<script>
+  // 静的サイトでも日付を越えた時点で表示が切り替わるよう、閲覧時の日本時間で判定する。
+  function refreshEventStatuses() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date());
+    const part = (type: string) => parts.find((entry) => entry.type === type)?.value ?? '';
+    const today = `${part('year')}-${part('month')}-${part('day')}`;
+
+    document.querySelectorAll<HTMLElement>('[data-event-status]').forEach((element) => {
+      element.hidden = today <= (element.dataset.eventEnd ?? '');
+    });
+  }
+
+  refreshEventStatuses();
+  document.addEventListener('astro:page-load', refreshEventStatuses);
+  window.setInterval(refreshEventStatuses, 60_000);
+</script>

@@ -15,6 +15,7 @@ const pathname = Astro.url.pathname;
 
 const navLinks = [
   { href: '/spots/', label: '店を探す', active: pathname.startsWith('/spots') },
+  { href: '/guides/', label: 'テーマから探す', active: pathname.startsWith('/guides') },
   { href: '/about/', label: '本寺小路の歴史', active: pathname.startsWith('/about') },
   {
     href: '/columns/',

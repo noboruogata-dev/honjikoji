@@ -93,6 +93,9 @@ const news = defineCollection({
     title: z.string(),
     pubDate: z.coerce.date(),
     category: z.enum(['NEW SPOT', 'EVENT', 'NOTICE']),
+    // 開催期間の最終日。掲載日とは別に管理し、終了表示は翌日から出す。
+    // 日付を確認できたイベントだけ設定する（推測で補わない）。
+    eventEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     summary: z.string(),
     // 関連する店舗記事（src/content/spots/[slug].md）へのリンク用。
     relatedSpotSlug: z.string().optional(),

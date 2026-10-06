@@ -36,11 +36,11 @@ export default defineConfig({
 
   integrations: [
     sitemap({
-      // /columns/ は現在予告のみで実コンテンツが無いため、404ページとあわせて
-      // サイトマップから除外する。/guides/配下は該当店舗数が少ないページ
-      // （noindexGuidePaths）だけを除外する。
+      // 公開済みの夜話は一覧・記事ともサイトマップに含める。
+      // 下書きの夜話はgetStaticPathsで生成されないため、ここには現れない。
+      // 404ページと、該当店舗数が少ないガイドだけを除外する。
       filter: (page) =>
-        !page.includes('/columns/') && !page.includes('/404') && !noindexGuidePaths.some((path) => page.includes(path)),
+        !page.includes('/404') && !noindexGuidePaths.some((path) => page.includes(path)),
     }),
   ],
 });

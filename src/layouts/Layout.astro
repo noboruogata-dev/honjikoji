@@ -123,7 +123,7 @@ const absoluteOgImage = new URL(ogImage, siteOrigin).toString();
           const target = event.target;
           if (!(target instanceof Element)) return;
           const link = target.closest('a[href]');
-          if (!link || link.target === '_blank') return;
+          if (!(link instanceof HTMLAnchorElement) || link.target === '_blank') return;
           let url: URL;
           try {
             url = new URL(link.href, location.href);

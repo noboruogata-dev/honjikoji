@@ -1,6 +1,6 @@
 // ジャンル文字列 → アイコンPNG(public/images/icons/)のマップ。
-// PNG化されていないジャンル（割烹・小料理・立ち飲み等）はGenreIcon.astro側で
-// 既存のLucideアイコンにフォールバックする。ジャンル追加時はここに1行足すだけでよい。
+// PNG化されていないジャンルはGenreIcon.astro側で自前SVG（割烹系）か
+// Lucideアイコン（立ち飲み等）にフォールバックする。
 export const GENRE_ICON_MAP: Record<string, string> = {
   居酒屋: '/images/icons/icon-tokkuri.png',
   BAR: '/images/icons/icon-shaker.png',
