@@ -537,7 +537,7 @@ const structuredData = [
   interface Snapshot {
     hh: string;
     mm: string;
-    knownCount: number;
+    totalCount: number;
     openCount: number;
   }
 
@@ -558,14 +558,14 @@ const structuredData = [
     const hh = parts.find((p) => p.type === 'hour')?.value ?? '--';
     const mm = parts.find((p) => p.type === 'minute')?.value ?? '--';
 
-    // hours不明（未掲載）の店は分母から除外する。
+    // hours不明（未掲載）の店は営業中の判定から除外する。
     const known = hoursList.filter((h): h is HourRule[] => Array.isArray(h) && h.length > 0);
     const openCount = known.filter((h) => {
       const result = getOpenStatus(h, now);
       return result.state === 'open' || result.state === 'closing-soon';
     }).length;
 
-    return { hh, mm, knownCount: known.length, openCount };
+    return { hh, mm, totalCount: hoursList.length, openCount };
   }
 
   // 提灯を並べる上限。9個以上は8個並べて末尾に "+N" を添える。
@@ -637,11 +637,11 @@ const structuredData = [
     return link;
   }
 
-  function buildFootnote(): HTMLElement {
-    const footnote = document.createElement('p');
-    footnote.className = 'mt-4 text-[0.65rem] text-gold-100/30';
-    footnote.textContent = '※掲載されている営業時間をもとに表示';
-    return footnote;
+  function buildTotalNote(snapshot: Snapshot): HTMLElement {
+    const note = document.createElement('p');
+    note.className = 'mt-2 text-xs leading-relaxed text-gold-100/65';
+    note.textContent = `掲載店舗${snapshot.totalCount}店舗中`;
+    return note;
   }
 
   function buildEyebrow(): HTMLElement {
@@ -698,10 +698,10 @@ const structuredData = [
 
     const link = buildLinkWithArrow('/spots/?open=now', '今夜の店を見る');
 
-    return [buildEyebrow(), label, numberWrap, lanterns, time, link, buildFootnote()];
+    return [buildEyebrow(), label, numberWrap, buildTotalNote(snapshot), lanterns, time, link];
   }
 
-  function buildZeroState(): HTMLElement[] {
+  function buildZeroState(snapshot: Snapshot): HTMLElement[] {
     const lanternWrap = document.createElement('div');
     lanternWrap.className = 'mt-3 flex justify-center';
     lanternWrap.setAttribute('aria-hidden', 'true');
@@ -711,11 +711,11 @@ const structuredData = [
 
     const message = document.createElement('p');
     message.className = 'mt-3 text-base font-medium text-gold-100/70 sm:text-lg';
-    message.textContent = '今はどの灯りも消えています';
+    message.textContent = '現在、営業中の店は確認できません';
 
     const link = buildLinkWithArrow('/spots/', '店舗一覧を見る');
 
-    return [buildEyebrow(), lanternWrap, message, link, buildFootnote()];
+    return [buildEyebrow(), lanternWrap, message, buildTotalNote(snapshot), link];
   }
 
   // 定期再評価タイマーのID自体は多重登録防止のためモジュールスコープに置く
@@ -740,7 +740,7 @@ const structuredData = [
       if (nextState !== lastState) {
         // 状態種別が変わった（または初回描画）: 作り直す。フェードは付けない
         // （初期表示は即座に確定値を出す。演出で待たせない）。
-        el!.replaceChildren(...(nextState === 'count' ? buildCountState(snapshot) : buildZeroState()));
+        el!.replaceChildren(...(nextState === 'count' ? buildCountState(snapshot) : buildZeroState(snapshot)));
         lastState = nextState;
         lastOpenCount = nextState === 'count' ? snapshot.openCount : null;
         return;
