@@ -75,9 +75,9 @@ const canConfirmOnDetailPage = !hasConfirmedHours && Boolean(placeId);
   data-has-video={hasVideo ? '1' : ''}
   data-reveal={revealIndex !== undefined ? true : undefined}
   style={revealIndex !== undefined ? `--reveal-i:${revealIndex}` : undefined}
-  class="group relative flex flex-col overflow-hidden rounded-xl border border-night-700 bg-night-900/80 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70 hover:shadow-amber-deep/10"
+  class="group relative flex flex-col overflow-hidden rounded-xl border border-card-700 bg-card-900/90 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-0.5 hover:border-amber-deep/70 hover:shadow-amber-deep/10"
 >
-  <div class="flex items-center justify-between gap-2 border-b border-night-700 bg-night-800/50 px-4 py-3">
+  <div class="flex items-center justify-between gap-2 border-b border-card-700 bg-card-800/80 px-4 py-3">
     <span class="inline-flex items-center gap-1.5 text-xs font-medium tracking-wide text-amber-glow">
       <GenreIcon genre={genre} size={14} />
       {genre}

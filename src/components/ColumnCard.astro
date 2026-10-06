@@ -38,7 +38,7 @@ const dateStr = column.data.pubDate.toISOString().slice(0, 10);
   class="group flex flex-col overflow-hidden rounded-2xl border border-gold-100/15 bg-gold-100/[0.025] transition hover:-translate-y-0.5 hover:border-amber-glow/35 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-glow"
 >
   {image && <img src={image.src} alt="" width="1200" height="630" loading="lazy" decoding="async" class="aspect-[1200/630] w-full object-cover" />}
-  <div class="flex items-center gap-1.5 border-b border-night-700 bg-night-800/50 px-4 py-3 text-xs font-medium tracking-wide text-amber-glow">
+  <div class="flex items-center gap-1.5 border-b border-card-700/70 bg-card-800/75 px-4 py-3 text-xs font-medium tracking-wide text-amber-glow">
     <Icon size={14} stroke-width={1.75} aria-hidden="true" />
     {column.data.category}
     <time class="ml-auto shrink-0 text-gold-100/55" datetime={dateStr}>{dateStr}</time>
