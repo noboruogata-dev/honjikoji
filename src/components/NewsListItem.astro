@@ -31,12 +31,12 @@ const href = `/news/${item.id}/`;
 >
   <a href={href} class="block min-h-11 min-w-0 flex-1 py-1 underline-offset-4 transition hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-glow sm:flex sm:items-center sm:gap-3">
     <span class="flex items-center gap-2.5 sm:shrink-0">
-      <time class="shrink-0 text-xs tabular-nums text-gold-100/60" datetime={dateStr}>
+      <time class="shrink-0 text-xs tabular-nums text-gold-100/75" datetime={dateStr}>
         {dateStr}
       </time>
       <span
         class:list={[
-          'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[0.65rem] font-semibold',
+          'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold',
           accent === 'vermilion' ? 'bg-vermilion/15 text-vermilion' : 'bg-amber-glow/15 text-amber-glow',
         ]}
       >
@@ -52,7 +52,7 @@ const href = `/news/${item.id}/`;
     relatedSpotSlug && (
       <a
         href={`/spots/${relatedSpotSlug}/`}
-        class="hidden shrink-0 items-center gap-1 rounded-full border border-night-600 px-2 py-1 text-[0.6rem] text-gold-100/50 transition hover:border-amber-deep/60 hover:text-amber-glow sm:inline-flex"
+        class="hidden shrink-0 items-center gap-1 rounded-full border border-night-600 px-2 py-1 text-xs text-gold-100/75 transition hover:border-amber-deep/60 hover:text-amber-glow sm:inline-flex"
       >
         <MapPin size={10} stroke-width={2} aria-hidden="true" />
         店舗
@@ -63,7 +63,7 @@ const href = `/news/${item.id}/`;
     relatedColumnSlug && (
       <a
         href={`/columns/${relatedColumnSlug}/`}
-        class="hidden shrink-0 items-center gap-1 rounded-full border border-night-600 px-2 py-1 text-[0.6rem] text-gold-100/50 transition hover:border-amber-deep/60 hover:text-amber-glow sm:inline-flex"
+        class="hidden shrink-0 items-center gap-1 rounded-full border border-night-600 px-2 py-1 text-xs text-gold-100/75 transition hover:border-amber-deep/60 hover:text-amber-glow sm:inline-flex"
       >
         <BookOpenText size={10} stroke-width={2} aria-hidden="true" />
         夜話

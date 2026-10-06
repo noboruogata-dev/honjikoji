@@ -318,7 +318,7 @@ const structuredData = [
         <SectionHeading icon={MapPin} label="SPOTS" accent="amber">新着店舗</SectionHeading>
         <a
           href="/spots/"
-          class="hidden shrink-0 items-center gap-1 text-xs text-gold-100/50 transition hover:text-amber-glow sm:inline-flex"
+          class="hidden shrink-0 items-center gap-1 text-sm text-gold-100/75 transition hover:text-amber-glow sm:inline-flex"
         >
           すべて見る
           <ArrowRight size={12} aria-hidden="true" />
@@ -351,7 +351,7 @@ const structuredData = [
         }
       </div>
 
-      <p class="mt-3 flex items-center justify-end gap-1 px-4 text-xs text-gold-100/45 sm:hidden" aria-hidden="true">
+      <p class="mt-3 flex items-center justify-end gap-1 px-4 text-sm text-gold-100/70 sm:hidden" aria-hidden="true">
         横にスワイプして見る
         <ArrowRight size={13} stroke-width={2.25} />
       </p>
@@ -468,7 +468,7 @@ const structuredData = [
           <section class="mb-16 sm:mb-20" aria-labelledby="columns-heading">
             <div class="flex items-end justify-between gap-4" id="columns-heading">
               <h2 class="font-serif text-xl font-bold text-gold-100 sm:text-2xl">本寺小路夜話</h2>
-              <a href="/columns/" class="hidden items-center gap-1 text-xs text-gold-100/50 transition hover:text-amber-glow sm:inline-flex">
+              <a href="/columns/" class="hidden items-center gap-1 text-sm text-gold-100/75 transition hover:text-amber-glow sm:inline-flex">
                 すべて読む <ArrowRight size={12} aria-hidden="true" />
               </a>
             </div>
@@ -488,20 +488,20 @@ const structuredData = [
     -->
     <div class="mx-auto max-w-2xl px-4">
       <section aria-labelledby="news-heading">
-        <h2 id="news-heading" class="text-sm font-semibold tracking-wide text-gold-100/60">お知らせ</h2>
+        <h2 id="news-heading" class="text-sm font-semibold tracking-wide text-gold-100/80">お知らせ</h2>
 
         {
           news.length > 0 ? (
             <ul class="mt-3 divide-y divide-night-800">
               {news.map((item) => (
                 <li class="flex items-center gap-3 py-2.5 text-sm">
-                  <time class="shrink-0 text-xs tabular-nums text-gold-100/40" datetime={item.data.pubDate.toISOString().slice(0, 10)}>
+                  <time class="shrink-0 text-xs tabular-nums text-gold-100/70" datetime={item.data.pubDate.toISOString().slice(0, 10)}>
                     {item.data.pubDate.toISOString().slice(0, 10)}
                   </time>
                   {item.data.eventEndDate && <EventStatus endDate={item.data.eventEndDate} />}
                   <a
                     href={`/news/${item.id}/`}
-                    class="min-w-0 flex-1 truncate text-gold-100/70 underline-offset-4 transition hover:text-amber-glow hover:underline"
+                    class="min-w-0 flex-1 truncate text-gold-100/85 underline-offset-4 transition hover:text-amber-glow hover:underline"
                   >
                     {item.data.title}
                   </a>
@@ -516,7 +516,7 @@ const structuredData = [
         <div class="mt-3 text-right">
           <a
             href="/news/"
-            class="inline-flex items-center gap-1 text-xs font-medium text-gold-100/50 transition hover:text-amber-glow"
+            class="inline-flex items-center gap-1 text-sm font-medium text-gold-100/75 transition hover:text-amber-glow"
           >
             ニュース一覧を見る
             <ArrowRight size={12} stroke-width={2.25} aria-hidden="true" />

@@ -13,7 +13,7 @@ const { endDate, variant = 'badge' } = Astro.props;
       この記事で案内した開催日・期間は終了しています。内容は掲載当時の情報です。
     </p>
   ) : (
-    <span data-event-status data-event-end={endDate} hidden class="shrink-0 rounded-full border border-gold-100/25 px-2 py-0.5 text-[0.65rem] font-medium text-gold-100/70">
+    <span data-event-status data-event-end={endDate} hidden class="shrink-0 rounded-full border border-gold-100/25 px-2 py-0.5 text-xs font-medium text-gold-100/80">
       開催終了
     </span>
   )
