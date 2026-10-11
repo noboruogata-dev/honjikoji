@@ -2,8 +2,12 @@ name: Auto-generate and publish column
 
 on:
   schedule:
-    # 毎週日曜日 17:00 JST (= 日曜日 08:00 UTC)
-    - cron: '0 8 * * 0'
+    # 毎週日曜日 17:17 JST (= 日曜日 08:17 UTC)
+    # 毎時0分は GitHub Actions のスケジュール実行が遅延・欠落しやすいため、ずらしている。
+    - cron: '17 8 * * 0'
+    # 保険: 上の実行が遅延・欠落してもその日のうちに公開されるよう、夜にもう一度起動する。
+    # 同日にすでにコラムが公開されていれば check ジョブでスキップされる。
+    - cron: '43 11 * * 0'
   workflow_dispatch:
     inputs:
       category:
@@ -26,7 +30,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.published.outputs.skip }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 50
+
+      - name: Skip scheduled run if a column was already published today (UTC)
+        id: published
+        run: |
+          skip=false
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            today=$(date -u +%Y-%m-%d)
+            if [ -n "$(git log --since="${today}T00:00:00Z" --grep='^chore(columns)' --format=%h)" ]; then
+              skip=true
+              echo "Column already published today. Skipping."
+            fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
   generate:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
