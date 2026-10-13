@@ -129,6 +129,8 @@ const NEWS_DIR = path.resolve(__dirname, '../src/content/news');
 // scripts/match-youtube.ts が書き出すファイルと同じパス（リポジトリルート直下）。
 const UNMATCHED_VIDEOS_PATH = path.resolve(__dirname, '../unmatched-videos.json');
 const MAX_ATTEMPTS = 3;
+// Grounding引用が0件だった店舗に対し、同じ店舗で検索だけをやり直す最大回数。
+const GROUNDING_RETRIES = 2;
 
 // 各試行が最終的にどうなったかを記録し、全滅した場合でも「何が起きたか」を
 // ログとJob Summaryに必ず残すための集計用ラベル。
@@ -443,7 +445,8 @@ function buildResearchPrompt(
   excludeTitles: string[],
   hintTitle?: string,
   hintGenre?: string,
-  videoHints: string[] = []
+  videoHints: string[] = [],
+  focusStore?: { title: string; address: string }
 ): string {
   const exclusionText =
     excludeTitles.length > 0
@@ -466,7 +469,12 @@ ${videoHints.map((name) => `- ${name}`).join('\n')}
 notFound にしてください。`
       : '';
 
-  const target = hintTitle
+  const target = focusStore
+    ? `今回リサーチしてほしい店舗:「${focusStore.title}」（住所: ${focusStore.address}）
+前回の調査ではこの店舗について検索結果を引用できませんでした。この店舗を改めてGoogle検索で調べ直し、
+実在し現在も営業しているかを検索結果で確認したうえで、検索結果に基づく内容だけで回答してください。
+検索しても確認できない場合は、別の店舗を選ばず notFound にしてください。`
+    : hintTitle
     ? `今回リサーチしてほしい店舗:「${hintTitle}」${hintGenre ? `（ジャンルの想定: ${hintGenre}）` : ''}
 この店舗が新潟県三条市の本寺小路・本町エリアに実在し、除外リストに含まれていないかを確認したうえで調べてください。`
     : `新潟県三条市の「本寺小路」「本町」エリアに実在し、現在も営業している飲食店を1軒、あなた自身の判断で選んでください。
@@ -488,6 +496,7 @@ ${videoHintsText}`;
 
   return `あなたは新潟県三条市の歓楽街「本寺小路」「本町」エリアの飲食店リサーチを専門とするエージェントです。
 Google検索を使って実在する飲食店（居酒屋・BAR・スナック・割烹・焼肉・焼き鳥・ラーメン・おでん・立ち飲み・小料理屋 等）についてファクトチェックしながら調査してください。
+回答を作る前に、必ずGoogle検索を実行してください。店名・住所・営業状況・特徴は検索結果に書かれている内容だけを根拠にし、自分の記憶では補わないでください。
 
 ${target}
 
@@ -635,18 +644,40 @@ async function runResearchAgent(
     console.log(`${label} 参考ヒント（燕三条TV動画由来・未確認）: ${videoHints.length}件`);
   }
 
-  const { text: rawText, groundingSourceCount } = await callGroundedJsonAgent(ai, {
-    label,
-    prompt: buildResearchPrompt(excludeTitles, hintTitle, hintGenre, videoHints),
-    responseSchema: researchResponseSchema,
-  });
+  const runOnce = async (focusStore?: { title: string; address: string }) => {
+    const { text, groundingSourceCount } = await callGroundedJsonAgent(ai, {
+      label,
+      prompt: buildResearchPrompt(excludeTitles, hintTitle, hintGenre, videoHints, focusStore),
+      responseSchema: researchResponseSchema,
+    });
+    const parsed = researchSchema.safeParse(parseJsonOrThrow(text, label));
+    if (!parsed.success) {
+      logZodIssues(parsed, label);
+      throw new Error('Agent1(Research)のレスポンスがスキーマ違反です。');
+    }
+    return { data: parsed.data, groundingSourceCount };
+  };
 
-  const parsedJson = parseJsonOrThrow(rawText, label);
-  const result = researchSchema.safeParse(parsedJson);
-  if (!result.success) {
-    logZodIssues(result, label);
-    throw new Error('Agent1(Research)のレスポンスがスキーマ違反です。');
+  let { data: researchData, groundingSourceCount } = await runOnce();
+
+  // Grounding引用が0件でも、店舗の選定自体は妥当なことが多く、同じ店舗に絞って
+  // 検索し直すと引用が取れる場合がある。店ごと見送って別の店に移る前に、
+  // 同じ店舗への検索だけを数回やり直す（検索呼び出しは軽く、数十秒で済む）。
+  // 引用0件のまま記事化しない安全策（main()のgroundingSourceCount === 0判定）は維持する。
+  for (
+    let retry = 1;
+    retry <= GROUNDING_RETRIES && !researchData.notFound && groundingSourceCount === 0;
+    retry += 1
+  ) {
+    console.warn(
+      `${label} 「${researchData.title}」はGrounding引用が0件でした。同じ店舗で検索をやり直します (${retry}/${GROUNDING_RETRIES})...`
+    );
+    const again = await runOnce({ title: researchData.title, address: researchData.address });
+    if (again.data.notFound || normalizeText(again.data.title) !== normalizeText(researchData.title)) continue;
+    researchData = again.data;
+    groundingSourceCount = again.groundingSourceCount;
   }
+  const result = { success: true as const, data: researchData };
 
   if (result.data.notFound) {
     console.warn(`${label} 除外リスト以外の実在店舗が見つかりませんでした。`);
