@@ -2,8 +2,13 @@ name: Auto-generate spot article
 
 on:
   schedule:
-    # 毎週火曜日・金曜日 08:00 JST (= 前日 23:00 UTC)
-    - cron: '0 23 * * 1,4'
+    # 毎週火曜日・金曜日 08:17 JST (= 前日 23:17 UTC)
+    # 毎時0分は GitHub Actions のスケジュール実行が遅延・欠落しやすいため、ずらしている。
+    - cron: '17 23 * * 1,4'
+    # 保険: 上の実行が遅延・欠落、または記事ゼロで終わった場合に備え、
+    # 火曜日・金曜日 14:43 JST (= 同日 05:43 UTC) にもう一度起動する。
+    # 直近10時間以内に記事が公開されていれば check ジョブでスキップされる。
+    - cron: '43 5 * * 2,5'
   workflow_dispatch: {}
 
 permissions:
@@ -14,7 +19,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.published.outputs.skip }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 50
+
+      - name: Skip scheduled run if an article was already published recently
+        id: published
+        run: |
+          skip=false
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ -n "$(git log --since='10 hours ago' --grep='^chore(spots): 自動生成記事' --format=%h)" ]; then
+              skip=true
+              echo "Spot article already published in the last 10 hours. Skipping."
+            fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
   generate:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
