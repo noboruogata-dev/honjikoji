@@ -1,17 +1,8 @@
 {
-  "generatedAt": "2026-10-13T03:27:10.699Z",
+  "generatedAt": "2026-10-13T05:42:48.909Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
-    {
-      "videoId": "ko5xDh77z6Y",
-      "title": "町中華 音羽屋（三条本寺小路の〆飯）【本寺小路】【燕三条TV】【新潟県三条市】",
-      "publishedAt": "2020-06-18T09:32:54Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "町中華 音羽屋",
-      "storeDisplay": "町中華 音羽屋"
-    },
     {
       "videoId": "7mwJbA46w-k",
       "title": "カフェ&パブ リズ（深夜にパフェが食べられる店）【新潟県三条市】【本寺小路】【燕三条TV】",

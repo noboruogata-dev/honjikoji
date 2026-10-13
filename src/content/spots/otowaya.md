@@ -17,6 +17,8 @@ vibes:
   - "老舗町中華"
 isNew: false
 establishedYear: 1974
+youtubeVideos:
+  - id: "ko5xDh77z6Y"
 description: "昭和49年創業、本寺小路の路地裏に佇む老舗町中華「音羽屋」。ピリッとした辛さがクセになる名物「ジャージャー麺」をはじめ、豊富な麺類や一品料理が揃い、飲み会の締めや2次会に愛され続ける名店です。"
 pubDate: 2026-10-13
 ---
