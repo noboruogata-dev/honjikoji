@@ -89,6 +89,12 @@ const HERO_STREAM_LANTERNS = [
 
 const siteUrl = new URL('/', Astro.site ?? Astro.url).toString();
 
+// 検索結果のサムネイルに、ヒーロー画像（keyvisual.png: 背景透過・淡い線画）が
+// 選ばれると、白い下地に載って視認性が悪い。コントラストの高いロゴカード
+// （ogp-default.png。中央の正方形で切り抜かれても全体が収まる）を、ページの
+// 主画像として構造化データで明示し、サムネイル候補として優先させる。
+const thumbnailUrl = new URL('/images/ogp-default.png', siteUrl).toString();
+
 // 本寺小路ガイドは非公式のファンサイト。Organization.nameは「本寺小路」自体
 // ではなく当サイトの名称にし、descriptionにも明示的な断り書きを入れることで、
 // 本寺小路そのものの公式運営組織と誤認されないようにする。
@@ -98,12 +104,25 @@ const structuredData = [
     '@type': 'WebSite',
     name: '本寺小路ガイド',
     url: siteUrl,
+    image: thumbnailUrl,
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    url: siteUrl,
+    primaryImageOfPage: {
+      '@type': 'ImageObject',
+      url: thumbnailUrl,
+      width: 1200,
+      height: 630,
+    },
   },
   {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: '本寺小路ガイド',
     url: siteUrl,
+    logo: new URL('/images/logo.png', siteUrl).toString(),
     description:
       '新潟県三条市の歓楽街「本寺小路」を紹介する非公式のファンサイトです。本寺小路の公式な運営組織ではありません。',
   },
