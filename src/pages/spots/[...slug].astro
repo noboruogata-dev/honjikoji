@@ -33,6 +33,7 @@ export async function getStaticPaths() {
 }
 
 const { spot } = Astro.props;
+const allSpots = await getCollection('spots');
 const {
   title,
   genre,
@@ -51,6 +52,27 @@ const {
   placeId,
   establishedYear,
 } = spot.data;
+const sharedVibes = new Set(vibes);
+const relatedSpots = allSpots
+  .filter((candidate) => candidate.id !== spot.id)
+  .map((candidate) => {
+    const sameGenre = candidate.data.genre === genre;
+    const commonVibes = candidate.data.vibes.filter((vibe) => sharedVibes.has(vibe));
+    const budgetOverlaps =
+      spot.data.budgetMin !== undefined &&
+      spot.data.budgetMax !== undefined &&
+      candidate.data.budgetMin !== undefined &&
+      candidate.data.budgetMax !== undefined &&
+      spot.data.budgetMin <= candidate.data.budgetMax &&
+      candidate.data.budgetMin <= spot.data.budgetMax;
+    return {
+      spot: candidate,
+      score: (sameGenre ? 4 : 0) + commonVibes.length * 2 + (budgetOverlaps ? 2 : 0),
+    };
+  })
+  .filter(({ score }) => score > 0)
+  .sort((a, b) => b.score - a.score || a.spot.data.title.localeCompare(b.spot.data.title, 'ja'))
+  .slice(0, 3);
 const showNewBadge = isRecentlyPublished(pubDate);
 const showShiniseBadge = isShinise(establishedYear);
 const { Content } = await render(spot);
@@ -262,6 +284,31 @@ const socialPlatformLabels = {
               ))}
             </div>
           </div>
+        )
+      }
+
+      {
+        relatedSpots.length > 0 && (
+          <section class="mt-10 border-t border-night-700 pt-8" aria-labelledby="related-spots-heading">
+            <h2 id="related-spots-heading" class="font-serif text-xl font-bold text-gold-100">
+              あわせて見たいお店
+            </h2>
+            <p class="mt-2 text-sm text-gold-100/65">共通するジャンルや利用シーン、予算目安を手がかりに探せます。</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-3">
+              {relatedSpots.map(({ spot: related }) => (
+                <a
+                  href={`/spots/${related.id}/`}
+                  class="group flex min-h-32 flex-col rounded-xl border border-night-600 bg-night-800/60 p-4 transition hover:border-amber-deep/70 hover:bg-night-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-glow"
+                >
+                  <span class="text-xs font-medium text-amber-glow">{related.data.genre}</span>
+                  <span class="mt-2 font-serif text-lg font-bold leading-snug text-gold-100 group-hover:text-amber-glow">
+                    {related.data.title}
+                  </span>
+                  <span class="mt-auto pt-3 text-sm text-gold-100/70">予算目安 {related.data.budget}</span>
+                </a>
+              ))}
+            </div>
+          </section>
         )
       }
 
