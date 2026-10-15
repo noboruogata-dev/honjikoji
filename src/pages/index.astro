@@ -25,6 +25,8 @@ import { isRecentlyPublished } from '../lib/spotFreshness';
 // Hero内の「何軒中何軒が営業中」表示は掲載店"全件"を対象にするため、
 // slice前の全件を別途保持する。
 const allSpots = await getCollection('spots');
+const availableGenres = new Set(allSpots.map((spot) => spot.data.genre));
+const quickGenres = ['居酒屋', 'BAR'].filter((genre) => availableGenres.has(genre));
 const featuredSpots = [...allSpots]
   .sort((a, b) => {
     const aRecent = isRecentlyPublished(a.data.pubDate);
@@ -343,6 +345,18 @@ const structuredData = [
           <ArrowRight size={12} aria-hidden="true" />
         </a>
       </div>
+
+      <nav class="mx-auto mt-5 flex max-w-5xl flex-wrap items-center gap-2 px-4" aria-label="ジャンルから店舗を探す">
+        <span class="mr-1 text-sm text-gold-100/75">ジャンルから探す</span>
+        {quickGenres.map((genre) => (
+          <a
+            href={`/spots/?genre=${encodeURIComponent(genre)}`}
+            class="inline-flex min-h-11 items-center rounded-full border border-night-600 bg-night-800/60 px-4 py-2 text-sm font-medium text-gold-100/85 transition hover:border-amber-deep/60 hover:text-amber-glow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-glow"
+          >
+            {genre}
+          </a>
+        ))}
+      </nav>
 
       <div
         class="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-3 pl-4 pr-4 scroll-pl-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-5 sm:pl-[max(1rem,calc(50vw-32rem+1rem))]"
