@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-13T05:42:48.909Z",
+  "generatedAt": "2026-10-16T01:22:28.149Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
@@ -29,15 +29,6 @@
       "store": null,
       "storeManual": "蕎麦割烹 麦",
       "storeDisplay": "蕎麦割烹 麦"
-    },
-    {
-      "videoId": "k9Z4CP4KFfM",
-      "title": "三条 五色川さんでオトナ呑み！旬彩 五色川【本寺小路】【燕三条TV】",
-      "publishedAt": "2024-07-12T14:04:30Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "旬彩 五色川",
-      "storeDisplay": "旬彩 五色川"
     },
     {
       "videoId": "NPKmxYhhsho",
