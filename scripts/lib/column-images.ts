@@ -6,6 +6,7 @@ import satori from 'satori';
 import sharp from 'sharp';
 import type { ColumnCategory, ColumnKind } from './column-pipeline.js';
 import {
+  COMPOSITION_PATTERNS,
   chooseCompositionPattern,
   loadExistingColumnImageSubjects,
   proposeColumnMotif,
@@ -538,12 +539,32 @@ export async function createFeedImage(source: Buffer, category: string): Promise
  * 成功した場合だけ、返り値のbodyへ`![alt](src)`を直接挿入して返す
  * （挿入しなかった場合は入力のbodyをそのまま返す）。
  */
+export interface GenerateColumnImagesOptions {
+  /** trueなら既存の画像・原画を上書きする（既存記事の作り直し用）。 */
+  overwrite?: boolean;
+  /** falseなら2枚目（本文挿絵）を作らない。既存記事の作り直しで、元々2枚目が無い記事に
+   *  新しく挿絵を足さないために使う。 */
+  includeMid?: boolean;
+  /** 構図パターンのkey（COMPOSITION_PATTERNS）を明示する。省略時はslugから自動選択。
+   *  既存記事をまとめて作り直すとき、構図が偏らないよう調整する用途。 */
+  compositions?: { eyecatch?: string; mid?: string };
+}
+
+function compositionByKey(key: string | undefined): CompositionPattern | undefined {
+  if (!key) return undefined;
+  const pattern = COMPOSITION_PATTERNS.find((candidate) => candidate.key === key);
+  if (!pattern) throw new Error(`未知の構図パターンです: ${key}`);
+  return pattern;
+}
+
 export async function generateColumnImages(
   ai: GoogleGenAI,
   input: ColumnImageInput,
   body: string,
-  projectRoot: string
+  projectRoot: string,
+  options: GenerateColumnImagesOptions = {}
 ): Promise<ColumnImageResult> {
+  const ensureWritable = options.overwrite ? async () => {} : ensureDoesNotExist;
   const sourceDir = path.join(projectRoot, 'assets-src/columns');
   const publicDir = path.join(projectRoot, 'public/images/columns');
   await mkdir(sourceDir, { recursive: true });
@@ -551,13 +572,13 @@ export async function generateColumnImages(
 
   const eyecatchPath = path.join(publicDir, `${input.slug}-eyecatch.webp`);
   const feedPath = path.join(publicDir, `${input.slug}-feed.webp`);
-  await Promise.all([eyecatchPath, feedPath].map(ensureDoesNotExist));
+  await Promise.all([eyecatchPath, feedPath].map(ensureWritable));
 
   // 被写体はGeminiに記事固有のものを考えさせ（既存コラムの挿絵と被らないよう
   // 既存altを渡す）、構図はslugから決める。発想に失敗しても従来のキーワード表の
   // モチーフで続行する（proposeColumnMotifは例外を投げない）。
   const existingSubjects = await loadExistingColumnImageSubjects(projectRoot, input.slug);
-  const composition = chooseCompositionPattern(input.slug);
+  const composition = compositionByKey(options.compositions?.eyecatch) ?? chooseCompositionPattern(input.slug);
   const motif = await proposeColumnMotif(ai, {
     context: `${input.title} — ${input.summary}（種別: ${input.kind}、カテゴリ: ${input.category}）`,
     composition,
@@ -570,7 +591,7 @@ export async function generateColumnImages(
   // アーティファクトとしてワークフローがアップロードするため人が開くこともある）。
   const sourceExt = await sourceFileExtension(source);
   const sourcePath = path.join(sourceDir, `${input.slug}-source.${sourceExt}`);
-  await ensureDoesNotExist(sourcePath);
+  await ensureWritable(sourcePath);
   const eyecatch = await createEyecatchImage(source);
   // Instagram用フィード画像はeyecatchと同じsourceから切り出すため、
   // 追加の画像生成APIコールは発生しない。
@@ -596,6 +617,7 @@ export async function generateColumnImages(
     warnings,
   };
 
+  if (options.includeMid === false) return result;
   const insertion = findMidImageInsertion(body);
   if (!insertion) {
     warnings.push('本文が短い、または見出しが少ないため2枚目の挿絵は生成していません。');
@@ -605,8 +627,9 @@ export async function generateColumnImages(
   const illustrationPath = path.join(publicDir, `${input.slug}-illust.webp`);
   let midSourcePath = '';
   try {
-    await ensureDoesNotExist(illustrationPath);
-    const midComposition = chooseCompositionPattern(`${input.slug}:mid`, [composition.key]);
+    await ensureWritable(illustrationPath);
+    const midComposition =
+      compositionByKey(options.compositions?.mid) ?? chooseCompositionPattern(`${input.slug}:mid`, [composition.key]);
     const midMotif = await proposeColumnMotif(ai, {
       context: `${insertion.contextBefore}\n\n${insertion.contextAfter}`,
       composition: midComposition,
@@ -619,7 +642,7 @@ export async function generateColumnImages(
     );
     const midSourceExt = await sourceFileExtension(midSource);
     midSourcePath = path.join(sourceDir, `${input.slug}-illust-source.${midSourceExt}`);
-    await ensureDoesNotExist(midSourcePath);
+    await ensureWritable(midSourcePath);
     const illustrationBuffer = await createIllustrationImage(midSource);
     if (illustrationBuffer.length > MAX_PUBLIC_IMAGE_BYTES) {
       warnings.push(`本文挿絵が200KBを超えています（${Math.ceil(illustrationBuffer.length / 1024)}KB）。`);

@@ -8,10 +8,10 @@ draft: false
 disclaimer: "本記事は厚生労働省および日本酒造組合中央会が公表した公式情報に基づき作成しています。"
 illustration:
   src: "/images/columns/yawaragimizu-and-moderate-drinking-etiquette-illust.webp"
-  alt: "「和らぎ水」で酒席を優雅に。適正飲酒の知識と夜をスマートに愉しむ作法の本文中盤、会計盆の上に置かれた一つの猪口を描いた和モダンな挿絵"
+  alt: "「和らぎ水」で酒席を優雅に。適正飲酒の知識と夜をスマートに愉しむ作法の本文中盤、木棚に並ぶ酒が入った陶器の盃、水が入った切子グラス、塩が盛られた小さな豆皿を描いた和モダンな挿絵"
 eyecatch:
   src: "/images/columns/yawaragimizu-and-moderate-drinking-etiquette-eyecatch.webp"
-  alt: "「和らぎ水」で酒席を優雅に。適正飲酒の知識と夜をスマートに愉しむ作法を象徴する会計盆の上に置かれた一つの猪口の和モダンな挿絵"
+  alt: "「和らぎ水」で酒席を優雅に。適正飲酒の知識と夜をスマートに愉しむ作法を象徴する木製盆に並ぶ暗色の陶器のぐい呑みと透明な和らぎ水のグラスの和モダンな挿絵"
 imageStatus: qa-passed
 sources:
   - title: "「健康に配慮した飲酒に関するガイドライン」を公表します - 厚生労働省"
@@ -38,7 +38,7 @@ sources:
 
 自分がどれくらいのアルコール量を飲んでいるのかを客観的に把握することは、体をいたわりつつ安全にお酒を愉しむための大切な第一歩となります。
 
-![「和らぎ水」で酒席を優雅に。適正飲酒の知識と夜をスマートに愉しむ作法の本文中盤、会計盆の上に置かれた一つの猪口を描いた和モダンな挿絵](/images/columns/yawaragimizu-and-moderate-drinking-etiquette-illust.webp)
+![「和らぎ水」で酒席を優雅に。適正飲酒の知識と夜をスマートに愉しむ作法の本文中盤、木棚に並ぶ酒が入った陶器の盃、水が入った切子グラス、塩が盛られた小さな豆皿を描いた和モダンな挿絵](/images/columns/yawaragimizu-and-moderate-drinking-etiquette-illust.webp)
 
 ## 和らぎ水を添える粋な立ち振る舞い
 

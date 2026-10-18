@@ -8,7 +8,7 @@ draft: false
 disclaimer: "本記事は国税庁等の公式発表情報に基づき作成されていますが、最新の情報や詳細については各公的機関の告示をご確認ください。"
 eyecatch:
   src: "/images/columns/japanese-sake-label-rules-eyecatch.webp"
-  alt: "日本酒のラベルの見方とは？特定名称酒のルールと選び方の基本を象徴する数粒の酒米を添えた一つの徳利の和モダンな挿絵"
+  alt: "日本酒のラベルの見方とは？特定名称酒のルールと選び方の基本を象徴する光にかざすように一升瓶を持つ手元の和モダンな挿絵"
 imageStatus: qa-passed
 sources:
   - title: "「清酒の製法品質表示基準」の概要 - 国税庁"

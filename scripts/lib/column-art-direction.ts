@@ -112,7 +112,7 @@ export interface ColumnMotif {
 
 const motifResponseSchema = z.object({
   motifEn: z.string().min(3).max(300),
-  motifJa: z.string().min(2).max(60),
+  motifJa: z.string().min(2).max(100),
 });
 
 const MOTIF_JSON_SCHEMA = {
@@ -124,7 +124,7 @@ const MOTIF_JSON_SCHEMA = {
     },
     motifJa: {
       type: Type.STRING,
-      description: '画像のaltに使う、被写体を表す日本語の名詞句（例: 湯気の立つカレーラーメンの丼）。「の和モダンな挿絵」などは付けない。',
+      description: '画像のaltに使う、被写体を表す日本語の名詞句（40字以内、例: 湯気の立つカレーラーメンの丼）。「の和モダンな挿絵」などは付けない。',
     },
   },
   required: ['motifEn', 'motifJa'],

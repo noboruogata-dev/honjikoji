@@ -8,10 +8,10 @@ draft: false
 disclaimer: "本記事は、提供されたリサーチ資料を基に作成されたものであり、確認された事実と伝承の記述を区分して執筆しています。"
 illustration:
   src: "/images/columns/sanjo-koji-lanes-and-honjikoji-history-illust.webp"
-  alt: "三条の小路をたどる歴史と本寺小路の歩み：職人と参詣者の記憶の本文中盤、古い路地の格子戸と小さな行灯を描いた和モダンな挿絵"
+  alt: "三条の小路をたどる歴史と本寺小路の歩み：職人と参詣者の記憶の本文中盤、左下に置かれた木製の念珠と右上に向かって斜めに伸びる絹の房紐を描いた和モダンな挿絵"
 eyecatch:
   src: "/images/columns/sanjo-koji-lanes-and-honjikoji-history-eyecatch.webp"
-  alt: "三条の小路をたどる歴史と本寺小路の歩み：職人と参詣者の記憶を象徴する古い路地の格子戸と小さな行灯の和モダンな挿絵"
+  alt: "三条の小路をたどる歴史と本寺小路の歩み：職人と参詣者の記憶を象徴する古い小路が描かれた和紙の絵図を丁寧に広げる手元の和モダンな挿絵"
 imageStatus: qa-passed
 sources:
   - title: "本寺小路 - 三条市"
@@ -45,7 +45,7 @@ sources:
 
 その後、東本願寺が東別院を新潟県内の本寺と呼んだことから、「本寺小路」という名称が定着していったと伝えられています。
 
-![三条の小路をたどる歴史と本寺小路の歩み：職人と参詣者の記憶の本文中盤、古い路地の格子戸と小さな行灯を描いた和モダンな挿絵](/images/columns/sanjo-koji-lanes-and-honjikoji-history-illust.webp)
+![三条の小路をたどる歴史と本寺小路の歩み：職人と参詣者の記憶の本文中盤、左下に置かれた木製の念珠と右上に向かって斜めに伸びる絹の房紐を描いた和モダンな挿絵](/images/columns/sanjo-koji-lanes-and-honjikoji-history-illust.webp)
 
 ## 参詣者や職人の面影を伝える小路
 

@@ -15,7 +15,7 @@ illustration:
   alt: "燗酒の温度帯と名前とは？知っておきたい日本酒の楽しみ方を象徴する湯気が細く立つ一組の徳利と猪口の和モダンな挿絵"
 eyecatch:
   src: "/images/columns/sake-kanzake-temperature-names-eyecatch.webp"
-  alt: "燗酒の温度帯と名前とは？知っておきたい日本酒の楽しみ方を象徴する湯気が細く立つ一組の徳利と猪口の和モダンな挿絵"
+  alt: "燗酒の温度帯と名前とは？知っておきたい日本酒の楽しみ方を象徴する湯せんに浸けられた金属製のちろりと右上に向かって立ち上る繊細な湯気の和モダンな挿絵"
 imageStatus: reviewed
 ---
 
