@@ -8,10 +8,10 @@ draft: false
 disclaimer: "※この物語はフィクションです。実在の人物や店舗とは一切関係ありません。"
 illustration:
   src: "/images/columns/sanjo-curry-ramen-and-night-culture-illust.webp"
-  alt: "本寺小路の夜を温める締めの一杯と、受け継がれてきた伝統の味の本文中盤、暖簾の前に静かに置かれた一つの盃を描いた和モダンな挿絵"
+  alt: "本寺小路の夜を温める締めの一杯と、受け継がれてきた伝統の味の本文中盤、湯気が立つ出汁茶漬けの丼と漬物小皿・小急須・箸のセットを描いた和モダンな挿絵"
 eyecatch:
   src: "/images/columns/sanjo-curry-ramen-and-night-culture-eyecatch.webp"
-  alt: "本寺小路の夜を温める締めの一杯と、受け継がれてきた伝統の味を象徴する暖簾の前に静かに置かれた一つの盃の和モダンな挿絵"
+  alt: "本寺小路の夜を温める締めの一杯と、受け継がれてきた伝統の味を象徴する湯気がほんのりと立ち上るカレーラーメンの丼と箸・レンゲのセットの和モダンな挿絵"
 imageStatus: qa-passed
 sources:
   - title: "三条カレーラーメン｜新潟の観光スポット - にいがた観光ナビ"
@@ -37,7 +37,7 @@ sources:
 
 「ああ、やっぱりこの街の夜の締めには、これが一番しっくりくるよ」と客は席に着きます。
 
-![本寺小路の夜を温める締めの一杯と、受け継がれてきた伝統の味の本文中盤、暖簾の前に静かに置かれた一つの盃を描いた和モダンな挿絵](/images/columns/sanjo-curry-ramen-and-night-culture-illust.webp)
+![本寺小路の夜を温める締めの一杯と、受け継がれてきた伝統の味の本文中盤、湯気が立つ出汁茶漬けの丼と漬物小皿・小急須・箸のセットを描いた和モダンな挿絵](/images/columns/sanjo-curry-ramen-and-night-culture-illust.webp)
 
 ## 歴史を汲み込む湯気と一杯のこだわり
 

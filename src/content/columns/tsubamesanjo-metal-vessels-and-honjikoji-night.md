@@ -8,10 +8,10 @@ draft: false
 disclaimer: "※この物語はフィクションです。実在の人物や店舗とは関係ありません。"
 illustration:
   src: "/images/columns/tsubamesanjo-metal-vessels-and-honjikoji-night-illust.webp"
-  alt: "金属酒器が魅せるまろやかな夜と本寺小路の酒場で重なる温かな時間の本文中盤、暖簾の前に静かに置かれた一つの盃を描いた和モダンな挿絵"
+  alt: "金属酒器が魅せるまろやかな夜と本寺小路の酒場で重なる温かな時間の本文中盤、木製カウンターに静かに置かれる、鎚目模様が施された金属製タンブラーと手元を描いた和モダンな挿絵"
 eyecatch:
   src: "/images/columns/tsubamesanjo-metal-vessels-and-honjikoji-night-eyecatch.webp"
-  alt: "金属酒器が魅せるまろやかな夜と本寺小路の酒場で重なる温かな時間を象徴する暖簾の前に静かに置かれた一つの盃の和モダンな挿絵"
+  alt: "金属酒器が魅せるまろやかな夜と本寺小路の酒場で重なる温かな時間を象徴する木製トレーの上に置かれた、打ち出し模様のある金属製ぐい呑みとつまみの豆皿、竹箸のセットの和モダンな挿絵"
 imageStatus: qa-passed
 sources:
   - title: "「Made in 燕」の金属カップで飲み物を楽しもう!"
@@ -30,7 +30,7 @@ sources:
 
 ある日の夜、店を訪れた客の前にひとつの金属製タンブラーが運ばれてきました。鈍い光を放つその器は、この土地ならではの手仕事を感じさせる美しい佇まいをしています。
 
-![金属酒器が魅せるまろやかな夜と本寺小路の酒場で重なる温かな時間の本文中盤、暖簾の前に静かに置かれた一つの盃を描いた和モダンな挿絵](/images/columns/tsubamesanjo-metal-vessels-and-honjikoji-night-illust.webp)
+![金属酒器が魅せるまろやかな夜と本寺小路の酒場で重なる温かな時間の本文中盤、木製カウンターに静かに置かれる、鎚目模様が施された金属製タンブラーと手元を描いた和モダンな挿絵](/images/columns/tsubamesanjo-metal-vessels-and-honjikoji-night-illust.webp)
 
 ## 職人の技が宿る酒器と心地よい静寂
 

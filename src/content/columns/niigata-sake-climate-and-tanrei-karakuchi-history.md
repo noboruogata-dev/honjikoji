@@ -8,7 +8,7 @@ draft: false
 disclaimer: "本記事は提供されたリサーチ資料に基づいて作成された標準的な情報提供コンテンツです。"
 eyecatch:
   src: "/images/columns/niigata-sake-climate-and-tanrei-karakuchi-history-eyecatch.webp"
-  alt: "新潟の雪国風土と酒造米が育む「淡麗辛口」の魅力と基本要素を象徴する数粒の酒米を添えた一つの徳利の和モダンな挿絵"
+  alt: "新潟の雪国風土と酒造米が育む「淡麗辛口」の魅力と基本要素を象徴する木棚の上に並んだ稲穂の束、丸い杉玉、水が入った小鉢の和モダンな挿絵"
 imageStatus: qa-passed
 sources:
   - title: "別紙1 地理的表示「新潟」生産基準 - 国税庁"
