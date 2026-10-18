@@ -1,19 +1,31 @@
 ---
 import { Navigation } from '@lucide/astro';
+import { placeIdToCid } from '../lib/placeIdToCid';
 
 interface Props {
   title: string;
   query: string;
+  /** 指定すると、検索クエリではなくこのPlace IDの1件だけを表示する（移転前の古い掲載を出さない）。 */
+  placeId?: string;
 }
 
-const { title, query } = Astro.props;
+const { title, query, placeId } = Astro.props;
 
 // Googleマップの写真・地図タイルは一切スクレイピング/直リンクせず、
 // Google公式のiframe埋め込み（output=embed）と検索リンクのみを利用する。
 // APIキー不要のクラシックな埋め込み方式で、店舗の正確な緯度経度が
 // 分からなくても「店名 + 住所」の検索クエリから合法的に表示できる。
-const embedSrc = `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
-const externalUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+// placeIdがあり、cidに変換できる場合は、その1件だけを指す形式にする
+// （変換できなければ従来通り検索クエリ）。外部リンクはGoogle公式の
+// query_place_idで同じ1件を指す。
+const cid = placeId ? placeIdToCid(placeId) : null;
+const embedSrc = cid
+  ? `https://www.google.com/maps?cid=${cid}&output=embed`
+  : `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
+const externalUrl =
+  cid && placeId
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}&query_place_id=${encodeURIComponent(placeId)}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 ---
 
 <section aria-labelledby="map-heading" class="mt-10">
