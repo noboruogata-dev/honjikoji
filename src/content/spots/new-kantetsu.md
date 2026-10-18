@@ -4,6 +4,7 @@ genre: "居酒屋"
 address: "新潟県三条市元町9-26"
 mapQuery: "ニューカンテツ 三条市"
 placeId: "ChIJe0YmKADj9F8R_9_giXcGJFg"
+mapEmbedByPlaceId: true
 budget: "￥2,000〜￥4,000"
 budgetMin: 2000
 budgetMax: 4000
