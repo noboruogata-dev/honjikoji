@@ -432,6 +432,7 @@ async function runQaAgent(
   if (noImage) {
     console.warn(`${label} --no-image指定のため画像生成を省略します。`);
   } else if (dryRun) {
+    console.log('\n※ 実際の生成時は、被写体（Subject）をGeminiが記事固有のものに差し替える（構図は下記のまま）。');
     console.log('\n----- 生成予定の画像プロンプト（1枚目・アイキャッチ） -----\n');
     console.log(buildColumnImagePrompt(imageInput));
     const insertion = findMidImageInsertion(writer.body);

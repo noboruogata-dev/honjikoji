@@ -62,6 +62,7 @@ async function main() {
   };
   if (dryRun) {
     console.log('dry-run: 画像APIは呼び出さず、記事も変更しません。\n');
+    console.log('※ 実際の生成時は、被写体（Subject）をGeminiが記事固有のものに差し替える（構図は下記のまま）。\n');
     console.log('----- 1枚目（アイキャッチ）プロンプト -----\n');
     console.log(buildColumnImagePrompt(input));
     const insertion = findMidImageInsertion(body);
