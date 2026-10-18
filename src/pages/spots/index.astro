@@ -408,13 +408,7 @@ const seatTypes = [
   const PUSH_DEBOUNCE_MS = 300;
   let pushDebounceId: ReturnType<typeof setTimeout> | undefined;
 
-  // window（document）はClientRouterのページ遷移をまたいで生き続けるため、
-  // popstateリスナーは他のDOM要素バインドと違い「古い方は自然に消える」が
-  // 成り立たない。intervalIdと同じ「古い登録を覚えておいて外してから
-  // 張り直す」方式で多重登録を防ぐ。
-  let popStateHandler: ((event: PopStateEvent) => void) | undefined;
-
-  // ユーザーの明示的な操作（フィルタ切替・戻る/進む）によるカード表示の
+  // ユーザーの明示的な操作（フィルタ切替）によるカード表示の
   // 変化を、View Transitions APIで包む。ページ遷移（noren-drop/
   // noren-fade-out、global.css参照）と同じ::view-transition-old/new(root)
   // を流用するため、追加のCSSは不要（新しいアニメーションを作るのではなく、
@@ -551,11 +545,29 @@ const seatTypes = [
       return location.pathname + location.search + location.hash;
     }
 
+    // ClientRouter（Astro）は、履歴エントリのstate（{index, scrollX, scrollY}）を
+    // 見て「戻る/進む」を処理する。stateがnullのエントリへのpopstateは
+    // 「Astro管理外の履歴」として無視される（transitions/router.jsのonPopState）。
+    // そのためここでstateをnullで上書き/生成すると、店舗詳細ページへ遷移した後に
+    // ブラウザの戻るで/spots/へ戻ってもURLだけが変わり、画面は詳細ページの
+    // まま残る（以前はreplaceState/pushStateにnullを渡していたため発生）。
+    // replaceは現在のstateをそのまま引き継ぎ、pushは新しいエントリとして
+    // Astro互換のstateを付ける。
+    //
+    // indexはAstro内部のカウンタ（currentHistoryIndex）とはずれうるが、
+    // 使い道はtransitionのdirection属性（戻る/進む判定）だけで、このサイトでは
+    // その属性を参照するCSSが無いため実害は無い。
+    function astroHistoryStateForPush(): Record<string, unknown> | null {
+      const current = history.state;
+      if (!current || typeof current.index !== 'number') return current ?? null;
+      return { ...current, index: current.index + 1, scrollX: 0, scrollY: 0 };
+    }
+
     // ページ初回表示時のURL復元（restoreFromUrl直後）専用。履歴には積まず、
     // 表記ゆれ（大文字小文字・パラメータ順）だけを正規化する。これは
     // 従来の挙動を維持するための呼び出しで、以後の操作ではこちらは使わない。
     function replaceUrl() {
-      history.replaceState(null, '', buildTargetUrl());
+      history.replaceState(history.state, '', buildTargetUrl());
     }
 
     // フィルタ操作によるURL更新はpushStateで履歴に積むが、直接は呼ばず
@@ -565,7 +577,7 @@ const seatTypes = [
     // - 重複防止: タイマー発火時点で、目的のURLが現在のURLと同じなら
     //   （＝結果的に状態が変わらなかった、または直前のpushと同じ状態に
     //   戻ってきた）pushしない
-    // - 復元中（popstateによる巻き戻し・ページ初回表示）はisRestoringFromUrl
+    // - 復元中（ページ初回表示）はisRestoringFromUrl
     //   により呼び出し自体を無視する
     function scheduleUrlPush() {
       if (isRestoringFromUrl) return;
@@ -574,13 +586,12 @@ const seatTypes = [
         pushDebounceId = undefined;
         const target = buildTargetUrl();
         if (target === currentUrl()) return;
-        history.pushState(null, '', target);
+        history.pushState(astroHistoryStateForPush(), '', target);
       }, PUSH_DEBOUNCE_MS);
     }
 
-    // popstate（戻る/進む）による復元中は、restoreFromUrlが呼ぶselectButtonは
-    // setAttributeの直接操作なのでclickイベントは発火せずscheduleUrlPushには
-    // 波及しない（既存の初期表示と同じ理屈）。ただしこのフラグは、将来
+    // 復元中は、restoreFromUrlが呼ぶselectButtonはsetAttributeの直接操作なので
+    // clickイベントは発火せずscheduleUrlPushには波及しない。ただしこのフラグは、将来
     // restoreFromUrl周りにclickベースの操作が混ざっても安全なように、
     // 復元処理中はURL書き込み系（scheduleUrlPush/replaceUrl）を明示的に
     // 抑止するための保険として持たせておく。
@@ -588,7 +599,7 @@ const seatTypes = [
 
     // 各グループを「URLに値があればそれを選択、無ければ"all"に戻す」で
     // 常に完全同期する（値がある場合だけ設定して無ければ何もしない、という
-    // 片方向の実装だと、popstateでの復元時に「一度絞り込んだ後、その条件が
+    // 片方向の実装だと、履歴移動後の再初期化時に「一度絞り込んだ後、その条件が
     // URLから消えたのにボタン表示だけ絞り込んだままになる」問題が起きる。
     // 初回表示時はどのグループも最初から"all"なので、この完全同期でも
     // 従来と見た目は変わらない）。
@@ -720,19 +731,14 @@ const seatTypes = [
       if (isOpenToggleActive()) applyFilters();
     }, 60_000);
 
-    // 戻る/進むでの履歴移動に追従する。ClientRouter環境下ではastro:page-load
-    // だけでは同一ページ内（/spots/内でのフィルタ履歴間）の移動を拾えない
-    // ため、popstateでも明示的にrestoreFromUrl+applyFiltersを行う。
-    // ここではpushState/replaceStateを一切呼ばない
-    // （ブラウザが実際に移動した先のURLをそのまま信頼して表示を合わせる
-    // だけであり、URL側を書き戻す必要がない。呼んでしまうと不要な履歴が
-    // 積まれたり、pushStateが新しい履歴を作って「進む」を潰したりする）。
-    if (popStateHandler) window.removeEventListener('popstate', popStateHandler);
-    popStateHandler = () => {
-      restoreFromUrl();
-      withViewTransition(applyFilters);
-    };
-    window.addEventListener('popstate', popStateHandler);
+    // 戻る/進むでの履歴移動は、ここでは扱わない。フィルタ操作で積んだ履歴
+    // エントリにもAstro互換のstateを付けている（astroHistoryStateForPush参照）
+    // ため、/spots/内の移動も他ページからの戻りも、ClientRouterが
+    // 「そのURLのページを取り直して差し替える」形で処理し、差し替え後の
+    // astro:page-loadでこのinit()が再実行されてrestoreFromUrl+applyFiltersが
+    // 走る。以前はここで独自にpopstateを拾ってフィルタだけ差し替えていたが、
+    // ClientRouterの遷移と同時に動いて、View Transitionが互いにskipし合い
+    // （AbortError）、処理も二重になるため削除した。
   }
 
   // astro:page-load は初回読み込み時にも発火するため、初期化はここだけに一本化する。
