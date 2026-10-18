@@ -4,6 +4,7 @@ genre: "居酒屋"
 address: "新潟県三条市本町2-9-1 ひのやビル1F"
 mapQuery: "Osteria Kissui tei 三条市"
 placeId: "ChIJe0OMWmnj9F8RI-acwErt74A"
+mapEmbedByPlaceId: true
 budget: "￥4,000〜￥6,000"
 budgetMin: 4000
 budgetMax: 6000

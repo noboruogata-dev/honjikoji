@@ -50,6 +50,7 @@ const {
   youtubeVideos,
   socialLinks,
   placeId,
+  mapEmbedByPlaceId,
   establishedYear,
 } = spot.data;
 const sharedVibes = new Set(vibes);
@@ -267,7 +268,7 @@ const socialPlatformLabels = {
         )
       }
 
-      <MapEmbed title={title} query={mapQuery} />
+      <MapEmbed title={title} query={mapQuery} placeId={mapEmbedByPlaceId ? placeId : undefined} />
 
       {
         matchingGuides.length > 0 && (

@@ -71,6 +71,9 @@ const spots = defineCollection({
         })
       )
       .optional(),
+    // 地図の埋め込みを、検索クエリ（mapQuery）ではなくplaceIdで特定する1件に固定する（任意）。
+    // 移転した店などで、検索だと移転前の古い掲載にもピンが立って2つ表示される場合に true。
+    mapEmbedByPlaceId: z.boolean().optional(),
     // 店舗が公式に運用しているSNS（任意）。誤ったアカウントへの誘導を避けるため、
     // 運営者が確認できたURLだけを手動で登録し、生成AIには作成・推測させない。
     socialLinks: z
