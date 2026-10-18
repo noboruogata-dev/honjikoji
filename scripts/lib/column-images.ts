@@ -5,6 +5,13 @@ import { fileURLToPath } from 'node:url';
 import satori from 'satori';
 import sharp from 'sharp';
 import type { ColumnCategory, ColumnKind } from './column-pipeline.js';
+import {
+  chooseCompositionPattern,
+  loadExistingColumnImageSubjects,
+  proposeColumnMotif,
+  type ColumnMotif,
+  type CompositionPattern,
+} from './column-art-direction.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // generate-ogp-images.ts（ogpImage.ts）と同じサブセット済みフォントを流用する。
@@ -98,8 +105,7 @@ const TARGET_BACKGROUND_RGB: [number, number, number] = [0x14, 0x11, 0x0f];
  */
 const LOCKED_ART_DIRECTION = `Locked art direction:
 - solid, completely flat background filled with sumi black ${TARGET_BACKGROUND_HEX} — no gradient, no texture, no pattern, no vignette, no other background color
-- exactly one central subject or one compact still-life group
-- generous empty margin (filled with the same solid background color) around the subject
+- keep all four corners and a margin of at least 6% along every edge filled with that same solid background color: nothing may touch, or be cropped by, the canvas edge
 - Japanese modern, restrained hand-drawn illustration
 - thin sumi-ink linework
 - flat shapes, minimal shading, no photorealism, no 3D, no anime style
@@ -108,21 +114,38 @@ const LOCKED_ART_DIRECTION = `Locked art direction:
 - do not depict a recognizable real person or reproduce a real storefront
 - for historical themes, create a symbolic scene rather than claiming an exact historical reconstruction`;
 
-export function buildColumnImagePrompt(input: ColumnImageInput): string {
-  const motif = chooseColumnMotif(input);
+/**
+ * 挿絵ごとの「被写体」と「構図」。どちらも省略すると、記事から決定論的に選んだ
+ * 従来どおりのモチーフ（キーワード表）と、slugから選んだ構図パターンになる
+ * （dry-runの表示や再生成スクリプトはこの既定値で動く）。
+ * generateColumnImagesはGeminiに記事固有のモチーフを考えさせて渡す。
+ */
+export interface ColumnImageDirection {
+  motif?: ColumnMotif;
+  composition?: CompositionPattern;
+}
+
+function artDirectionWith(composition: CompositionPattern): string {
+  return `${LOCKED_ART_DIRECTION}
+- composition: ${composition.instruction}`;
+}
+
+export function buildColumnImagePrompt(input: ColumnImageInput, direction: ColumnImageDirection = {}): string {
+  const motif = direction.motif?.prompt ?? chooseColumnMotif(input);
+  const composition = direction.composition ?? chooseCompositionPattern(input.slug);
   return `Create one editorial illustration for a Japanese nightlife culture column.
 
 Subject: ${motif}
 Article context: ${input.title} — ${input.summary}
 Content kind: ${input.kind}
 
-${LOCKED_ART_DIRECTION}
+${artDirectionWith(composition)}
 
 Return only the illustration image.`;
 }
 
-export function buildColumnImageAlt(input: ColumnImageInput): string {
-  return `${input.title}を象徴する${chooseColumnMotif(input)}の和モダンな挿絵`;
+export function buildColumnImageAlt(input: ColumnImageInput, motif?: ColumnMotif): string {
+  return `${input.title}を象徴する${motif?.alt ?? chooseColumnMotif(input)}の和モダンな挿絵`;
 }
 
 export interface MidImageInsertion {
@@ -182,10 +205,18 @@ export function insertMidImageMarkdown(
   return `${before}\n\n![${image.alt}](${image.src})\n\n${after}`;
 }
 
-export function buildColumnMidImagePrompt(input: ColumnImageInput, insertion: MidImageInsertion): string {
+export function buildColumnMidImagePrompt(
+  input: ColumnImageInput,
+  insertion: MidImageInsertion,
+  direction: ColumnImageDirection = {}
+): string {
+  // 2枚目は1枚目と別の構図にする（1枚目の既定構図を避ける）。
+  const composition =
+    direction.composition ?? chooseCompositionPattern(`${input.slug}:mid`, [chooseCompositionPattern(input.slug).key]);
+  const subjectHint = direction.motif ? `\nSuggested subject (it must still be something described in the passages): ${direction.motif.prompt}\n` : '';
   return `Create one editorial illustration for a Japanese nightlife culture column. It will be inserted midway through the article body, between the two Japanese passages quoted below.
 
-Depict one concrete object or small scene that is actually described in these passages — not a summary of the whole article, and not a generic restatement of the article's overall topic.
+Depict one concrete object or small scene that is actually described in these passages — not a summary of the whole article, and not a generic restatement of the article's overall topic.${subjectHint}
 
 --- Passage immediately before the illustration ---
 ${insertion.contextBefore}
@@ -195,7 +226,7 @@ ${insertion.contextAfter}
 
 Article title (tone reference only — do not illustrate the title itself): ${input.title}
 
-${LOCKED_ART_DIRECTION}
+${artDirectionWith(composition)}
 
 Return only the illustration image.`;
 }
@@ -208,8 +239,8 @@ export function chooseMidImageMotif(input: ColumnImageInput, insertion: MidImage
   return motifFromText(input.category, `${insertion.contextBefore} ${insertion.contextAfter}`);
 }
 
-export function buildColumnMidImageAlt(input: ColumnImageInput, insertion: MidImageInsertion): string {
-  return `${input.title}の本文中盤、${chooseMidImageMotif(input, insertion)}を描いた和モダンな挿絵`;
+export function buildColumnMidImageAlt(input: ColumnImageInput, insertion: MidImageInsertion, motif?: ColumnMotif): string {
+  return `${input.title}の本文中盤、${motif?.alt ?? chooseMidImageMotif(input, insertion)}を描いた和モダンな挿絵`;
 }
 
 function colorDistance(r: number, g: number, b: number, bg: [number, number, number]): number {
@@ -522,7 +553,18 @@ export async function generateColumnImages(
   const feedPath = path.join(publicDir, `${input.slug}-feed.webp`);
   await Promise.all([eyecatchPath, feedPath].map(ensureDoesNotExist));
 
-  const source = await generateColumnIllustration(ai, buildColumnImagePrompt(input));
+  // 被写体はGeminiに記事固有のものを考えさせ（既存コラムの挿絵と被らないよう
+  // 既存altを渡す）、構図はslugから決める。発想に失敗しても従来のキーワード表の
+  // モチーフで続行する（proposeColumnMotifは例外を投げない）。
+  const existingSubjects = await loadExistingColumnImageSubjects(projectRoot, input.slug);
+  const composition = chooseCompositionPattern(input.slug);
+  const motif = await proposeColumnMotif(ai, {
+    context: `${input.title} — ${input.summary}（種別: ${input.kind}、カテゴリ: ${input.category}）`,
+    composition,
+    existingSubjects,
+    fallback: { prompt: chooseColumnMotif(input), alt: chooseColumnMotif(input) },
+  });
+  const source = await generateColumnIllustration(ai, buildColumnImagePrompt(input, { motif, composition }));
   // 画像生成APIが返す実際のフォーマット（現状JPEG）に合わせて拡張子を
   // 決める。中身と拡張子が食い違うファイルを残さないため（デバッグ用
   // アーティファクトとしてワークフローがアップロードするため人が開くこともある）。
@@ -546,8 +588,8 @@ export async function generateColumnImages(
   console.log(`[Agent5:ImageQA] フィード画像を保存しました（${Math.ceil(feed.length / 1024)}KB）: ${path.relative(projectRoot, feedPath)}`);
 
   const result: ColumnImageResult = {
-    eyecatch: { src: `/images/columns/${input.slug}-eyecatch.webp`, alt: buildColumnImageAlt(input) },
-    feed: { src: `/images/columns/${input.slug}-feed.webp`, alt: buildColumnImageAlt(input) },
+    eyecatch: { src: `/images/columns/${input.slug}-eyecatch.webp`, alt: buildColumnImageAlt(input, motif) },
+    feed: { src: `/images/columns/${input.slug}-feed.webp`, alt: buildColumnImageAlt(input, motif) },
     body,
     imageStatus: 'draft',
     sourcePath,
@@ -564,7 +606,17 @@ export async function generateColumnImages(
   let midSourcePath = '';
   try {
     await ensureDoesNotExist(illustrationPath);
-    const midSource = await generateColumnIllustration(ai, buildColumnMidImagePrompt(input, insertion));
+    const midComposition = chooseCompositionPattern(`${input.slug}:mid`, [composition.key]);
+    const midMotif = await proposeColumnMotif(ai, {
+      context: `${insertion.contextBefore}\n\n${insertion.contextAfter}`,
+      composition: midComposition,
+      existingSubjects: [...existingSubjects, motif.alt],
+      fallback: { prompt: chooseMidImageMotif(input, insertion), alt: chooseMidImageMotif(input, insertion) },
+    });
+    const midSource = await generateColumnIllustration(
+      ai,
+      buildColumnMidImagePrompt(input, insertion, { motif: midMotif, composition: midComposition })
+    );
     const midSourceExt = await sourceFileExtension(midSource);
     midSourcePath = path.join(sourceDir, `${input.slug}-illust-source.${midSourceExt}`);
     await ensureDoesNotExist(midSourcePath);
@@ -574,7 +626,7 @@ export async function generateColumnImages(
     }
     await Promise.all([writeFile(midSourcePath, midSource), writeFile(illustrationPath, illustrationBuffer)]);
 
-    const illustration = { src: `/images/columns/${input.slug}-illust.webp`, alt: buildColumnMidImageAlt(input, insertion) };
+    const illustration = { src: `/images/columns/${input.slug}-illust.webp`, alt: buildColumnMidImageAlt(input, insertion, midMotif) };
     result.illustration = illustration;
     result.midSourcePath = midSourcePath;
     result.body = insertMidImageMarkdown(body, insertion, illustration);
