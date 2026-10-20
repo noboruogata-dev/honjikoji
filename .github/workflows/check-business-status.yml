@@ -1,0 +1,63 @@
+name: Check spot business status
+
+# 掲載中の全店舗のplaceIdについて、Google businessStatus を週次で点検する。
+#
+# 新規記事は Agent3（scripts/generate-spot.ts）が生成時に CLOSED_PERMANENTLY を
+# ブロックするが、「掲載後に閉店した」店はそこを通らない。閉店した店を掲載し
+# 続けるのは地域メディアとして最も避けたい状態なので、既存記事側はこの定期
+# 点検で拾う。
+#
+# このワークフローは記事を一切書き換えない（スクリプトも読み取り専用）。
+# 閉店が検出されたらジョブを失敗させて通知するだけにとどめ、記事をどうするか
+# （非公開にするか、閉店を追記するか）は現地・公式情報での確認を経た人間の
+# 判断に委ねる。Googleの businessStatus は誤りや反映漏れがあり得るため、
+# 自動で記事を落とすのは危険である。
+
+on:
+  schedule:
+    # 毎週月曜日 09:23 JST (= 日曜日 00:23 UTC)
+    # 毎時0分は GitHub Actions のスケジュール実行が遅延・欠落しやすいためずらす。
+    - cron: '23 0 * * 0'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # スクリプトは閉店が1件以上あれば exit 1 する。出力はJob Summaryに
+      # 残すが、businessStatus（Google Maps Content）の永続保存は規約上
+      # 許可されていないため、リポジトリ内のファイルには書き込まない。
+      # Job Summary / Actionsログはランの保持期間で消える一時的な出力である。
+      - name: Check business status of all published spots
+        env:
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+        run: |
+          report="$RUNNER_TEMP/business-status.txt"
+          status=0
+          npm run --silent spots:check-status >"$report" 2>&1 || status=$?
+          cat "$report"
+          {
+            echo '```'
+            cat "$report"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+          exit "$status"
