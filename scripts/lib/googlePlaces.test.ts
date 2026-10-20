@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { resolvePlaceId, resolvePlaceIdWithRetry } from './googlePlaces';
+import { resolveBusinessStatus, resolvePlaceId, resolvePlaceIdWithRetry } from './googlePlaces';
 
 describe('resolvePlaceId', () => {
   it('APIキーが無ければfetchせずnullを返す', async () => {
@@ -105,5 +105,64 @@ describe('resolvePlaceIdWithRetry', () => {
     });
     expect(result).toBeNull();
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('resolveBusinessStatus', () => {
+  it('APIキーが無ければfetchせずnullを返す', async () => {
+    const fetchImpl = vi.fn();
+    const result = await resolveBusinessStatus('ChIJexample1234', undefined, { fetchImpl });
+    expect(result).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('businessStatusのみをフィールドマスクに指定して取得する', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ businessStatus: 'OPERATIONAL' }), { status: 200 }));
+    const result = await resolveBusinessStatus('ChIJexample1234', 'test-key', { fetchImpl });
+    expect(result).toBe('OPERATIONAL');
+
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe('https://places.googleapis.com/v1/places/ChIJexample1234?languageCode=ja&regionCode=JP');
+    expect(init.headers['X-Goog-Api-Key']).toBe('test-key');
+    // 上位SKUの課金対象を増やさないため、マスクは businessStatus のみに固定する。
+    expect(init.headers['X-Goog-FieldMask']).toBe('businessStatus');
+  });
+
+  it('閉店（CLOSED_PERMANENTLY）をそのまま返す', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ businessStatus: 'CLOSED_PERMANENTLY' }), { status: 200 })
+      );
+    const result = await resolveBusinessStatus('ChIJexample1234', 'test-key', { fetchImpl });
+    expect(result).toBe('CLOSED_PERMANENTLY');
+  });
+
+  it('businessStatusが省略されていればnullを返す（営業中とみなさない）', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const result = await resolveBusinessStatus('ChIJexample1234', 'test-key', { fetchImpl });
+    expect(result).toBeNull();
+  });
+
+  it('未知の値はnullを返す', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ businessStatus: 'SOMETHING_NEW' }), { status: 200 }));
+    const result = await resolveBusinessStatus('ChIJexample1234', 'test-key', { fetchImpl });
+    expect(result).toBeNull();
+  });
+
+  it('APIがエラーを返してもnullを返す（例外を投げない）', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('error', { status: 500 }));
+    const result = await resolveBusinessStatus('ChIJexample1234', 'test-key', { fetchImpl });
+    expect(result).toBeNull();
+  });
+
+  it('fetch自体が例外を投げてもnullを返す', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('network error'));
+    const result = await resolveBusinessStatus('ChIJexample1234', 'test-key', { fetchImpl });
+    expect(result).toBeNull();
   });
 });

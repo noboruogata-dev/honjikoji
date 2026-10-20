@@ -35,6 +35,15 @@
  *            （MAX_ATTEMPTS参照）。GOOGLE_PLACES_API_KEY自体が未設定の場合は
  *            特定の店舗の問題ではなく設定不備なので、リトライしても無駄と
  *            判断してFatalPipelineErrorで処理全体を即座に止める。
+ *            解決したPlace IDについては続けて businessStatus を確認し、
+ *            CLOSED_PERMANENTLY（閉店）なら同様に記事を保存せず見送る
+ *            （閉店した店を掲載し続けるのは地域メディアとして最も避けたい
+ *            状態であり、しかもPlace IDとライブ営業時間が「正しく」動くぶん
+ *            誤りに気付きにくい）。CLOSED_TEMPORARILY は再開しうるので
+ *            ブロックしない。businessStatusが取得できなかった場合は閉店と
+ *            断定せず通す（Google側の一時障害で営業中の店が落ちるのを避ける）。
+ *            掲載後に閉店した既存店舗は、この経路を通らないため
+ *            scripts/check-business-status.ts（週次ワークフロー）が点検する。
  *
  * 営業時間の設計（2026年9月、旧「Agent1調査→Google Placesと照合→乖離なら
  * ブロック」方式から変更）:
@@ -114,7 +123,7 @@ import {
 } from './lib/gemini-agents.js';
 import { parseBudgetRange } from './lib/budgetParser.js';
 import { parseOpenHoursToHours } from './lib/openHoursParser.js';
-import { resolvePlaceIdWithRetry } from './lib/googlePlaces.js';
+import { resolveBusinessStatus, resolvePlaceIdWithRetry } from './lib/googlePlaces.js';
 import { runInstagramMaterialAgent } from './lib/instagramMaterialAgent.js';
 import {
   buildSourceVerificationPrompt,
@@ -140,6 +149,7 @@ type AttemptOutcome =
   | 'ungroundedResearch'
   | 'unsourcedClaims'
   | 'placeIdUnresolved'
+  | 'placeClosed'
   | 'success'
   | 'error';
 const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
@@ -148,6 +158,7 @@ const OUTCOME_LABELS: Record<AttemptOutcome, string> = {
   ungroundedResearch: 'Grounding引用0件のため見送り',
   unsourcedClaims: '出典なしの記述が多いため見送り',
   placeIdUnresolved: 'Place ID未解決のため見送り',
+  placeClosed: '閉店済みのため見送り',
   success: '成功',
   error: 'エラー',
 };
@@ -162,6 +173,23 @@ class PlaceIdUnresolvedError extends Error {
   constructor(public readonly storeName: string) {
     super(`Place IDを解決できませんでした: ${storeName}`);
     this.name = 'PlaceIdUnresolvedError';
+  }
+}
+
+/**
+ * Agent3が、解決したPlace IDのbusinessStatusがCLOSED_PERMANENTLY（閉店）
+ * だと確認した場合に投げる。PlaceIdUnresolvedErrorと同様、呼び出し側の試行
+ * ループは「この候補は見送り、別の店舗をリトライする」非致命的な結果として
+ * 扱い、記事は一切保存しない。
+ *
+ * 閉店した店の記事を公開してしまうと、Place IDもライブ営業時間も「正しく」
+ * 動いてしまうぶん誤りに気付きにくく、地域メディアとして最も避けたい状態に
+ * なる。CLOSED_TEMPORARILY（一時休業）は再開しうるのでブロックしない。
+ */
+class PlaceClosedError extends Error {
+  constructor(public readonly storeName: string) {
+    super(`Googleで閉店（CLOSED_PERMANENTLY）と確認されました: ${storeName}`);
+    this.name = 'PlaceClosedError';
   }
 }
 
@@ -855,6 +883,20 @@ async function runQaAgent(
     throw new PlaceIdUnresolvedError(research.title);
   }
   console.log(`${label} Place IDを解決しました: ${resolvedPlace.placeId}`);
+
+  // 解決したPlace IDのbusinessStatusを確認し、閉店済みなら記事を保存しない。
+  // 取得できなかった場合（null）は「閉店と断定できなかった」として通す
+  // ―Google側の一時的な障害で、営業中の店の記事まで落ちるのを避ける。
+  const businessStatus = await resolveBusinessStatus(
+    resolvedPlace.placeId,
+    process.env.GOOGLE_PLACES_API_KEY
+  );
+  if (businessStatus === 'CLOSED_PERMANENTLY') {
+    throw new PlaceClosedError(research.title);
+  }
+  console.log(
+    `${label} businessStatus: ${businessStatus ?? '取得できず（閉店判定なしで続行）'}`
+  );
 
   // 営業時間・定休日はAgent1の調査対象から外している（researchSchemaに
   // フィールドが無い。FALLBACK_HOURS_TEXTのコメント参照）ため、ここでの
@@ -1920,6 +1962,7 @@ async function main() {
   const unsourcedClaimsStores: { name: string; unsourcedCount: number; totalClaims: number; statements: string[] }[] =
     [];
   const placeIdUnresolvedStores: string[] = [];
+  const placeClosedStores: string[] = [];
   const ungroundedResearchLines = (): string[] =>
     ungroundedResearchStores.map((name) => `- ⚠️ Google検索の引用が0件のため見送りました（${name}）`);
   const unsourcedClaimsLines = (): string[] =>
@@ -1929,6 +1972,8 @@ async function main() {
     ]);
   const placeIdUnresolvedLines = (): string[] =>
     placeIdUnresolvedStores.map((name) => `- ⚠️ Place ID が解決できず見送りました（${name}）`);
+  const placeClosedLines = (): string[] =>
+    placeClosedStores.map((name) => `- ⚠️ Googleで閉店と確認されたため見送りました（${name}）`);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     console.log(`\n----- 試行 ${attempt}/${MAX_ATTEMPTS} -----`);
@@ -2110,6 +2155,7 @@ async function main() {
           ...ungroundedResearchLines(),
           ...unsourcedClaimsLines(),
           ...placeIdUnresolvedLines(),
+          ...placeClosedLines(),
           unconfirmedHintLine(),
         ]
           .filter((line): line is string => line !== null)
@@ -2131,6 +2177,7 @@ async function main() {
             ...ungroundedResearchLines(),
             ...unsourcedClaimsLines(),
             ...placeIdUnresolvedLines(),
+            ...placeClosedLines(),
             unconfirmedHintLine(),
           ]
             .filter((line): line is string => line !== null)
@@ -2152,6 +2199,15 @@ async function main() {
         continue;
       }
 
+      // 閉店済み（CLOSED_PERMANENTLY）も同じく非致命的な見送り。記事は
+      // 保存されていない（runQaAgentがwriteFileより前に投げている）。
+      if (err instanceof PlaceClosedError) {
+        outcomes.push('placeClosed');
+        placeClosedStores.push(err.storeName);
+        console.warn(`[generate-spot] ${err.message} 見送ってリトライします。`);
+        continue;
+      }
+
       outcomes.push('error');
       console.error(
         `[generate-spot] 試行 ${attempt}/${MAX_ATTEMPTS} でエラーが発生しました:`,
@@ -2169,6 +2225,7 @@ async function main() {
             ...ungroundedResearchLines(),
             ...unsourcedClaimsLines(),
             ...placeIdUnresolvedLines(),
+            ...placeClosedLines(),
             unconfirmedHintLine(),
           ]
             .filter((line): line is string => line !== null)
@@ -2181,7 +2238,7 @@ async function main() {
   }
 
   // ここに到達するのは、MAX_ATTEMPTS回すべてが notFound・duplicate・
-  // placeIdUnresolved のいずれかでcontinueした場合のみ
+  // placeIdUnresolved・placeClosed のいずれかでcontinueした場合のみ
   // （最終試行がエラーだった場合は上のcatch内でthrow済みなのでここには
   // 来ない）。以前はこのケースが完全な無言終了（ログ無し・exitCode 0の
   // 緑チェックのみ）になっており、「成功しているのに記事が増えない」原因が
@@ -2206,6 +2263,7 @@ async function main() {
       ...ungroundedResearchLines(),
       ...unsourcedClaimsLines(),
       ...placeIdUnresolvedLines(),
+      ...placeClosedLines(),
       unconfirmedHintLine(),
       '',
       '_エラーではなく意図的なスキップです。次回の定期実行で再試行されます。_',

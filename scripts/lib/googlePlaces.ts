@@ -265,3 +265,104 @@ export async function resolveRegularOpeningHoursPeriods(
 
   return periods as GoogleOpeningPeriod[];
 }
+
+/**
+ * Place Details (New) の businessStatus。
+ * OPERATIONAL=営業中 / CLOSED_TEMPORARILY=一時休業 / CLOSED_PERMANENTLY=閉店。
+ */
+export type BusinessStatus = 'OPERATIONAL' | 'CLOSED_TEMPORARILY' | 'CLOSED_PERMANENTLY';
+
+const BUSINESS_STATUSES: readonly string[] = [
+  'OPERATIONAL',
+  'CLOSED_TEMPORARILY',
+  'CLOSED_PERMANENTLY',
+];
+
+/**
+ * Place Details (New) から businessStatus だけを取得する。
+ *
+ * 閉店した店を掲載し続けるのは地域メディアとして最も避けたい状態なので、
+ * Agent3（scripts/generate-spot.ts）はPlace ID解決の直後にこれを呼び、
+ * CLOSED_PERMANENTLY なら記事を保存せず見送る。既存店舗の定期点検
+ * （scripts/check-business-status.ts、週次ワークフロー）からも同じ関数を使う。
+ *
+ * businessStatus は「今の状態」であり、Google Maps Platform利用規約上
+ * frontmatter等への永続保存は許可されていない。判定・報告にその場で使う
+ * だけにとどめ、絶対に記事へ書き込まないこと（opening hoursと同じ方針。
+ * resolveRegularOpeningHoursPeriods のコメント参照）。
+ *
+ * なおフィールドマスクに businessStatus を含むPlace Detailsリクエストは
+ * Essentialsではなく Pro ティアのSKUで課金される。1店舗1回に限定し、
+ * 他のフィールドを足さないこと（displayNameを足すとSKUは変わらないが、
+ * ここでは判定に不要なので要求しない）。
+ *
+ * 取得できなかった場合（APIキー未設定・HTTPエラー・想定外の値）はnullを
+ * 返す。呼び出し側は「閉店と断定できなかった」として扱い、記事をブロック
+ * しない（Google側の一時的な障害で正常な店の記事が落ちるのを避ける）。
+ */
+export async function resolveBusinessStatus(
+  placeId: string,
+  apiKey: string | undefined,
+  options: ResolvePlaceIdOptions = {}
+): Promise<BusinessStatus | null> {
+  const verbose = options.verbose ?? false;
+  const log = (msg: string) => {
+    if (verbose) console.error(`[googlePlaces] ${msg}`);
+  };
+
+  if (!apiKey) {
+    log('APIキーが渡されていません（GOOGLE_PLACES_API_KEY未設定）。');
+    return null;
+  }
+
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const url = placeDetailsUrl(placeId);
+
+  log(`request: GET ${url}`);
+  log(`  X-Goog-Api-Key: ${maskApiKey(apiKey)}`);
+  log(`  X-Goog-FieldMask: businessStatus`);
+
+  let response: Response;
+  try {
+    response = await fetchImpl(url, {
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        // フィールドマスクは businessStatus のみ。増やさないこと（上記コメント参照）。
+        'X-Goog-FieldMask': 'businessStatus',
+      },
+    });
+  } catch (err) {
+    console.log(`[googlePlaces] businessStatus取得 (${placeId}) がfetch例外で失敗しました。`);
+    log(`fetch自体が例外を投げました: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+
+  const bodyText = await response.text();
+  log(`response status: ${response.status} ${response.statusText}`);
+  log(`response body: ${bodyText}`);
+
+  if (!response.ok) {
+    console.log(
+      `[googlePlaces] businessStatus取得 (${placeId}) がHTTP ${response.status} で失敗しました: ${bodyText}`
+    );
+    return null;
+  }
+
+  let data: unknown;
+  try {
+    data = JSON.parse(bodyText);
+  } catch {
+    log('レスポンスボディをJSONとしてパースできませんでした。');
+    return null;
+  }
+
+  const status = (data as { businessStatus?: unknown } | null)?.businessStatus;
+  if (typeof status !== 'string' || !BUSINESS_STATUSES.includes(status)) {
+    // businessStatus はGoogleが値を持たない場所では省略される。閉店の
+    // 判定材料が無いという意味でnullを返す（「営業中」とみなさない）。
+    log(`レスポンスに既知の businessStatus が含まれていませんでした: ${String(status)}`);
+    return null;
+  }
+
+  return status as BusinessStatus;
+}
