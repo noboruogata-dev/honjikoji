@@ -52,7 +52,9 @@ const columns = (await getCollection('columns', ({ data }) => !data.draft))
 // 0%: 画面下からvhStart分だけ下の位置・縮小・不透明度0（未到達）
 // 50%: 中央（translateY:0）・peakScaleまで拡大・完全点灯
 // 100%: 画面上へvhEnd分だけ抜けた位置・縮小・不透明度0（通過済み）
-// という3段の共通keyframe（<style>のhero-lantern-stream）を、インスタンスごとに
+// （加えて37.5%/62.5%に、ピークの折り返しの角を丸めるための中間キーフレーム
+//   を置いている。詳細は<style>のhero-lantern-stream内のコメント参照）
+// という動きの共通keyframe（<style>のhero-lantern-stream）を、インスタンスごとに
 // CSS変数（vhStart/vhEnd/peakScale）とanimation-range（幅が狭いほど＝
 // 同じスクロール距離をより短時間で駆け抜ける＝手前・速い）で
 // パラメータ化している。
@@ -862,7 +864,21 @@ const structuredData = [
   // ため。上のコメント参照）。TRAIL側は今のところ余白なし
   // （windowEndは自然にspots.top=exit 100%が上限になるため、これ以上
   // 後ろへずらしても頭打ちで変化しない）。
-  const SPOTS_LEAD_VH_FRACTION = 0.15;
+  //
+  // 「流れる区間をもっと広げたい（＝1本の提灯がもっと長いスクロール距離を
+  // かけて通り過ぎるようにしたい）」という指示を受け、0.15→0.5へ広げた。
+  // 終端側（windowEnd）はspots.top＝exit 100%が構造上の上限で後ろへ延ばせ
+  // ないため、区間を広げる手段は「起点を手前へずらす」側しかない。その
+  // ぶん流れ始めるタイミングは「#spotsが完全に見えたあたり」より半画面
+  // ぶん早くなるが、動きの速さとのトレードオフとして受け入れている。
+  //
+  // 実測（astro dev + 実ブラウザ）での区間幅の変化:
+  //   PC   1280x800: exit 57.7%〜100%（339px）→ exit 22.7%〜100%（619px）
+  //   モバイル 375x812: exit 63.2%〜100%（299px）→ exit 28.2%〜100%（583px）
+  // どちらも約1.9倍。0.8まで上げるとwindowStartが0%に張り付いて
+  // （progressAtのクランプ）それ以上広がらなくなるため、縦に長い
+  // ビューポートでも頭打ちしない余裕を残して0.5にとどめている。
+  const SPOTS_LEAD_VH_FRACTION = 0.5;
 
   let lanternResizeHandler: (() => void) | undefined;
 
@@ -1044,14 +1060,45 @@ const structuredData = [
       transform: translateY(var(--stream-vh-start, 55dvh)) scale(0.6);
       opacity: 0;
     }
-    14% {
+    20% {
+      opacity: 1;
+    }
+    /*
+      37.5%/62.5%のキーフレームは「動きを少しなめらかにしたい」という指示
+      への対応。animation-timing-functionはlinearのまま変えていない
+      （スクロール駆動では、キーフレームごとにイージングを掛けると
+      各キーフレームで速度が0になり、かくっと溜める段付きの動きに
+      見えてしまうため）。
+
+      代わりに、角が出ていたscaleのカーブ自体を丸める。0%:0.6 →
+      50%:peak → 100%:0.6 の3点だけをlinearで結ぶと、ピークの50%で
+      拡大→縮小へ折り返す「角」ができ、通り過ぎる瞬間にスケールの
+      変化が急に反転して見えていた。raised-cosine（1-cos(2πt))/2）の
+      カーブ上の値を中間2点に足すと、ピーク近傍が平らになり折り返しが
+      なめらかになる。0.854は t=0.375 でのこのカーブの値
+      （(1-cos(135°))/2 ≒ 0.854）で、linear補間の0.75より上に置くことで
+      山の肩を膨らませている。
+
+      translateYは0%→50%→100%がほぼ等速のままで角が出ないため、ここでは
+      linear補間と同じ値（残り25%ぶん）を明示して動きを変えないように
+      している（transformを書くキーフレームは常に全体を上書きするため、
+      scaleだけ書くとtranslateYが失われてしまう）。
+    */
+    37.5% {
+      transform: translateY(calc(var(--stream-vh-start, 55dvh) * 0.25))
+        scale(calc(0.6 + (var(--stream-peak-scale, 1.2) - 0.6) * 0.854));
       opacity: 1;
     }
     50% {
       transform: translateY(0) scale(var(--stream-peak-scale, 1.2));
       opacity: 1;
     }
-    86% {
+    62.5% {
+      transform: translateY(calc(var(--stream-vh-end, -50dvh) * 0.25))
+        scale(calc(0.6 + (var(--stream-peak-scale, 1.2) - 0.6) * 0.854));
+      opacity: 1;
+    }
+    80% {
       opacity: 1;
     }
     100% {
