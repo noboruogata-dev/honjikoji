@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T10:24:13.916Z",
+  "generatedAt": "2026-10-23T01:31:20.345Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
@@ -29,15 +29,6 @@
       "store": null,
       "storeManual": "蕎麦割烹 麦",
       "storeDisplay": "蕎麦割烹 麦"
-    },
-    {
-      "videoId": "NPKmxYhhsho",
-      "title": "老舗割烹きくや 会長吠えて出禁…!?【本寺小路】【燕三条TV】｜新潟県三条市",
-      "publishedAt": "2025-07-17T09:53:28Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "老舗割烹きくや",
-      "storeDisplay": "老舗割烹きくや"
     },
     {
       "videoId": "7Ls4b54nl1g",
@@ -286,15 +277,6 @@
       "videoId": "oFst3RuQxEo",
       "title": "【燕三条TV】会長の焚き火",
       "publishedAt": "2024-12-11T05:01:32Z",
-      "area": "unknown",
-      "store": null,
-      "storeManual": null,
-      "storeDisplay": null
-    },
-    {
-      "videoId": "qjFLpQnraTg",
-      "title": "老舗割烹きくや 番外編【燕三条TV】",
-      "publishedAt": "2025-07-24T09:08:38Z",
       "area": "unknown",
       "store": null,
       "storeManual": null,
