@@ -16,7 +16,6 @@ vibes:
 isNew: false
 establishedYear: 1973
 youtubeVideos:
-  - id: "qjFLpQnraTg"
   - id: "NPKmxYhhsho"
 description: "昭和48年創業、新潟の本寺小路に佇む「割烹 きくや」。「鍋茶屋」や「つきぢ田村」で修業した店主が、地場食材を生かした和食を振る舞います。自家製味噌のなす田楽など逸品が揃い、1軒目やご宴会に最適です。"
 pubDate: 2026-10-23
