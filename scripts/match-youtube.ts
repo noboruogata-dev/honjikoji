@@ -10,6 +10,10 @@
  * 処理:
  *   1. YouTube Data API v3 でチャンネルの全動画（videoId/title/publishedAt）を
  *      ページネーション対応で取得
+ *      あわせて videos.list（contentDetails.duration）で動画の長さを取得し、
+ *      ショート動画（180秒以下）はマッチング対象から除外する。ショート判定専用の
+ *      フィールドはAPIに無く、#shorts タグもチャンネルの実データでは付いて
+ *      いなかったため、長さで判定する（SHORTS_MAX_SECONDS 参照）。
  *   2. 店名とタイトルを正規化して照合
  *      - 店名がタイトルに完全に含まれる場合のみ「確信度: 高」→ 自動採用
  *      - それ以外の部分一致は「確信度: 中/低」→ matched-candidates.json に
@@ -62,6 +66,13 @@ const CHANNEL_HANDLE = '@TsubameSanjoTV';
 const UPLOADS_PLAYLIST_ID = CHANNEL_ID.replace(/^UC/, 'UU');
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
+
+// ショート動画とみなす最大秒数。YouTubeのShortsは2024年10月以降3分まで
+// 投稿できる。videos.list にはショートを識別するフィールドが無く、
+// #shorts もタイトル/説明に付けない運用が多いため、長さで判定する。
+// 本チャンネルの実データでは61秒（通常動画）の次が約8分で、60〜180秒の
+// 動画は存在しないため、180秒にしても60秒基準と結果は変わらない。
+const SHORTS_MAX_SECONDS = 180;
 
 interface ChannelVideo {
   videoId: string;
@@ -195,6 +206,50 @@ async function fetchAllChannelVideos(apiKey: string): Promise<ChannelVideo[]> {
   } while (pageToken);
 
   return videos;
+}
+
+/** ISO 8601 の動画長（PT1M1S 等）を秒に変換する。ライブ配信予定のP0Dや解析不能は0。 */
+export function parseIsoDurationSeconds(duration: string): number {
+  const m = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!m) return 0;
+  return Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0);
+}
+
+/** ショート動画（長さが取得でき、SHORTS_MAX_SECONDS 以下）か。長さ不明は通常動画扱い。 */
+export function isShortDuration(duration: string | undefined): boolean {
+  if (!duration) return false;
+  const seconds = parseIsoDurationSeconds(duration);
+  return seconds > 0 && seconds <= SHORTS_MAX_SECONDS;
+}
+
+/**
+ * videos.list（part=contentDetails）で動画の長さを取得し、ショート動画を除いた
+ * 動画だけを返す。50件ずつのバッチ呼び出し（1回1ユニット）。
+ */
+async function filterOutShorts(apiKey: string, videos: ChannelVideo[]): Promise<ChannelVideo[]> {
+  const shortIds = new Set<string>();
+  for (let i = 0; i < videos.length; i += 50) {
+    const url = new URL(`${YOUTUBE_API_BASE}/videos`);
+    url.searchParams.set('part', 'contentDetails');
+    url.searchParams.set('id', videos.slice(i, i + 50).map((v) => v.videoId).join(','));
+    url.searchParams.set('key', apiKey);
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`YouTube Data API（videos.list）の呼び出しに失敗しました（HTTP ${res.status}）。\n${body}`);
+    }
+    const json = (await res.json()) as {
+      items?: Array<{ id?: string; contentDetails?: { duration?: string } }>;
+    };
+    for (const item of json.items ?? []) {
+      if (item.id && isShortDuration(item.contentDetails?.duration)) shortIds.add(item.id);
+    }
+  }
+  if (shortIds.size > 0) {
+    console.log(`[match-youtube] ショート動画（${SHORTS_MAX_SECONDS}秒以下）${shortIds.size}件をマッチング対象から除外しました。`);
+  }
+  return videos.filter((v) => !shortIds.has(v.videoId));
 }
 
 // ============================================================
@@ -462,8 +517,9 @@ export async function main() {
   console.log(` チャンネル: ${CHANNEL_HANDLE} (${CHANNEL_ID})${dryRun ? '  [--dry-run]' : ''}`);
   console.log('============================================================');
 
-  const videos = await fetchAllChannelVideos(apiKey);
-  console.log(`[match-youtube] チャンネル動画: ${videos.length}件取得しました。`);
+  const allVideos = await fetchAllChannelVideos(apiKey);
+  console.log(`[match-youtube] チャンネル動画: ${allVideos.length}件取得しました。`);
+  const videos = await filterOutShorts(apiKey, allVideos);
 
   const spots = await loadSpotFiles();
   console.log(`[match-youtube] 店舗記事: ${spots.length}件読み込みました。`);
