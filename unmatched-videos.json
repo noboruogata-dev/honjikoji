@@ -1,17 +1,8 @@
 {
-  "generatedAt": "2026-10-27T02:07:19.624Z",
+  "generatedAt": "2026-10-27T02:28:15.682Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
-    {
-      "videoId": "7mwJbA46w-k",
-      "title": "カフェ&パブ リズ（深夜にパフェが食べられる店）【新潟県三条市】【本寺小路】【燕三条TV】",
-      "publishedAt": "2020-07-15T02:48:32Z",
-      "area": "honjikoji",
-      "store": null,
-      "storeManual": "カフェ&パブ リズ",
-      "storeDisplay": "カフェ&パブ リズ"
-    },
     {
       "videoId": "KcflQw6sOgQ",
       "title": "鳥正（焼鳥の名店！だけど魚も美味しい）【燕三条TV】【本寺小路】【新潟県三条市】",
@@ -20,6 +11,15 @@
       "store": null,
       "storeManual": "鳥正",
       "storeDisplay": "鳥正"
+    },
+    {
+      "videoId": "C-gbb1UUzoM",
+      "title": "飲みの後に蕎麦で〆られる貴重な店『蕎麦割烹 麦』【本寺小路】【新潟県三条市】【燕三条TV】",
+      "publishedAt": "2021-03-01T09:48:49Z",
+      "area": "honjikoji",
+      "store": null,
+      "storeManual": null,
+      "storeDisplay": null
     },
     {
       "videoId": "7Ls4b54nl1g",
