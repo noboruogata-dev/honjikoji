@@ -10,9 +10,13 @@
  * キャッシュ許可がないため保存できない。詳細ページでのライブ取得は
  * functions/api/place-hours.ts が別途担当する）。
  *
- * フィールドマスクは places.id のみを要求する。不要なフィールドを含めると
- * 上位SKU（Pro/Enterprise）で課金されるため、Text Search自体はEssentials
- * ティアのまま完結させる。
+ * フィールドマスクは places.id と places.displayName のみを要求する。
+ * displayName を含むため Text Search は Essentials ではなく Pro ティアの
+ * SKU で課金されるが、記事生成1件につき数回しか呼ばないので許容する。
+ * 2026年10月、「蕎麦割烹 麦」の記事で places[0] が近所の別店舗「そば処今泉」
+ * だったのに id しか見ていなかったため気付けず、誤ったPlace IDのまま公開
+ * された（実際の店舗は閉店済みでGoogleに登録が無かった）。店名の照合に
+ * displayName が必須なので、これ以外のフィールドは増やさないこと。
  */
 
 const TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
@@ -38,6 +42,54 @@ export interface ResolvePlaceIdOptions {
    * （--backfill-place-id からのデバッグ用途。通常のAgent3実行では使わない）。
    */
   verbose?: boolean;
+}
+
+/** 店名照合用の正規化。全角/半角・大文字小文字・空白・記号の差を吸収する。 */
+function normalizeStoreName(name: string): string {
+  return name
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\s・･'’"“”.,、。&＆\-‐－ー~〜()（）「」]/g, '');
+}
+
+/**
+ * 店名の照合で「一致」の根拠にしない、業態を表すだけの語。
+ * これらが共通しているだけでは同じ店とはみなさない（例: 「割烹 A」と「割烹 B」）。
+ */
+const GENERIC_NAME_TOKENS: ReadonlySet<string> = new Set(
+  [
+    'bar', 'wine', 'winebar', 'osteria', 'cafe', 'dining', 'izakaya',
+    '割烹', '蕎麦割烹', '天婦羅割烹', '料亭', '居酒屋', '酒場', '大衆酒場', 'スナック', 'バー',
+    'そば処', '蕎麦処', 'すし処', '寿司処', '鮨処', 'そば', '蕎麦', 'すし', '寿司', '鮨',
+    '焼肉', '大衆焼肉', '炭火焼', 'もつ焼', 'もつ焼き', '焼鳥', '焼き鳥', 'やきとり',
+    '旬彩', '食堂', '本店', '支店',
+  ].map(normalizeStoreName)
+);
+
+/**
+ * 記事の店名とGoogle側の displayName が同じ店を指していそうかを判定する。
+ *
+ * どちらかの正規化後の全体がもう一方に含まれていれば一致とする
+ * （例: 「割烹 きくや」⊃「きくや」）。そうでなければ、記事の店名を空白で
+ * 区切った語のうち業態語（GENERIC_NAME_TOKENS）以外の語が displayName に
+ * 含まれていれば一致とする（例: 「天婦羅割烹 みや嶋」の「みや嶋」が
+ * 「みや嶋天婦羅割烹」に含まれる）。
+ *
+ * 英字とカナの表記違い（「Bar Keywest」と「キーウエスト」）は一致と判定
+ * できない。誤った店のPlace IDで公開するより見送るほうが安全なので、
+ * 意図的にこちら側（不一致）へ倒している。
+ */
+export function isLikelySameStore(storeName: string, displayName: string): boolean {
+  const a = normalizeStoreName(storeName);
+  const b = normalizeStoreName(displayName);
+  if (a.length === 0 || b.length === 0) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+
+  return storeName
+    .normalize('NFKC')
+    .split(/\s+/)
+    .map(normalizeStoreName)
+    .some((token) => token.length >= 2 && !GENERIC_NAME_TOKENS.has(token) && b.includes(token));
 }
 
 function maskApiKey(apiKey: string): string {
@@ -74,7 +126,7 @@ export async function resolvePlaceId(
   log(`query: "${textQuery}"`);
   log(`request: POST ${TEXT_SEARCH_URL}`);
   log(`  X-Goog-Api-Key: ${maskApiKey(apiKey)}`);
-  log(`  X-Goog-FieldMask: places.id`);
+  log(`  X-Goog-FieldMask: places.id,places.displayName`);
   log(`  body: ${JSON.stringify(requestBody)}`);
 
   let response: Response;
@@ -84,8 +136,8 @@ export async function resolvePlaceId(
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        // フィールドマスクは id のみ。Essentialsティアで完結させる。
-        'X-Goog-FieldMask': 'places.id',
+        // フィールドマスクは id と店名照合用の displayName のみ（ファイル先頭コメント参照）。
+        'X-Goog-FieldMask': 'places.id,places.displayName',
       },
       body: JSON.stringify(requestBody),
     });
@@ -117,9 +169,9 @@ export async function resolvePlaceId(
     return null;
   }
 
-  const places = (data as { places?: Array<{ id?: unknown }> } | null)?.places;
-  const placeId = places?.[0]?.id;
-  if (typeof placeId !== 'string' || placeId.length === 0) {
+  const places = (data as { places?: Array<{ id?: unknown; displayName?: { text?: unknown } }> } | null)
+    ?.places;
+  if (!places?.some((p) => typeof p.id === 'string' && p.id.length > 0)) {
     // Text Search自体の検索語（storeName/address、当サイト側で組み立てた
     // クエリ）と「0件だった」という事実は、Googleから返された内容
     // （Google Maps Content）ではないため、verboseに関わらず常時ログして
@@ -129,11 +181,29 @@ export async function resolvePlaceId(
     // （クエリが実際に何だったか、0件かAPIエラーか）を後から一切追跡
     // できなかった。
     console.log(`[googlePlaces] Text Search "${textQuery}" は0件でした。`);
-    log('レスポンスに places[0].id が含まれていませんでした（該当0件、またはフィールドマスク不一致）。');
+    log('レスポンスに places[].id が含まれていませんでした（該当0件、またはフィールドマスク不一致）。');
     return null;
   }
 
-  console.log(`[googlePlaces] Text Search "${textQuery}" → ${placeId}`);
+  // 検索結果の先頭が目的の店とは限らない（近所の別店舗が返ることがある）。
+  // 店名が一致する候補だけを採用し、無ければ「解決できなかった」とする。
+  const matched = places.find(
+    (p) =>
+      typeof p.id === 'string' &&
+      p.id.length > 0 &&
+      typeof p.displayName?.text === 'string' &&
+      isLikelySameStore(storeName, p.displayName.text)
+  );
+  if (!matched) {
+    const names = places.map((p) => String(p.displayName?.text ?? '?')).join(' / ');
+    console.log(
+      `[googlePlaces] Text Search "${textQuery}" の候補に店名「${storeName}」と一致するものがありませんでした: ${names}`
+    );
+    return null;
+  }
+
+  const placeId = matched.id as string;
+  console.log(`[googlePlaces] Text Search "${textQuery}" → ${placeId}（${String(matched.displayName?.text)}）`);
   return { placeId };
 }
 

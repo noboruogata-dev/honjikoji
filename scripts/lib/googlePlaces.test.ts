@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { resolveBusinessStatus, resolvePlaceId, resolvePlaceIdWithRetry } from './googlePlaces';
+import { isLikelySameStore, resolveBusinessStatus, resolvePlaceId, resolvePlaceIdWithRetry } from './googlePlaces';
 
 describe('resolvePlaceId', () => {
   it('APIキーが無ければfetchせずnullを返す', async () => {
@@ -11,7 +11,7 @@ describe('resolvePlaceId', () => {
 
   it('該当するPlace IDを解決する', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ places: [{ id: 'ChIJexample1234' }] }), { status: 200 })
+      new Response(JSON.stringify({ places: [{ id: 'ChIJexample1234', displayName: { text: '三条屋' } }] }), { status: 200 })
     );
     const result = await resolvePlaceId('三条屋', '新潟県三条市本町1-1-1', 'test-key', { fetchImpl });
     expect(result).toEqual({ placeId: 'ChIJexample1234' });
@@ -19,9 +19,35 @@ describe('resolvePlaceId', () => {
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toBe('https://places.googleapis.com/v1/places:searchText');
     expect(init.headers['X-Goog-Api-Key']).toBe('test-key');
-    expect(init.headers['X-Goog-FieldMask']).toBe('places.id');
+    expect(init.headers['X-Goog-FieldMask']).toBe('places.id,places.displayName');
     const body = JSON.parse(init.body);
     expect(body.textQuery).toBe('三条屋 新潟県三条市本町1-1-1');
+  });
+
+  it('先頭が別店舗でも、店名が一致する候補のPlace IDを採用する', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          places: [
+            { id: 'ChIJother', displayName: { text: 'そば処今泉' } },
+            { id: 'ChIJkikuya', displayName: { text: 'きくや' } },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+    const result = await resolvePlaceId('割烹 きくや', '新潟県三条市', 'test-key', { fetchImpl });
+    expect(result).toEqual({ placeId: 'ChIJkikuya' });
+  });
+
+  it('店名が一致する候補が無ければnullを返す（別店舗のPlace IDを採用しない）', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ places: [{ id: 'ChIJother', displayName: { text: 'そば処今泉' } }] }), {
+        status: 200,
+      })
+    );
+    const result = await resolvePlaceId('蕎麦割烹 麦', '新潟県三条市居島3-4', 'test-key', { fetchImpl });
+    expect(result).toBeNull();
   });
 
   it('候補が0件ならnullを返す', async () => {
@@ -57,7 +83,7 @@ describe('resolvePlaceIdWithRetry', () => {
   it('1回目で成功すればリトライしない', async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValue(new Response(JSON.stringify({ places: [{ id: 'ChIJexample1234' }] }), { status: 200 }));
+      .mockResolvedValue(new Response(JSON.stringify({ places: [{ id: 'ChIJexample1234', displayName: { text: '三条屋' } }] }), { status: 200 }));
     const result = await resolvePlaceIdWithRetry('三条屋', '新潟県三条市', 'test-key', {
       fetchImpl,
       delayMs: 0,
@@ -70,7 +96,7 @@ describe('resolvePlaceIdWithRetry', () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ places: [] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ places: [{ id: 'ChIJexample1234' }] }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ places: [{ id: 'ChIJexample1234', displayName: { text: '三条屋' } }] }), { status: 200 }));
     const result = await resolvePlaceIdWithRetry('三条屋', '新潟県三条市', 'test-key', {
       fetchImpl,
       delayMs: 0,
@@ -164,5 +190,31 @@ describe('resolveBusinessStatus', () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('network error'));
     const result = await resolveBusinessStatus('ChIJexample1234', 'test-key', { fetchImpl });
     expect(result).toBeNull();
+  });
+});
+
+describe('isLikelySameStore', () => {
+  it.each([
+    ['Anthem', 'Anthem'],
+    ['バード', '軽食･喫茶バード'],
+    ['酒采とお食事 どっぽ', '酒采とお食事どっぽ'],
+    ['割烹 きくや', 'きくや'],
+    ['もつ焼き たかはし', 'もつ焼たかはし'],
+    ['Osteria Kissui tei', 'osteria kissuitei'],
+    ["Sato's Bar", 'ＳＡＴＯ\'Ｓ ＢＡＲ'],
+    ['炭火焼 く遠', 'く遠'],
+    ['すし処 平井屋', '平井屋'],
+    ['天婦羅割烹 みや嶋', 'みや嶋天婦羅割烹'],
+  ])('「%s」と「%s」は同じ店とみなす', (storeName, displayName) => {
+    expect(isLikelySameStore(storeName, displayName)).toBe(true);
+  });
+
+  it.each([
+    ['蕎麦割烹 麦', 'そば処今泉'],
+    ['割烹 きくや', '割烹 松木屋'],
+    ['Wine Bar MARGAUX', 'Wine Bar Other'],
+    ['そば処 今泉', 'そば処山河'],
+  ])('「%s」と「%s」は別の店とみなす', (storeName, displayName) => {
+    expect(isLikelySameStore(storeName, displayName)).toBe(false);
   });
 });
