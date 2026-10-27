@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-26T00:52:20.725Z",
+  "generatedAt": "2026-10-27T02:07:19.617Z",
   "channel": "@TsubameSanjoTV",
   "candidates": [
     {
@@ -109,6 +109,15 @@
       "publishedAt": "2021-01-03T09:35:49Z",
       "confidence": "low",
       "reason": "店名のごく一部（連続2文字、店名の40%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "sobakappo-mugi",
+      "spotTitle": "蕎麦割烹 麦",
+      "videoId": "erPJd6Eo80A",
+      "videoTitle": "【燕三条TV】そば処今泉（昼から夜まで休まず営業している希少な蕎麦屋！蕎麦焼酎をそば湯割りで飲めるのは蕎麦屋だけ！）【本寺小路】【新潟県三条市】",
+      "publishedAt": "2021-11-22T09:27:58Z",
+      "confidence": "medium",
+      "reason": "店名の一部（連続2文字、店名の67%）がタイトルに含まれる"
     }
   ]
 }
