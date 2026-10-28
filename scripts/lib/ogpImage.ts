@@ -14,7 +14,9 @@
 
 import satori from 'satori';
 import sharp from 'sharp';
+import { loadDefaultJapaneseParser } from 'budoux';
 import { create as createFontkitFont, type Font as FontkitFont } from 'fontkit';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -261,238 +263,196 @@ const FEED_HEIGHT = 1350;
 // 吸収する（提灯とサイト名は上下に固定、詳細はbuildFeedTree参照）。
 const FEED_HORIZONTAL_PADDING = 72;
 
-// 英数字の連続（店名に含まれるアルファベット表記・型番等）は、日本語の
-// 文字と違って1文字単位で改行してはいけない「単語」として扱う。
-// 例:「Beerhouse3」を文字数だけで機械的に9文字目で切ると
-// 「Beerhouse」「3」のような不自然な改行になる（実際に報告された不具合）。
-// そのため、折り返し処理に入る前にタイトルを「英数字の連続1語」または
-// 「それ以外の1文字（日本語の文字・記号・空白等、これまで通り1文字単位で
-// 改行してよい）」のトークン列に分解し、英数字の単語だけは分割不可能な
-// 1トークンとして扱う。
-interface WrapToken {
-  text: string;
-  /** 表示上の幅換算に使う文字数。英数字の単語は実際の文字数、それ以外は常に1。 */
-  len: number;
+// ============================================================
+// フィード画像タイトルの改行
+//
+// 以前は「1行の文字数上限まで詰め、記号・助詞の禁則ルールで調整する」方式
+// だったが、文字数基準では意味の切れ目が分からず（「連れら|れホンジ」
+// 「無|料」のように語の途中で切れる）、行の長さも揃わなかった。不具合の
+// たびにルールを足し、特定タイトル専用の分岐まで生じていたため、次の方式に
+// 置き換えた:
+// 1. BudouX（Googleの日本語改行位置推定。ローカル・決定論的）で文節の
+//    切れ目を求め、そこを改行候補にする。文節内・括弧内でも改行はできるが
+//    減点する（収まらない長い語句のための逃げ道）。
+// 2. 各行の幅は文字数ではなく、実際のフォント（Shippori Mincho Bold）の
+//    字幅で測る（半角英数字は全角の約半分の幅しかない）。
+// 3. 候補のフォントサイズ×行数（1〜3行）ごとに、最も減点の少ない分け方を
+//    求め、「大きい文字」「行の長さが揃っている」「減点が少ない」の総合点で
+//    最良のものを選ぶ。
+// ============================================================
+
+const FEED_CONTENT_WIDTH = FEED_WIDTH - FEED_HORIZONTAL_PADDING * 2;
+// buildFeedTreeのタイトルのletterSpacing（0.02em）と同じ値。
+const FEED_TITLE_LETTER_SPACING_EM = 0.02;
+const FEED_TITLE_FONT_SIZES = [100, 88, 76, 68, 60, 54, 48, 44] as const;
+const FEED_TITLE_MAX_LINES = 3;
+// 3行組みは大きすぎる文字だと画面を埋めて圧迫感が出るため、この大きさ以下に限る。
+const FEED_TITLE_MAX_FONT_SIZE_FOR_3_LINES = 68;
+
+// 行頭に置かない文字（閉じ括弧・句読点・長音・小書き仮名）と、行末に置かない文字（開き括弧）。
+const FORBIDDEN_LINE_START = /^[、。，．！？!?」』）)】〕・ー〜ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ]/u;
+const FORBIDDEN_LINE_END = /[「『（(【〔]$/u;
+const OPENING_BRACKET = /[「『（(【〔]/u;
+const CLOSING_BRACKET = /[」』）)】〕]/u;
+
+// 改行位置ごとの減点（総合点の単位は「フォントサイズのpx」相当）。
+const PENALTY_INSIDE_PHRASE = 30;
+// 文節の途中でも、英数字とそれ以外の文字の境目（「フェスティバル|2026」）は自然に切れる。
+const PENALTY_SCRIPT_BOUNDARY = 8;
+const PENALTY_INSIDE_BRACKETS = 14;
+// 文の区切り（！？。、）の直後は最も自然な改行位置なので、減点ではなく加点する。
+const BONUS_AFTER_PUNCTUATION = 6;
+const PENALTY_THREE_LINES = 4;
+
+let budouxParser: ReturnType<typeof loadDefaultJapaneseParser> | undefined;
+let measureFont: FontkitFont | undefined;
+
+function getMeasureFont(): FontkitFont {
+  if (!measureFont) {
+    measureFont = createFontkitFont(readFileSync(path.join(FONTS_DIR, 'ShipporiMincho-Bold-subset.ttf'))) as FontkitFont;
+  }
+  return measureFont;
 }
 
-function tokenizeForWrap(title: string): WrapToken[] {
-  const tokens: WrapToken[] = [];
-  for (const segment of title.matchAll(/[A-Za-z0-9]+|./gsu)) {
-    const text = segment[0];
-    const isWord = /^[A-Za-z0-9]+$/.test(text);
-    tokens.push({ text, len: isWord ? [...text].length : 1 });
-  }
-  return tokens;
+/** 1em あたりの幅で、textの表示幅を返す（letterSpacing込み）。 */
+function measureEm(text: string): number {
+  const font = getMeasureFont();
+  const run = font.layout(text);
+  return run.advanceWidth / font.unitsPerEm + [...text].length * FEED_TITLE_LETTER_SPACING_EM;
+}
+
+interface BreakSlot {
+  /** この位置（文字インデックス）の直前で改行してよいか。 */
+  allowed: boolean;
+  penalty: number;
 }
 
 /**
- * 日本語の禁則処理を簡易的に行うタイトル折り返し。完全な形態素解析はせず、
- * 句読点・記号を優先的な改行位置として扱い、それが無い場合のみ文字数で
- * 折り返す（要求仕様通りの割り切り）:
- * - 「。」「！」「？」「、」および閉じ括弧の直後を優先的な改行位置にする
- * - 助詞（と・の・で・を）の直後で終わる行はできるだけ避ける
- *   （優先的な改行位置が見つからない場合のみ効く。避けようとして
- *   行が短くなりすぎる＝1文字も入らなくなる場合は諦めて機械的に切る）
- * - 行頭に句読点・閉じ括弧が来ないようにする（標準的な禁則処理）
- * - 英数字の単語（tokenizeForWrap参照）は分割せず、単語の途中で改行しない
+ * タイトルを文字の配列にし、各文字の直前で改行する場合の可否と減点を求める。
+ * slots[i] は chars[i] の直前（i=1..n-1）。
+ */
+function analyzeBreaks(title: string): { chars: string[]; slots: BreakSlot[] } {
+  budouxParser ??= loadDefaultJapaneseParser();
+  const chars = [...title];
+  const phraseStarts = new Set<number>();
+  let pos = 0;
+  for (const phrase of budouxParser.parse(title)) {
+    phraseStarts.add(pos);
+    pos += [...phrase].length;
+  }
+  // 空白の直後も文節の切れ目とみなす（「酒采とお食事 どっぽ」等の店名）。
+  chars.forEach((ch, i) => {
+    if (/\s/u.test(ch)) phraseStarts.add(i + 1);
+  });
+
+  const slots: BreakSlot[] = [];
+  let depth = 0;
+  for (let i = 0; i < chars.length; i += 1) {
+    if (i > 0) {
+      const before = chars.slice(0, i).join('');
+      const after = chars.slice(i).join('');
+      const insideWord = /[A-Za-z0-9]$/.test(before) && /^[A-Za-z0-9]/.test(after);
+      const allowed =
+        !insideWord && !FORBIDDEN_LINE_START.test(after) && !FORBIDDEN_LINE_END.test(before) && !/^\s/u.test(after);
+      const scriptBoundary = /[A-Za-z0-9]$/.test(before) !== /^[A-Za-z0-9]/.test(after);
+      let penalty = 0;
+      if (!phraseStarts.has(i)) penalty += scriptBoundary ? PENALTY_SCRIPT_BOUNDARY : PENALTY_INSIDE_PHRASE;
+      if (/[、。！？!?]$/u.test(before)) penalty -= BONUS_AFTER_PUNCTUATION;
+      if (depth > 0) penalty += PENALTY_INSIDE_BRACKETS;
+      slots[i] = { allowed, penalty };
+    }
+    if (OPENING_BRACKET.test(chars[i])) depth += 1;
+    else if (CLOSING_BRACKET.test(chars[i]) && depth > 0) depth -= 1;
+  }
+  return { chars, slots };
+}
+
+interface FeedTitleLayout {
+  fontSize: number;
+  lines: string[];
+  score: number;
+}
+
+/**
+ * chars を lineCount 行に分ける全通りのうち、最大幅に収まり減点が最小のものを返す。
+ * タイトルは高々数十文字・最大3行なので総当たりで十分速い。
+ */
+function bestSplit(chars: string[], slots: BreakSlot[], lineCount: number, maxEm: number) {
+  const n = chars.length;
+  const widthCache = new Map<string, number>();
+  const lineWidth = (start: number, end: number): number => {
+    const key = `${start}:${end}`;
+    let w = widthCache.get(key);
+    if (w === undefined) {
+      w = measureEm(chars.slice(start, end).join('').trim());
+      widthCache.set(key, w);
+    }
+    return w;
+  };
+
+  let best: { breaks: number[]; widths: number[]; penalty: number; balance: number } | undefined;
+  const visit = (start: number, remaining: number, breaks: number[], widths: number[], penalty: number) => {
+    if (remaining === 1) {
+      const w = lineWidth(start, n);
+      if (w > maxEm) return;
+      const allWidths = [...widths, w];
+      // 平均行長/最長行。最終行だけが短いのは自然なので、最短行ではなく平均で測る。
+      const balance = allWidths.reduce((sum, x) => sum + x, 0) / allWidths.length / Math.max(...allWidths);
+      if (!best || penalty < best.penalty || (penalty === best.penalty && balance > best.balance)) {
+        best = { breaks, widths: allWidths, penalty, balance };
+      }
+      return;
+    }
+    for (let end = start + 1; end < n; end += 1) {
+      const slot = slots[end];
+      if (!slot.allowed) continue;
+      const w = lineWidth(start, end);
+      if (w > maxEm) break;
+      visit(end, remaining - 1, [...breaks, end], [...widths, w], penalty + slot.penalty);
+    }
+  };
+  visit(0, lineCount, [], [], 0);
+  if (!best) return undefined;
+
+  const bounds = [0, ...best.breaks, n];
+  const lines = bounds.slice(0, -1).map((s, i) => chars.slice(s, bounds[i + 1]).join('').trim());
+  return { lines, penalty: best.penalty, balance: best.balance };
+}
+
+function layoutFeedTitle(title: string): FeedTitleLayout | undefined {
+  const { chars, slots } = analyzeBreaks(title);
+  let best: FeedTitleLayout | undefined;
+  for (const fontSize of FEED_TITLE_FONT_SIZES) {
+    const maxEm = FEED_CONTENT_WIDTH / fontSize;
+    for (let lineCount = 1; lineCount <= FEED_TITLE_MAX_LINES; lineCount += 1) {
+      if (lineCount === 3 && fontSize > FEED_TITLE_MAX_FONT_SIZE_FOR_3_LINES) continue;
+      const split = bestSplit(chars, slots, lineCount, maxEm);
+      if (!split) continue;
+      // 大きい文字ほど良いが、行の長さが極端に不揃いなら割り引く（balance=平均行長/最長行）。
+      const score =
+        fontSize * (0.6 + 0.4 * split.balance) - split.penalty - (lineCount === 3 ? PENALTY_THREE_LINES : 0);
+      if (!best || score > best.score) best = { fontSize, lines: split.lines, score };
+      // 同じフォントサイズなら、収まる最少行数より多く分けても見た目は良くならない
+      // ことが多いので、減点の無い分け方が見つかった時点でこのサイズは打ち切る。
+      if (split.penalty <= 0) break;
+    }
+  }
+  return best;
+}
+
+/**
+ * タイトルの改行位置とフォントサイズを決める（考え方はこの節冒頭のコメント参照）。
+ * 最小サイズ・3行でも収まらない場合は、末尾を省略記号で切り詰めて収める。
  * テスト用にexportする。
  */
-export function wrapJapaneseTitle(title: string, maxCharsPerLine: number): string[] {
-  // 空白（半角・全角）も優先的な改行位置にする（「酒采とお食事 どっぽ」が
-  // 「…どっ」「ぽ」と1文字だけ取り残されて折り返された不具合の対策）。
-  const PREFERRED_BREAK_AFTER = /[。！？、」』）\s　]/;
-  const AVOID_BREAK_AFTER = /[とのでを]/;
-  const FORBIDDEN_LINE_START = /[。！？、」』）]/;
-  const CLOSING_BRACKET = /[」』）]/;
-  // 禁則・助詞判定は「1文字トークン」にのみ意味を持つ（英数字の単語トークンは対象外）。
-  const isSingleChar = (token: WrapToken | undefined): token is WrapToken => !!token && token.len === 1 && [...token.text].length === 1;
-
-  const tokens = tokenizeForWrap(title);
-  const sumLen = (start: number, end: number): number => {
-    let total = 0;
-    for (let i = start; i < end; i += 1) total += tokens[i].len;
-    return total;
-  };
-  const lines: string[] = [];
-  let lineStart = 0;
-
-  while (lineStart < tokens.length) {
-    // 1トークン目は必ず含める（単語単体がmaxCharsPerLineを超える場合でも、
-    // 1文字も入れられないよりは1単語だけの行にする）。そこから先は
-    // maxCharsPerLineを超えない範囲で貪欲にトークンを詰める。
-    let breakAt = lineStart + 1;
-    let lineLen = tokens[lineStart].len;
-    while (breakAt < tokens.length && lineLen + tokens[breakAt].len <= maxCharsPerLine) {
-      lineLen += tokens[breakAt].len;
-      breakAt += 1;
-    }
-
-    if (breakAt < tokens.length) {
-      // 1) breakAt以内で、直近の「優先的な改行位置」（1文字トークン）を後ろから探す。
-      let candidate = -1;
-      for (let i = breakAt; i > lineStart; i -= 1) {
-        const token = tokens[i - 1];
-        if (isSingleChar(token) && PREFERRED_BREAK_AFTER.test(token.text)) {
-          candidate = i;
-          break;
-        }
-      }
-      if (candidate > lineStart) {
-        breakAt = candidate;
-      } else {
-        // 2) 優先的な改行位置が無ければ、助詞の直後で終わるのを避ける
-        //    （行が空にならない範囲でのみ）。
-        while (breakAt > lineStart + 1 && isSingleChar(tokens[breakAt - 1]) && AVOID_BREAK_AFTER.test(tokens[breakAt - 1].text)) {
-          breakAt -= 1;
-        }
-      }
-      // 3) 禁則処理: 行頭に句読点・閉じ括弧が来る場合は、その文字も
-      //    前の行に含める。
-      while (breakAt < tokens.length && isSingleChar(tokens[breakAt]) && FORBIDDEN_LINE_START.test(tokens[breakAt].text)) {
-        breakAt += 1;
-      }
-      // 4) 閉じ括弧の直後がそのまま助詞（と・の・で・を）だと、その助詞
-      //    だけが次の行の先頭に取り残され、直前の語句との結びつきが分断
-      //    されて見える（例:「三条の「ハコニワ」で移住者向け…」で2行目が
-      //    「で移住者向け…」から始まってしまった実例。2026年9月報告。
-      //    「「Bar Keywest」の紹介記事…」のように、閉じ括弧が3)の禁則処理
-      //    経由で行末に押し出されるケースでも同様に起きるため、1)〜3)の
-      //    どちらの経路で閉じ括弧が行末に来た場合にも一律で効くよう、
-      //    ここでまとめてチェックする）。助詞を含めてもこの行の文字数
-      //    上限に収まるなら、助詞ごと前の行に含める。収まらなければ
-      //    諦める（前の行が長くなりすぎるよりは、多少不自然な改行位置の
-      //    方がまし）。
-      //    直前が閉じ括弧の場合に限定する（2の「助詞の直後で終わる行を
-      //    避ける」と役割が重ならないようにするため。例えば
-      //    「あいうえとかきくけこ」を5文字で折り返す場合、2)が既に
-      //    「あいうえ|とかきくけこ」を選んでおり、ここで無条件に助詞を
-      //    前の行へ引き戻すと「あいうえと|かきくけこ」に逆戻りして
-      //    2)の目的を打ち消してしまう）。
-      const prevToken = tokens[breakAt - 1];
-      const nextToken = tokens[breakAt];
-      if (
-        breakAt < tokens.length &&
-        isSingleChar(prevToken) &&
-        CLOSING_BRACKET.test(prevToken.text) &&
-        isSingleChar(nextToken) &&
-        AVOID_BREAK_AFTER.test(nextToken.text) &&
-        sumLen(lineStart, breakAt + 1) <= maxCharsPerLine
-      ) {
-        breakAt += 1;
-      }
-    }
-
-    lines.push(
-      tokens
-        .slice(lineStart, breakAt)
-        .map((t) => t.text)
-        .join('')
-        .trimEnd()
-    );
-    lineStart = breakAt;
-  }
-
-  return lines;
-}
-
-/** 指定した行数に収まるよう、末尾を省略記号で切り詰める。 */
-function truncateForLineCount(title: string, maxCharsPerLine: number, maxLines: number): string {
-  const budget = maxCharsPerLine * maxLines - 1; // 省略記号「…」の1字分を差し引く
-  const chars = [...title];
-  if (chars.length <= budget) return title;
-  return `${chars.slice(0, budget).join('')}…`;
-}
-
-// フォントサイズが大きい順に並べ、それぞれのサイズで許容する1行あたりの
-// 文字数（コンテンツ幅936px、Shippori Mincho Boldでの実測ベースの目安）。
-// タイトルが2行に収まる最大のサイズを選ぶ（「既存のOGP画像の4段階縮小」と
-// 同じ考え方を、行数ベースで判定する形に発展させたもの）。
-const FEED_TITLE_TIERS = [
-  { fontSize: 100, maxCharsPerLine: 9 },
-  { fontSize: 84, maxCharsPerLine: 11 },
-  { fontSize: 68, maxCharsPerLine: 13 },
-  { fontSize: 54, maxCharsPerLine: 17 },
-  { fontSize: 44, maxCharsPerLine: 21 },
-] as const;
-
-const FEED_TITLE_MAX_LINES = 3;
-
-// wrapJapaneseTitle自身の閉じ括弧+助詞の結合（同関数内のコメント参照）は、
-// そのtierのmaxCharsPerLineに収まる範囲でしか働かない。1行目が
-// ちょうどそのtierの上限ぎりぎりで、助詞1文字分の余裕が無いと、
-// より小さいフォント（＝maxCharsPerLineが広いtier）でなら回避できたはずの
-// 「助詞が行頭に取り残される」形がそのまま採用されてしまう
-// （実例:「「Bar Keywest」の紹介記事を公開しました」）。そのため
-// fitFeedTitleは「2行に収まる最大サイズ」を機械的に採用するのではなく、
-// 2行に収まりかつこの問題も起きないtierを優先的に探す。
-// 判定対象は「と・の・で・を」に加え「が・は・も」も含める（wrapJapaneseTitle
-// 内部の禁則処理・助詞回避（とのでを限定）とは別物で、あくまで
-// fitFeedTitleが複数tierを比較検討する際の「見た目の良し悪し」判定用）。
-function startsWithAvoidedParticle(line: string): boolean {
-  return /^[とのでをがはも]/.test(line);
-}
-
-/**
- * タイトルの折り返し結果（行数）に応じてフォントサイズを段階的に選ぶ。
- * 2行に収まり、かつ2行目以降が助詞で始まらない最大のサイズを優先する。
- *
- * ただし、その「2行に収まる」唯一の方法が最小フォントだった場合
- * （2026年9月報告: 「三条の「ハコニワ」で移住者向け交流イベントが
- * 10月18日開催！」で、2行に収める唯一の方法が最小フォントになり、
- * 2行目だけ極端に長く読みにくかった）は、1行増やしてでも大きいフォントで
- * 3行（FEED_TITLE_MAX_LINES）に収まり、かつ助詞の行頭取り残しも起きない
- * tierがあればそちらを優先する。既に2行目以降サイズのtierで条件を
- * 満たせている場合は、この3行フォールバックは行わない（無関係な既存画像の
- * 見た目を変えないため）。
- *
- * どのtierでも「2行に収まり助詞問題も無い」を満たせない場合は、2行に収まる
- * 最大サイズ（従来の判定基準）にフォールバックする。どのサイズでも2行に
- * 収まらない場合は、最小サイズで最大3行まで許容し、それでも収まらなければ
- * 末尾を省略する。テスト用にexportする。
- */
 export function fitFeedTitle(title: string): { fontSize: number; lines: string[] } {
-  if (title === '「燕三条 工場の祭典2026」に合わせ本町・元町の2施設で連携企画を開催') {
-    return {
-      fontSize: 44,
-      lines: ['「燕三条 工場の祭典2026」に合わせ', '本町・元町の2施設で連携企画を開催'],
-    };
+  const chars = [...title];
+  for (let keep = chars.length; keep > 0; keep -= 1) {
+    const candidate = keep === chars.length ? title : `${chars.slice(0, keep).join('').trimEnd()}…`;
+    const layout = layoutFeedTitle(candidate);
+    if (layout) return { fontSize: layout.fontSize, lines: layout.lines };
   }
-
-  let fallback: { fontSize: number; lines: string[] } | undefined;
-  let accepted: { tierIndex: number; fontSize: number; lines: string[] } | undefined;
-
-  for (let i = 0; i < FEED_TITLE_TIERS.length; i += 1) {
-    const tier = FEED_TITLE_TIERS[i];
-    const lines = wrapJapaneseTitle(title, tier.maxCharsPerLine);
-    if (lines.length > 2) continue;
-    if (!fallback) fallback = { fontSize: tier.fontSize, lines };
-    if (!lines.slice(1).some(startsWithAvoidedParticle)) {
-      accepted = { tierIndex: i, fontSize: tier.fontSize, lines };
-      break;
-    }
-  }
-
-  if (accepted) {
-    const isSmallestTier = accepted.tierIndex === FEED_TITLE_TIERS.length - 1;
-    if (!isSmallestTier) return { fontSize: accepted.fontSize, lines: accepted.lines };
-
-    for (const tier of FEED_TITLE_TIERS) {
-      const lines = wrapJapaneseTitle(title, tier.maxCharsPerLine);
-      if (lines.length > FEED_TITLE_MAX_LINES) continue;
-      if (!lines.slice(1).some(startsWithAvoidedParticle)) return { fontSize: tier.fontSize, lines };
-    }
-    return { fontSize: accepted.fontSize, lines: accepted.lines };
-  }
-
-  if (fallback) return fallback;
-
-  const smallest = FEED_TITLE_TIERS[FEED_TITLE_TIERS.length - 1];
-  let lines = wrapJapaneseTitle(title, smallest.maxCharsPerLine);
-  if (lines.length > FEED_TITLE_MAX_LINES) {
-    const truncated = truncateForLineCount(title, smallest.maxCharsPerLine, FEED_TITLE_MAX_LINES);
-    lines = wrapJapaneseTitle(truncated, smallest.maxCharsPerLine);
-  }
-  return { fontSize: smallest.fontSize, lines };
+  return { fontSize: FEED_TITLE_FONT_SIZES[FEED_TITLE_FONT_SIZES.length - 1], lines: [title] };
 }
 
 async function buildFeedTree(input: OgpImageInput) {
@@ -571,7 +531,7 @@ async function buildFeedTree(input: OgpImageInput) {
                     letterSpacing: '0.02em',
                   },
                   // 行ごとに独立したdivとして描画する（satoriの自動折り返しに
-                  // 任せず、wrapJapaneseTitleが決めた行単位を厳密に守るため）。
+                  // 任せず、fitFeedTitleが決めた行単位を厳密に守るため）。
                   children: lines.map((line) => ({ type: 'div', props: { children: line } })),
                 },
               },
