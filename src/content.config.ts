@@ -5,6 +5,10 @@ const spots = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/spots' }),
   schema: z.object({
     title: z.string(),
+    // 検索結果・ブラウザタブ用のタイトル（任意）。未設定時は title を使う。
+    // title はページ見出し・店名表示にも使うため、SEO目的の言い換えは
+    // こちらに入れる（scripts/seo-rewrite.ts が提案する）。
+    seoTitle: z.string().optional(),
     genre: z.string(),
     address: z.string(),
     // Google マップの検索クエリ（"店名 三条市" 形式）。
@@ -94,6 +98,10 @@ const news = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/news' }),
   schema: z.object({
     title: z.string(),
+    // 検索結果・ブラウザタブ用のタイトル（任意）。未設定時は title を使う。
+    // title はページ見出し・店名表示にも使うため、SEO目的の言い換えは
+    // こちらに入れる（scripts/seo-rewrite.ts が提案する）。
+    seoTitle: z.string().optional(),
     pubDate: z.coerce.date(),
     category: z.enum(['NEW SPOT', 'EVENT', 'NOTICE']),
     // 開催期間の最終日。掲載日とは別に管理し、終了表示は翌日から出す。
@@ -111,6 +119,10 @@ const columns = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/columns' }),
   schema: z.object({
     title: z.string(),
+    // 検索結果・ブラウザタブ用のタイトル（任意）。未設定時は title を使う。
+    // title はページ見出し・店名表示にも使うため、SEO目的の言い換えは
+    // こちらに入れる（scripts/seo-rewrite.ts が提案する）。
+    seoTitle: z.string().optional(),
     pubDate: z.coerce.date(),
     category: z.enum(['お酒の豆知識', '街の歴史', '店と人', '夜の作法']),
     summary: z.string(),

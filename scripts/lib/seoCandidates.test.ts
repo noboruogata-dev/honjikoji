@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  containsTerm,
   expectedCtr,
+  missingTermsInBody,
   formatReport,
   missingTerms,
   parseArticlePath,
@@ -43,6 +45,24 @@ describe('missingTerms', () => {
     expect(missingTerms('ｋｅｙｗｅｓｔ 三条 駐車場', articles[0])).toEqual(['三条', '駐車場']);
     expect(missingTerms('本寺小路 ハイボール', articles[0])).toEqual(['ハイボール']);
     expect(missingTerms('カクテルバー', articles[0])).toEqual([]);
+  });
+});
+
+describe('containsTerm', () => {
+  it('語順違い・空白なしの店名は含まれているとみなす', () => {
+    expect(containsTerm('酒采とお食事 どっぽ', 'どっぽ酒采とお食事')).toBe(true);
+  });
+  it('表記ゆれは含まれていないとみなす', () => {
+    expect(containsTerm('そば処 今泉', 'そば処いま泉')).toBe(false);
+    expect(containsTerm('Bar Keywest', 'キーウエスト')).toBe(false);
+  });
+});
+
+describe('missingTermsInBody', () => {
+  it('本文にある語は記事に無い扱いにしない', () => {
+    const article = { ...articles[0], body: '看板メニューはモヒート' };
+    expect(missingTerms('keywest メニュー', article)).toEqual(['メニュー']);
+    expect(missingTermsInBody('keywest メニュー', article)).toEqual([]);
   });
 });
 
@@ -89,7 +109,7 @@ describe('selectCandidates', () => {
     const report = formatReport(result, { startDate: '2026-10-01', endDate: '2026-10-28' });
     expect(report).toContain('SEOレポート（2026-10-01 〜 2026-10-28）');
     expect(report).toContain('BAR KEYWEST（spots/bar-keywest）');
-    expect(report).toContain('未記載: 駐車場');
+    expect(report).toContain('記事に無い: 駐車場');
     expect(report).toContain('「三条 日本酒 飲み比べ」');
   });
 });

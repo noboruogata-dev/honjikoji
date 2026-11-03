@@ -1,0 +1,100 @@
+name: Weekly SEO rewrite (PR)
+
+# SEO自動運転の「⑥リライト」。Search Console の改善候補から最大3記事を選び、
+# 検索結果用タイトル・説明文の改善と、裏付けの取れたメニュー情報の追記を
+# 行って PR を作る。main へ直接は push しない（人が差分を確認してマージする）。
+#
+# 前提: リポジトリの Settings > Actions > General > Workflow permissions で
+# 「Allow GitHub Actions to create and approve pull requests」を有効にすること。
+
+on:
+  schedule:
+    # 毎週月曜日 08:13 JST (= 日曜日 23:13 UTC)。週次SEOレポート（07:37）の後。
+    - cron: '13 23 * * 0'
+  workflow_dispatch:
+    inputs:
+      max:
+        description: '書き換える記事数の上限'
+        required: true
+        default: '3'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  rewrite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # 直近28日のリライト履歴（git log）を読むため、履歴を深めに取る。
+          fetch-depth: 300
+
+      # 前回のリライトPRが未マージのうちは、新しいPRを重ねて作らない。
+      - name: Skip if a rewrite PR is still open
+        id: open
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count=$(gh pr list --state open --json headRefName --jq '[.[] | select(.headRefName | startswith("seo/rewrite-"))] | length')
+          echo "open=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" != "0" ]; then
+            echo "未マージのリライトPRがあるためスキップします。" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Setup Node.js
+        if: steps.open.outputs.open == '0'
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: steps.open.outputs.open == '0'
+        run: npm ci
+
+      - name: Rewrite candidate articles
+        if: steps.open.outputs.open == '0'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          GSC_SITE_URL: ${{ vars.GSC_SITE_URL || 'sc-domain:honjikoji.jp' }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npm run seo:rewrite -- --max=${{ inputs.max || '3' }} --pr-body="$RUNNER_TEMP/pr-body.md"
+
+      # 書き換えた記事がスキーマに合うか、サイトがビルドできるかを確認してからPRにする。
+      - name: Build site
+        if: steps.open.outputs.open == '0'
+        run: npm run build
+
+      - name: Open pull request
+        if: steps.open.outputs.open == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- src/content; then
+            echo "書き換えはありませんでした。PRは作りません。" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          branch="seo/rewrite-$(TZ=Asia/Tokyo date +%Y%m%d)-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add src/content
+          files=$(git diff --cached --name-only -- src/content | xargs -n1 basename | sed 's/\.md$//' | paste -sd, -)
+          git commit -m "seo(rewrite): 検索結果用タイトル・説明文を改善 (${files})"
+          git push origin "$branch"
+
+          gh pr create \
+            --base "${{ github.ref_name }}" \
+            --head "$branch" \
+            --title "SEOリライト $(TZ=Asia/Tokyo date +%Y-%m-%d)（${files}）" \
+            --body-file "$RUNNER_TEMP/pr-body.md"
