@@ -41,6 +41,7 @@ import {
   buildMenuSection,
   buildMetaPrompt,
   buildPrBody,
+  dropRedundantAlternateNames,
   insertSectionBeforeLastHeading,
   menuResearchSchema,
   metaProposalResponseSchema,
@@ -109,8 +110,12 @@ async function proposeMeta(ai: GoogleGenAI, target: RewriteTarget) {
       errors.splice(0, errors.length, '出力形式が不正でした。');
       continue;
     }
-    const problems = validateMetaProposal(parsed.data, target);
-    if (problems.length === 0) return { proposal: parsed.data, errors: [] };
+    const proposal = {
+      ...parsed.data,
+      alternateNames: dropRedundantAlternateNames(parsed.data.alternateNames, target.article),
+    };
+    const problems = validateMetaProposal(proposal, target);
+    if (problems.length === 0) return { proposal, errors: [] };
     console.warn(`${label} 提案が検証を通りませんでした（${attempt}回目）:\n  - ${problems.join('\n  - ')}`);
     errors.splice(0, errors.length, ...problems);
   }

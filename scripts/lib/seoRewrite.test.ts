@@ -4,6 +4,7 @@ import {
   buildMenuSection,
   buildPrBody,
   countPrices,
+  dropRedundantAlternateNames,
   insertSectionBeforeLastHeading,
   needsMenuResearch,
   pickTargets,
@@ -133,6 +134,22 @@ describe('validateMetaProposal', () => {
     expect(errors.join('\n')).toMatch(/店名/);
     expect(errors.join('\n')).toMatch(/記事に無い数字.*70/);
     expect(errors.join('\n')).toMatch(/サンキラク/);
+  });
+});
+
+describe('dropRedundantAlternateNames', () => {
+  it('空白違い・店名の一部・重複は落とし、本当の別表記だけ残す', () => {
+    expect(
+      dropRedundantAlternateNames(['さんきらく', '大衆焼肉さんきらく', 'サンキラク', 'サンキラク', ' '], article)
+    ).toEqual(['サンキラク']);
+  });
+});
+
+describe('別表記の対象', () => {
+  it('店舗記事以外では別表記を不採用にする', () => {
+    const column = { ...target, article: { ...article, collection: 'columns' as const }, queries: [q('ほんじこうじ', 30)] };
+    const errors = validateMetaProposal({ ...goodProposal, seoTitle: '三条・本寺小路の由来と歴史を紹介', alternateNames: ['ほんじこうじ'] }, column);
+    expect(errors.join('\n')).toMatch(/店舗記事だけ/);
   });
 });
 

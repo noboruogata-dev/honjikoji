@@ -184,8 +184,18 @@ ${article.body}
 2. seoTitle は${REWRITE_LIMITS.seoTitleMin}〜${REWRITE_LIMITS.seoTitleMax}文字。末尾に「｜本寺小路ガイド」は付けない（自動で付く）。${isSpot ? '店名（見出し）をそのまま含め、「三条市」または「本寺小路」を入れる。' : ''}
 3. description は${REWRITE_LIMITS.descriptionMin}〜${REWRITE_LIMITS.descriptionMax}文字。検索クエリでよく使われている語のうち、本文で裏付けられるものを自然に入れる。
 4. 誇張表現（「絶対」「No.1」「最高」など）や、根拠の無い比較は使わない。
-5. alternateNames には、検索クエリに現れた語のうち「明らかにこの店・記事の名前の別表記」（カタカナ表記・ひらがな表記など）だけを入れる。少しでも別の店の可能性があるなら入れない。無ければ空配列。
+5. alternateNames には、${isSpot ? '検索クエリに現れた語のうち「明らかにこの店の名前の別表記」で、記事中の表記とは文字が違うもの（例: 記事が「Keywest」で検索が「キーウエスト」）だけを入れる。空白の有無や店名の一部だけの違いは入れない。少しでも別の店の可能性があるなら入れない。無ければ空配列' : '空配列にする（店舗記事以外では使わない）'}。
 6. rationale に、何をどう変えたかを1〜2文で書く。`;
+}
+
+/**
+ * 別表記の候補から、記事に既に書いてあるもの（空白の有無・部分一致・語順違い
+ * だけの違いを含む）を取り除く。「さんきらく」「大黒亭本店」のような、
+ * 元の店名で既に検索に引っかかる語を追記しても意味が無いため。
+ */
+export function dropRedundantAlternateNames(names: string[], article: Pick<LoadedArticle, 'title' | 'description' | 'body'>): string[] {
+  const haystack = `${article.title}${article.description}${article.body ?? ''}`;
+  return [...new Set(names.map((n) => n.trim()).filter(Boolean))].filter((n) => !containsTerm(haystack, n));
 }
 
 /** 文字列中の数字の並び（全角は半角に寄せる。桁区切りは無視）。 */
@@ -219,6 +229,9 @@ export function validateMetaProposal(proposal: MetaProposal, target: RewriteTarg
   if (invented.length > 0) errors.push(`記事に無い数字が含まれています: ${[...new Set(invented)].join(', ')}`);
 
   // 別表記は検索クエリに実際に現れた語だけ（モデルの創作を防ぐ）。
+  if (proposal.alternateNames.length > 0 && article.collection !== 'spots') {
+    errors.push('別表記の追記は店舗記事だけが対象です。');
+  }
   const allQueries = target.queries.map((q) => q.query.normalize('NFKC'));
   for (const name of proposal.alternateNames) {
     if (!allQueries.some((q) => q.includes(name.normalize('NFKC')))) {
