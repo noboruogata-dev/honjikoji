@@ -51,6 +51,8 @@ export interface ArticleInfo {
   title: string;
   /** spots は description、columns/news は summary。 */
   description: string;
+  /** Markdown本文（任意）。あると「本文には書いてあるか」も判定できる。 */
+  body?: string;
 }
 
 export interface PageRow {
@@ -81,14 +83,50 @@ function normalize(value: string): string {
   return value.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
 }
 
-/** クエリのうち、タイトル・説明文に含まれていない語を返す（空白区切り）。 */
-export function missingTerms(query: string, article: Pick<ArticleInfo, 'title' | 'description'>): string[] {
-  const haystack = normalize(`${article.title}${article.description}`);
+/**
+ * term が haystack に含まれるか。完全一致しなくても、2文字以上の断片に
+ * 分けてすべて haystack に見つかれば含まれるとみなす（「どっぽ酒采とお食事」
+ * のように、店名の語順違い・空白なしで打たれた検索語を誤検知しないため）。
+ * 「いま泉」と「今泉」のような表記ゆれは断片が見つからないので未記載になる。
+ */
+export function containsTerm(haystack: string, term: string): boolean {
+  const h = normalize(haystack);
+  const t = normalize(term);
+  if (t.length === 0 || h.includes(t)) return true;
+  const chars = [...t];
+  // 先頭から最長一致で貪欲に切っていく。
+  let i = 0;
+  while (i < chars.length) {
+    let matched = 0;
+    for (let len = chars.length - i; len >= 2; len--) {
+      if (h.includes(chars.slice(i, i + len).join(''))) {
+        matched = len;
+        break;
+      }
+    }
+    if (matched === 0) return false;
+    i += matched;
+  }
+  return true;
+}
+
+function splitTerms(query: string): string[] {
   return query
     .normalize('NFKC')
     .split(/\s+/)
-    .filter((term) => term.length > 0)
-    .filter((term) => !haystack.includes(normalize(term)));
+    .filter((term) => term.length > 0);
+}
+
+/** クエリのうち、タイトル・説明文に含まれていない語を返す（空白区切り）。 */
+export function missingTerms(query: string, article: Pick<ArticleInfo, 'title' | 'description'>): string[] {
+  const haystack = `${article.title}${article.description}`;
+  return splitTerms(query).filter((term) => !containsTerm(haystack, term));
+}
+
+/** タイトル・説明文・本文のどこにも含まれていない語を返す。 */
+export function missingTermsInBody(query: string, article: Pick<ArticleInfo, 'title' | 'description' | 'body'>): string[] {
+  const haystack = `${article.title}${article.description}${article.body ?? ''}`;
+  return splitTerms(query).filter((term) => !containsTerm(haystack, term));
 }
 
 export interface PageCandidate extends PageRow {
@@ -99,7 +137,11 @@ export interface PageCandidate extends PageRow {
 export interface UncoveredCandidate {
   article: ArticleInfo;
   page: string;
-  queries: Array<PageQueryRow & { missing: string[] }>;
+  /**
+   * missing … タイトル・説明文に無い語（検索結果の見出し・説明に出ない）
+   * missingInBody … 本文にも無い語（記事に情報そのものが無い）
+   */
+  queries: Array<PageQueryRow & { missing: string[]; missingInBody: string[] }>;
 }
 
 export interface SeoCandidates {
@@ -108,6 +150,8 @@ export interface SeoCandidates {
   striking: PageCandidate[];
   uncovered: UncoveredCandidate[];
   gaps: Array<{ query: string; clicks: number; impressions: number; position: number }>;
+  /** 記事ページごとの上位クエリ（表示回数順・最大10件）。キーは "collection/slug"。 */
+  topQueries: Record<string, PageQueryRow[]>;
 }
 
 export function selectCandidates(
@@ -156,7 +200,7 @@ export function selectCandidates(
     const missing = missingTerms(row.query, article);
     if (missing.length === 0) continue;
     const entry = uncoveredByPage.get(row.page) ?? { article, page: row.page, queries: [] };
-    entry.queries.push({ ...row, missing });
+    entry.queries.push({ ...row, missing, missingInBody: missingTermsInBody(row.query, article) });
     uncoveredByPage.set(row.page, entry);
   }
   const uncovered = [...uncoveredByPage.values()]
@@ -189,7 +233,19 @@ export function selectCandidates(
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, THRESHOLDS.gapLimit);
 
+  const topQueries: Record<string, PageQueryRow[]> = {};
+  for (const row of pageQueryRows) {
+    const parsed = parseArticlePath(row.page);
+    if (!parsed) continue;
+    const key = `${parsed.collection}/${parsed.slug}`;
+    (topQueries[key] ??= []).push(row);
+  }
+  for (const key of Object.keys(topQueries)) {
+    topQueries[key] = topQueries[key].sort((a, b) => b.impressions - a.impressions).slice(0, 10);
+  }
+
   return {
+    topQueries,
     totals: {
       clicks: pageRows.reduce((sum, r) => sum + r.clicks, 0),
       impressions: pageRows.reduce((sum, r) => sum + r.impressions, 0),
@@ -242,7 +298,12 @@ export function formatReport(candidates: SeoCandidates, range: { startDate: stri
   for (const entry of candidates.uncovered) {
     lines.push(`- ${label(entry.article)}`);
     for (const q of entry.queries) {
-      lines.push(`  - 「${q.query}」表示 ${q.impressions} / 平均 ${pos(q.position)}位 — 未記載: ${q.missing.join('、')}`);
+      const inBody = q.missing.filter((t) => !q.missingInBody.includes(t));
+      const notes = [
+        q.missingInBody.length > 0 ? `記事に無い: ${q.missingInBody.join('、')}` : '',
+        inBody.length > 0 ? `本文にはあるが説明文に無い: ${inBody.join('、')}` : '',
+      ].filter(Boolean);
+      lines.push(`  - 「${q.query}」表示 ${q.impressions} / 平均 ${pos(q.position)}位 — ${notes.join(' / ')}`);
     }
   }
   lines.push('');
