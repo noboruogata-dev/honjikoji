@@ -1,0 +1,58 @@
+name: Weekly SEO report
+
+# Search Console の直近28日分を取得し、改善候補（CTRが低い記事・あと一歩の
+# 記事・記事が拾えていないクエリ・新規記事のネタ）を Job Summary に出す。
+# SEO自動運転の「⑤分析」部分。記事は一切書き換えない（読み取り専用）。
+# 候補JSONはアーティファクトとして保存し、リライト（⑥）の入力に使う。
+
+on:
+  schedule:
+    # 毎週月曜日 07:37 JST (= 日曜日 22:37 UTC)
+    # 毎時0分は GitHub Actions のスケジュール実行が遅延・欠落しやすいためずらす。
+    - cron: '37 22 * * 0'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: '集計日数'
+        required: true
+        default: '28'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SEO report
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          GSC_SITE_URL: ${{ vars.GSC_SITE_URL || 'sc-domain:honjikoji.jp' }}
+          # 任意。未設定でもSlack通知だけスキップされる。
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npm run seo:report -- --days=${{ inputs.days || '28' }} --out="$RUNNER_TEMP/seo-report.json"
+
+      - name: Upload candidates JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-report-${{ github.run_id }}
+          path: ${{ runner.temp }}/seo-report.json
+          retention-days: 30
+          if-no-files-found: ignore

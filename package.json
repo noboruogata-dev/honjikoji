@@ -26,6 +26,7 @@
     "spots:missing-hours": "tsx scripts/spots-missing-hours.ts",
     "spots:check-status": "tsx scripts/check-business-status.ts",
     "spots:exterior": "tsx scripts/prepare-spot-exterior.ts",
+    "seo:report": "tsx scripts/seo-report.ts",
     "test": "vitest run"
   },
   "dependencies": {
