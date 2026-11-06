@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T03:28:19.153Z",
+  "generatedAt": "2026-11-06T13:14:45.262Z",
   "channel": "@TsubameSanjoTV",
   "note": "燕三条TVで取材済みだが、店舗名と一致しなかった動画（未記事化の可能性がある店舗を含む）。area/storeはタイトルからの機械的な正規表現判定で、推測は行っていない。storeがnullの場合は、このファイルを直接編集してstoreManualに店名を書き込んでよい（再実行時も上書きされない）。storeDisplayはstoreManual優先の表示用フィールド。",
   "videos": [
@@ -38,15 +38,6 @@
       "store": "中華亭",
       "storeManual": "中華亭",
       "storeDisplay": "中華亭"
-    },
-    {
-      "videoId": "v3KCHIYP4V8",
-      "title": "【燕三条TV】麺処 清水 三条店（黄金の鶏スープ・美しい麺線）｜新潟県三条市",
-      "publishedAt": "2020-07-01T10:41:13Z",
-      "area": "sanjo",
-      "store": "麺処 清水 三条店",
-      "storeManual": "麺処 清水 三条店",
-      "storeDisplay": "麺処 清水 三条店"
     },
     {
       "videoId": "nOYmtvMTCDk",
