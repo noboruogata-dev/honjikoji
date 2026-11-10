@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-09T02:14:13.677Z",
+  "generatedAt": "2026-11-10T04:40:42.834Z",
   "channel": "@TsubameSanjoTV",
   "candidates": [
     {
@@ -116,6 +116,15 @@
       "videoId": "3iPhH-38Ogk",
       "videoTitle": "二代目店主による七輪捌きは圧巻！もつ焼おとん【本寺小路】【燕三条TV】【新潟県三条市】",
       "publishedAt": "2021-01-03T09:35:49Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続2文字、店名の40%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "snack-vogue",
+      "spotTitle": "スナック VOGUE",
+      "videoId": "byKmlIOhfN0",
+      "videoTitle": "【燕三条TV】Casual Italian Style OGAWA（カジュアルだけれど料理はノーカジュアル！美味しさにとことんこだわるシェフが繰り出す本格的なイタリアン料理は必見｜新潟県三条市",
+      "publishedAt": "2021-09-26T07:05:12Z",
       "confidence": "low",
       "reason": "店名のごく一部（連続2文字、店名の40%）がタイトルに含まれる可能性"
     }
