@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-24T07:01:31.410Z",
+  "generatedAt": "2026-11-24T16:23:54.245Z",
   "channel": "@TsubameSanjoTV",
   "candidates": [
     {
@@ -91,6 +91,15 @@
       "publishedAt": "2021-02-02T09:15:24Z",
       "confidence": "low",
       "reason": "店名のごく一部（連続3文字、店名の43%）がタイトルに含まれる可能性"
+    },
+    {
+      "spotSlug": "nihonryouri-koyamaya",
+      "spotTitle": "日本料理 小山屋",
+      "videoId": "nOYmtvMTCDk",
+      "videoTitle": "【燕三条TV】三条 かわ波（季節折々の絶品料理を楽しめる日本料理屋）｜新潟県三条市横町",
+      "publishedAt": "2020-09-17T09:19:54Z",
+      "confidence": "low",
+      "reason": "店名のごく一部（連続4文字、店名の57%）がタイトルに含まれる可能性"
     },
     {
       "spotSlug": "oden-bar-yorusakura",
