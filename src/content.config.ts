@@ -18,8 +18,7 @@ const spots = defineCollection({
     // Text Search で解決して設定する。Google Maps Platform利用規約上、
     // Place IDだけが唯一「無期限保存」を明示的に許可されたフィールドのため
     // frontmatterに保存できる（営業時間など他のPlaces由来フィールドは
-    // 規約上ここに保存できない。src/components/LivePlaceHours.astroが、
-    // ページ表示のたびにこのIDでPlace Detailsをライブ取得して表示する）。
+    // 規約上ここに保存しない。詳細ページではこのIDをGoogle マップのリンクに使う）。
     placeId: z.string().optional(),
     budget: z.string(),
     // 予算帯フィルタ用の数値下限（任意）。表示用の budget 文字列とは独立して
