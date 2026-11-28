@@ -7,8 +7,7 @@
  * Place ID の永続保存はGoogle Maps Platform利用規約で明示的に許可されている
  * （Service Specific Terms §3 Google ID Caching）ため、frontmatterに保存して
  * よい。営業時間などの他のフィールドはここでは一切取得しない（規約上の
- * キャッシュ許可がないため保存できない。詳細ページでのライブ取得は
- * functions/api/place-hours.ts が別途担当する）。
+ * キャッシュ許可がないため保存できない）。
  *
  * フィールドマスクは places.id と places.displayName のみを要求する。
  * displayName を含むため Text Search は Essentials ではなく Pro ティアの
@@ -266,8 +265,7 @@ export async function resolvePlaceIdWithRetry(
  * 「Agent 1が導出したhoursの検証」専用（scripts/lib/hoursComparison.ts）。
  * Google Maps Platform利用規約上、opening hoursはfrontmatter等への永続保存が
  * 許可されていないため、取得した値はその場での比較にのみ使い、呼び出し元
- * では絶対に保存しないこと（functions/api/place-hours.tsと同じ「都度ライブ
- * 取得・保存しない」方針）。
+ * では絶対に保存しないこと。
  *
  * verboseは既定でfalse（呼び出し元に明示的に強制しない）。scripts/generate-spot.ts
  * の自動実行（GitHub Actions）から呼ぶ場合はverbose:trueを渡さないこと

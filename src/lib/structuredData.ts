@@ -45,11 +45,11 @@ export function buildSpotAddress(address: string): SchemaPostalAddress {
 
 /**
  * mapQuery（例: "Bar Keywest 三条市"）からGoogleマップの検索URLを組み立てる。
- * src/components/MapEmbed.astro の externalUrl と同じ組み立て方（APIキー不要の
- * 検索リンク方式）。
+ * APIキー不要のMaps URL。確認済みのPlace IDがあれば同名店との取り違えを防ぐ。
  */
-export function buildGoogleMapsUrl(mapQuery: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
+export function buildGoogleMapsUrl(mapQuery: string, placeId?: string): string {
+  const searchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
+  return placeId ? `${searchUrl}&query_place_id=${encodeURIComponent(placeId)}` : searchUrl;
 }
 
 // ============================================================

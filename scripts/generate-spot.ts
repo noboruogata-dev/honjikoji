@@ -27,8 +27,8 @@
  *            WARNで、満たさなくても保存はされる）。Text Searchで店名・住所から
  *            Place IDを解決し（scripts/lib/googlePlaces.ts）保存するが、これは
  *            単なる付加情報ではなく必須のセーフティネットとして扱う。Place ID
- *            が無いと、詳細ページのライブ営業時間表示（LivePlaceHours.astro）が
- *            機能せず、営業時間が永久に「店舗へ要確認」のままになってしまう。
+ *            は店舗の同定と営業状態の確認に使い、詳細ページのGoogle マップ
+ *            リンクでも同名店との取り違えを防ぐ。
  *            そのため Agent3 は Place ID を解決できなかった場合（一過性のエラー
  *            対策として複数回リトライしてもなお解決できない場合）はこの候補を
  *            保存せず、試行を失敗として扱って別の店舗をリトライする
@@ -56,14 +56,10 @@
  *
  *   そこで営業時間・定休日はAgent1の調査対象から完全に外した。frontmatterの
  *   openHours/regularHolidayは常にFALLBACK_HOURS_TEXT（「店舗へ要確認」）、
- *   構造化hoursは常にundefinedで保存する。表示は以下のライブ取得に一本化する:
- *   Place IDがあれば、詳細ページが表示のたびにPlace Details (New) をライブ
- *   取得して表示する（src/components/LivePlaceHours.astro と
- *   functions/api/place-hours.ts）。Places API由来のコンテンツはビルド時にも
- *   このリポジトリにも一切保存しない（Google Maps Platform利用規約で opening
- *   hoursの保存・キャッシュが許可されていないため）。一覧ページのカード
- *   （SpotCard.astro）はこのライブ取得を行わないため「店舗へ要確認」表示の
- *   まま。サイト内の営業中判定・フィルタ・Hero提灯表示は、hoursが無い店を
+ *   構造化hoursは常にundefinedで保存する。詳細ページは登録済み情報と
+ *   Google マップへのリンクを表示し、Places APIで営業時間を自動取得しない。
+ *   Places API由来の営業時間はリポジトリにもビルドにも保存しない。
+ *   サイト内の営業中判定・フィルタ・Hero提灯表示は、hoursが無い店を
  *   集計対象から除外する設計に元々なっており、そのまま機能する
  *   （src/pages/index.astro・src/pages/spots/index.astro参照）。
  *
@@ -228,11 +224,7 @@ const SCENE_TAGS = ['1軒目におすすめ', '2次会・締めに最適', '深�
 // （--backfill等で人間が手入力したhoursを検証する用途に転用できるよう
 // 残してある）が、この自動生成パイプラインからはもう呼ばない。
 //
-// 店舗詳細ページはこの文言が表示されても、LivePlaceHours.astro が
-// Google Place Detailsをその場でライブ取得できれば自動的にこの文言を
-// 隠して正しい曜日別営業時間に差し替える（保存はしない。src/components/
-// LivePlaceHours.astro参照）。一覧ページのカード（SpotCard.astro）は
-// ライブ取得を行わないため、この文言がそのまま表示され続ける。
+// 詳細ページではこの文言を表示し、営業時間欄から Google マップへ案内する。
 const FALLBACK_HOURS_TEXT = '店舗へ要確認';
 
 // ============================================================
@@ -866,9 +858,7 @@ async function runQaAgent(
   // キーはあるのに解決できない場合（該当なし・APIエラー）は一過性のことが
   // あるため resolvePlaceIdWithRetry が間隔を空けて複数回試す。それでも
   // 解決できなければ、この候補の記事は保存せずPlaceIdUnresolvedErrorを投げる。
-  // Place IDが無いと、詳細ページのライブ営業時間表示（LivePlaceHours.astro）が
-  // 機能せず、営業時間が永久に「店舗へ要確認」のまま（下記FALLBACK_HOURS_TEXT
-  // 参照）になってしまうため、これはブロッキングの理由として十分である。
+  // 店舗の同定と営業状態確認のため、新規候補では Place ID を必須とする。
   if (!process.env.GOOGLE_PLACES_API_KEY) {
     throw new FatalPipelineError(
       'GOOGLE_PLACES_API_KEYが未設定です。Place ID解決ができないため、記事は生成できません。'
@@ -902,8 +892,7 @@ async function runQaAgent(
   // フィールドが無い。FALLBACK_HOURS_TEXTのコメント参照）ため、ここでの
   // 導出・Google Places APIとの照合は行わない。openHours/regularHolidayは
   // 常にFALLBACK_HOURS_TEXT、構造化hours/isIrregularは常にundefinedで
-  // 保存する（下のcandidate構築部分参照）。表示はLivePlaceHours.astroの
-  // ライブ取得に一本化する。
+  // 保存する（下のcandidate構築部分参照）。詳細ページでは Google マップへ案内する。
   //
   // parseOpenHoursToHours/compareHoursWithGoogleはこの自動生成パイプライン
   // からは呼ばなくなったが、--backfill-hours等の手動運用で引き続き使うため
@@ -952,7 +941,7 @@ async function runQaAgent(
   }
 
   console.log(
-    `${label} 営業時間・定休日は収集対象外のため「${FALLBACK_HOURS_TEXT}」表示で保存します（詳細ページはLivePlaceHours.astroのライブ取得で正しい情報に置き換わります）。`
+    `${label} 営業時間・定休日は収集対象外のため「${FALLBACK_HOURS_TEXT}」表示で保存します（詳細ページは Google マップへ案内します）。`
   );
   if (fm.establishedYear !== undefined) {
     console.log(`${label} 開業年を採用しました: ${fm.establishedYear}年`);
@@ -2116,9 +2105,8 @@ async function main() {
       });
 
       // 営業時間・定休日はAgent1の調査対象外のため、常にFALLBACK_HOURS_TEXT
-      // （店舗詳細ページはLivePlaceHours.astroのライブ取得で正しい情報に
-      // 置き換わる。FALLBACK_HOURS_TEXTのコメント参照）。
-      const hoursLine = `営業時間(hours): 収集対象外のため「${FALLBACK_HOURS_TEXT}」表示で保存（詳細ページはライブ取得で補完）`;
+      // （店舗詳細ページでは Google マップへ案内する）。
+      const hoursLine = `営業時間(hours): 収集対象外のため「${FALLBACK_HOURS_TEXT}」表示で保存（詳細ページは Google マップへ案内）`;
 
       // 出典なしの記述は、ブロッキング閾値未満でも常にJob Summaryへ列挙する
       // （後から人手で確認できるようにするため。ユーザーとの合意事項）。
